@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>出席表</title>
+<style>
+  :root{
+    --bg:#f5f5f7; --card:#fff; --line:#e3e3e8; --txt:#1c1c1e; --sub:#6b6b70;
+    --accent:#2e7d57; --accent-soft:#e3f1ea;
+    --ok:#2e9e5b; --absent:#d9534f; --makeup:#e0922f;
+    --radius:14px; --shadow:0 1px 3px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+    background:var(--bg);color:var(--txt);font-size:16px;line-height:1.5;padding-bottom:60px;}
+  header{position:sticky;top:0;z-index:20;background:var(--accent);color:#fff;padding:10px 14px;box-shadow:var(--shadow);}
+  .head-row{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:9px;}
+  .head-title{font-size:17px;font-weight:700;}
+  .selectors{display:flex;gap:8px;}
+  select,input,textarea,button{font-family:inherit;font-size:16px;}
+  .hsel{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);
+    border-radius:8px;padding:7px 8px;}
+  .hsel.class-sel{flex:2;}
+  .hsel.year-sel{flex:1;}
+  .hsel option{color:#000;}
+  .month-tabs{display:flex;overflow-x:auto;gap:6px;padding:8px 10px;background:var(--card);
+    border-bottom:1px solid var(--line);position:sticky;top:96px;z-index:19;-webkit-overflow-scrolling:touch;}
+  .month-tabs::-webkit-scrollbar{display:none;}
+  .mtab{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--sub);
+    padding:7px 13px;border-radius:20px;font-size:14px;font-weight:600;white-space:nowrap;}
+  .mtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .session-tabs{display:flex;gap:8px;padding:10px 12px 4px;}
+  .stab{flex:1;text-align:center;padding:9px;border-radius:10px;border:1px solid var(--line);
+    background:#fff;color:var(--sub);font-weight:700;font-size:15px;}
+  .stab.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
+  .wrap{padding:10px 12px;}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden;}
+  .card-h{padding:10px 14px;font-weight:700;font-size:14px;color:var(--sub);border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;}
+  .stu{padding:10px 14px;border-bottom:1px solid var(--line);}
+  .stu:last-child{border-bottom:none;}
+  .stu-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .stu-name{font-weight:700;font-size:16px;flex:1;}
+  .seg{display:flex;gap:4px;}
+  .seg button{width:48px;height:40px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
+    font-size:18px;font-weight:700;color:var(--sub);white-space:nowrap;padding:0;}
+  .seg button.sel-ok{background:var(--ok);border-color:var(--ok);color:#fff;}
+  .seg button.sel-absent{background:var(--absent);border-color:var(--absent);color:#fff;}
+  .seg button.sel-makeup{background:var(--makeup);border-color:var(--makeup);color:#fff;font-size:13px;}
+  .pay-row{display:flex;gap:10px;margin-top:9px;flex-wrap:wrap;}
+  .pay{flex:1;min-width:140px;}
+  .pay label{font-size:11px;color:var(--sub);display:block;margin-bottom:3px;}
+  .pay input{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fafafa;}
+  .memo-field{padding:6px 14px 12px;}
+  .memo-field label{font-size:12px;color:var(--sub);display:block;margin:8px 0 3px;font-weight:600;}
+  .memo-field textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;resize:vertical;min-height:54px;background:#fafafa;}
+  .save-bar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);
+    padding:9px 14px;display:flex;gap:10px;align-items:center;z-index:25;box-shadow:0 -1px 4px rgba(0,0,0,.06);}
+  .save-bar .status{flex:1;font-size:13px;color:var(--sub);}
+  .btn-save{background:var(--accent);color:#fff;border:none;padding:11px 22px;border-radius:10px;font-weight:700;}
+  .btn-save:disabled{opacity:.5;}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--txt);padding:6px 11px;border-radius:8px;font-size:13px;}
+  .btn-danger{background:#fff;border:1px solid var(--absent);color:var(--absent);padding:6px 11px;border-radius:8px;font-size:13px;}
+  dialog{border:none;border-radius:16px;padding:0;width:90%;max-width:440px;box-shadow:0 10px 40px rgba(0,0,0,.25);}
+  dialog::backdrop{background:rgba(0,0,0,.4);}
+  .dlg-h{padding:14px 16px;font-weight:700;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+  .dlg-b{padding:14px 16px;max-height:64vh;overflow:auto;}
+  .dlg-f{padding:12px 16px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--line);}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:13px;color:var(--sub);margin-bottom:4px;font-weight:600;}
+  .field input,.field select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;}
+  .stu-edit{display:flex;gap:8px;align-items:center;margin-bottom:7px;}
+  .stu-edit input{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;}
+  .stu-edit .tgl{font-size:12px;padding:6px 9px;border-radius:7px;border:1px solid var(--line);background:#fff;white-space:nowrap;}
+  .stu-edit .tgl.off{background:#f0f0f0;color:#aaa;}
+  .class-pick{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .class-pick select{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;}
+  .section-div{border-top:1px solid var(--line);margin:14px 0 12px;padding-top:12px;font-weight:700;font-size:14px;color:var(--accent);}
+  .muted{color:var(--sub);font-size:13px;text-align:center;padding:20px;}
+  .toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1c1c1e;color:#fff;
+    padding:10px 18px;border-radius:22px;font-size:14px;opacity:0;transition:opacity .25s;z-index:50;pointer-events:none;}
+  .toast.show{opacity:.95;}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <div class="head-title" id="appTitle">出席表</div>
+    <button class="btn-ghost" id="btnSettings" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:#fff;">設定</button>
+  </div>
+  <div class="selectors">
+    <select class="hsel class-sel" id="classSel"></select>
+    <select class="hsel year-sel" id="yearSel"></select>
+  </div>
+</header>
+
+<div class="month-tabs" id="monthTabs"></div>
+<div class="session-tabs" id="sessionTabs"></div>
+
+<div class="wrap" id="content"></div>
+
+<div class="save-bar">
+  <span class="status" id="syncStatus">読み込み中…</span>
+  <button class="btn-ghost" id="btnReload">再読込</button>
+  <button class="btn-save" id="btnSave">保存</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 設定ダイアログ -->
+<dialog id="dlgSettings">
+  <div class="dlg-h"><span>設定</span></div>
+  <div class="dlg-b">
+    <div class="field">
+      <label>GAS WebアプリURL（この講師の保存先・1つ）</label>
+      <input id="setGasUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+
+    <div class="section-div">クラスの管理</div>
+    <div class="class-pick">
+      <select id="editClassSel"></select>
+      <button class="btn-ghost" id="btnAddClass">＋ 新規クラス</button>
+    </div>
+
+    <div id="classEditArea">
+      <div class="field">
+        <label>クラス名</label>
+        <input id="setName" placeholder="例：ウクレレ初級クラス（火）">
+      </div>
+      <div class="field">
+        <label>開催曜日パターン</label>
+        <select id="setSchedule">
+          <option value="第1・第3">第1・第3</option>
+          <option value="第2・第4">第2・第4</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>生徒一覧（最大12名）</label>
+        <div id="stuEditList"></div>
+        <button class="btn-ghost" id="btnAddStu" style="margin-top:6px;">＋ 生徒を追加</button>
+      </div>
+      <button class="btn-danger" id="btnDelClass">このクラスを削除</button>
+    </div>
+  </div>
+  <div class="dlg-f">
+    <button class="btn-ghost" id="btnSetCancel">キャンセル</button>
+    <button class="btn-save" id="btnSetSave">設定を保存</button>
+  </div>
+</dialog>
+
+<script>
+/* ====== 定数 ====== */
+const STATUSES = [
+  {v:'○', cls:'sel-ok',     label:'○'},
+  {v:'×', cls:'sel-absent', label:'×'},
+  {v:'振替', cls:'sel-makeup', label:'振替'},
+];
+const LS_KEY = 'attendance_app_v2';
+
+/* ====== 状態 ======
+ * store.gasUrl                       … 講師の保存先（1つ）
+ * store.classes[]                    … {id, name, schedule, students:[{id,name,active}]}
+ * store.records[classId][year][m][s] … {att, pay, facility(年単位は _facility), memo}
+ *   ※ facility(年1回)は records[classId][year]._facility[stuId]
+ */
+let store = { gasUrl:'', classes:[], records:{} };
+let curClassId = null;
+let curYear = new Date().getFullYear();
+let curMonth = new Date().getMonth() + 1;
+let curSession = 1;
+let dirty = false;
+let editClassId = null; // 設定ダイアログ内で編集中のクラス
+
+/* ====== ユーティリティ ====== */
+function uid(p){ return (p||'') + Math.random().toString(36).slice(2,8); }
+function escapeHtml(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function curClass(){ return store.classes.find(c=>c.id===curClassId) || null; }
+
+/* ====== 永続化 ====== */
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){ const o = JSON.parse(raw); store = {gasUrl:'', classes:[], records:{}, ...o}; }
+  }catch(e){}
+  if(!store.classes.length){
+    store.classes = [makeClass('クラス1')];
+  }
+  if(!curClassId || !curClass()) curClassId = store.classes[0].id;
+}
+function saveLocal(){ localStorage.setItem(LS_KEY, JSON.stringify(store)); }
+
+function makeClass(name){
+  return { id:uid('c'), name:name||'新しいクラス', schedule:'第1・第3',
+    students: Array.from({length:6},(_,i)=>({id:uid('s'),name:'',active:true})) };
+}
+
+/* ====== GAS連携 ====== */
+async function fetchAll(){
+  if(!store.gasUrl) return null;
+  const res = await fetch(store.gasUrl + '?action=get', {method:'GET'});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  return await res.json();
+}
+async function pushAll(){
+  if(!store.gasUrl) throw new Error('GAS URL未設定');
+  const payload = {action:'save', classes: store.classes, records: store.records};
+  const res = await fetch(store.gasUrl, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'}, // CORSプリフライト回避
+    body: JSON.stringify(payload),
+  });
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  return await res.json();
+}
+
+/* ====== レコードアクセサ ====== */
+function ensure(classId, year, month, session){
+  const r = store.records;
+  r[classId] = r[classId] || {};
+  r[classId][year] = r[classId][year] || {};
+  r[classId][year][month] = r[classId][year][month] || {};
+  r[classId][year][month][session] = r[classId][year][month][session] ||
+    {att:{}, pay:{}, memo:{songs:'',comment:'',next:''}};
+  return r[classId][year][month][session];
+}
+
+/* ====== 描画 ====== */
+function renderHeader(){
+  document.getElementById('appTitle').textContent = curClass()?.name || '出席表';
+}
+function renderClassSel(){
+  const sel = document.getElementById('classSel');
+  sel.innerHTML = store.classes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  sel.value = curClassId;
+}
+function renderYearSel(){
+  const sel = document.getElementById('yearSel');
+  const now = new Date().getFullYear();
+  const years = new Set([now-1, now, now+1, curYear]);
+  Object.keys(store.records[curClassId]||{}).forEach(y=>years.add(+y));
+  const sorted = [...years].sort();
+  sel.innerHTML = sorted.map(y=>`<option value="${y}">${y}年</option>`).join('')
+    + `<option value="__add__">＋ 年を追加…</option>`;
+  sel.value = curYear;
+}
+function renderMonthTabs(){
+  const el = document.getElementById('monthTabs'); el.innerHTML = '';
+  for(let m=1;m<=12;m++){
+    const b = document.createElement('button');
+    b.className = 'mtab'+(m===curMonth?' active':'');
+    b.textContent = m+'月';
+    b.onclick = ()=>{ curMonth=m; renderMonthTabs(); renderContent(); };
+    el.appendChild(b);
+  }
+}
+function renderSessionTabs(){
+  const el = document.getElementById('sessionTabs');
+  const order = curClass()?.schedule==='第2・第4' ? ['第2週','第4週'] : ['第1週','第3週'];
+  el.innerHTML = '';
+  [1,2].forEach(s=>{
+    const b = document.createElement('button');
+    b.className='stab'+(s===curSession?' active':'');
+    b.textContent = '第'+s+'回（'+order[s-1]+'）';
+    b.onclick=()=>{ curSession=s; renderSessionTabs(); renderContent(); };
+    el.appendChild(b);
+  });
+}
+function renderContent(){
+  renderHeader();
+  const root = document.getElementById('content');
+  const cls = curClass();
+  if(!cls){ root.innerHTML = '<div class="muted">クラスがありません。設定から追加してください。</div>'; return; }
+  const rec = ensure(curClassId, curYear, curMonth, curSession);
+  const facility = (store.records[curClassId][curYear]._facility) || {};
+  const actives = cls.students.filter(s=>s.active && (s.name||'').trim());
+  let html = '';
+
+  html += `<div class="card"><div class="card-h"><span>出席・受領記録</span>
+    <span style="font-weight:400;">${curMonth}月 第${curSession}回</span></div>`;
+  if(!actives.length){
+    html += `<div class="muted">生徒が未登録です。右上「設定」から登録してください。</div>`;
+  }
+  actives.forEach(s=>{
+    const att = rec.att[s.id]||'';
+    const segBtns = STATUSES.map(st=>{
+      const sel = att===st.v ? ' '+st.cls : '';
+      return `<button class="${sel.trim()}" data-stu="${s.id}" data-val="${st.v}">${st.label}</button>`;
+    }).join('');
+    const pay = rec.pay[s.id]||'';
+    const fac = facility[s.id]||'';
+    html += `<div class="stu">
+      <div class="stu-top">
+        <span class="stu-name">${escapeHtml(s.name)}</span>
+        <div class="seg">${segBtns}</div>
+      </div>
+      <div class="pay-row">
+        <div class="pay"><label>月謝 受領日（${curMonth}月）</label>
+          <input type="date" data-pay="${s.id}" value="${pay}"></div>
+        <div class="pay"><label>施設費 受領日（${curYear}年・年1回）</label>
+          <input type="date" data-fac="${s.id}" value="${fac}"></div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="card"><div class="card-h">進行メモ（このコマ）</div>
+    <div class="memo-field">
+      <label>今日やった曲・内容</label>
+      <textarea data-memo="songs" placeholder="曲名・練習内容">${escapeHtml(rec.memo.songs)}</textarea>
+      <label>講師コメント</label>
+      <textarea data-memo="comment" placeholder="気づき・連絡事項">${escapeHtml(rec.memo.comment)}</textarea>
+      <label>次回予定</label>
+      <textarea data-memo="next" placeholder="次回やること">${escapeHtml(rec.memo.next)}</textarea>
+    </div></div>`;
+
+  root.innerHTML = html;
+
+  root.querySelectorAll('.seg button').forEach(b=>{
+    b.onclick=()=>{
+      const id=b.dataset.stu, val=b.dataset.val;
+      rec.att[id] = (rec.att[id]===val)? '' : val;
+      markDirty(); renderContent();
+    };
+  });
+  root.querySelectorAll('input[data-pay]').forEach(inp=>{
+    inp.onchange=()=>{ rec.pay[inp.dataset.pay]=inp.value; markDirty(); };
+  });
+  root.querySelectorAll('input[data-fac]').forEach(inp=>{
+    inp.onchange=()=>{
+      const yr = store.records[curClassId][curYear];
+      yr._facility = yr._facility||{};
+      yr._facility[inp.dataset.fac]=inp.value; markDirty();
+    };
+  });
+  root.querySelectorAll('textarea[data-memo]').forEach(t=>{
+    t.oninput=()=>{ rec.memo[t.dataset.memo]=t.value; markDirty(); };
+  });
+}
+
+/* ====== dirty / sync ====== */
+function markDirty(){ dirty=true; saveLocal(); updateStatus('未保存の変更あり'); }
+function updateStatus(msg){ document.getElementById('syncStatus').textContent = msg; }
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1800);
+}
+async function doSave(){
+  saveLocal();
+  if(!store.gasUrl){ toast('ローカル保存のみ（GAS URL未設定）'); dirty=false; updateStatus('ローカル保存済'); return; }
+  const btn=document.getElementById('btnSave'); btn.disabled=true; updateStatus('保存中…');
+  try{
+    await pushAll();
+    dirty=false; updateStatus('保存済 ✓'); toast('スプレッドシートに保存しました');
+  }catch(e){ updateStatus('保存失敗：'+e.message); toast('保存に失敗しました'); }
+  finally{ btn.disabled=false; }
+}
+async function doReload(){
+  if(!store.gasUrl){ toast('GAS URL未設定'); return; }
+  if(dirty && !confirm('未保存の変更があります。サーバーのデータで上書きしますか？')) return;
+  updateStatus('読み込み中…');
+  try{
+    const r = await fetchAll();
+    if(r && r.ok){
+      if(Array.isArray(r.classes) && r.classes.length) store.classes = r.classes;
+      store.records = r.records || {};
+      if(!curClass()) curClassId = store.classes[0]?.id;
+      saveLocal(); renderAll(); dirty=false; updateStatus('読込済 ✓'); toast('最新データを取得しました');
+    }else{ updateStatus('データなし'); }
+  }catch(e){ updateStatus('読込失敗：'+e.message); toast('読込に失敗しました'); }
+}
+
+/* ====== 設定ダイアログ ====== */
+function openSettings(){
+  document.getElementById('setGasUrl').value = store.gasUrl||'';
+  editClassId = curClassId;
+  renderEditClassSel();
+  renderClassEditArea();
+  document.getElementById('dlgSettings').showModal();
+}
+function renderEditClassSel(){
+  const sel = document.getElementById('editClassSel');
+  sel.innerHTML = store.classes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  sel.value = editClassId;
+}
+function curEditClass(){ return store.classes.find(c=>c.id===editClassId); }
+function renderClassEditArea(){
+  const c = curEditClass();
+  if(!c){ document.getElementById('classEditArea').style.display='none'; return; }
+  document.getElementById('classEditArea').style.display='block';
+  document.getElementById('setName').value = c.name||'';
+  document.getElementById('setSchedule').value = c.schedule||'第1・第3';
+  renderStuEdit();
+}
+function renderStuEdit(){
+  const c = curEditClass();
+  const el=document.getElementById('stuEditList'); el.innerHTML='';
+  c.students.forEach((s,i)=>{
+    const row=document.createElement('div'); row.className='stu-edit';
+    row.innerHTML=`<input value="${escapeHtml(s.name)}" placeholder="生徒名 ${i+1}" data-i="${i}">
+      <button class="tgl${s.active?'':' off'}" data-tgl="${i}">${s.active?'在籍':'退会'}</button>`;
+    el.appendChild(row);
+  });
+  el.querySelectorAll('input[data-i]').forEach(inp=>{
+    inp.oninput=()=>{ c.students[+inp.dataset.i].name=inp.value; };
+  });
+  el.querySelectorAll('button[data-tgl]').forEach(b=>{
+    b.onclick=()=>{ const i=+b.dataset.tgl; c.students[i].active=!c.students[i].active; renderStuEdit(); };
+  });
+}
+function commitEditName(){ // 編集中フォームの値をオブジェクトに反映
+  const c = curEditClass(); if(!c) return;
+  c.name = document.getElementById('setName').value.trim() || 'クラス';
+  c.schedule = document.getElementById('setSchedule').value;
+}
+
+/* ====== 初期化 ====== */
+function renderAll(){
+  renderClassSel(); renderYearSel(); renderHeader();
+  renderMonthTabs(); renderSessionTabs(); renderContent();
+}
+function init(){
+  loadLocal();
+  renderAll();
+  if(store.gasUrl){ doReload(); } else { updateStatus('ローカル保存モード'); }
+
+  document.getElementById('classSel').onchange=e=>{ curClassId=e.target.value; curSession=1; renderAll(); };
+  document.getElementById('yearSel').onchange=e=>{
+    if(e.target.value==='__add__'){
+      const input = prompt('追加する年（西暦4桁）を入力', String(curYear+1));
+      const y = parseInt(input,10);
+      if(y>=2020 && y<=2099){
+        ensure(curClassId, y, curMonth, curSession); // その年の枠を作成
+        curYear=y; markDirty();
+      }
+      renderAll(); return;
+    }
+    curYear=+e.target.value; renderAll();
+  };
+  document.getElementById('btnSave').onclick=doSave;
+  document.getElementById('btnReload').onclick=doReload;
+  document.getElementById('btnSettings').onclick=openSettings;
+
+  // 設定ダイアログ：クラス切替
+  document.getElementById('editClassSel').onchange=e=>{
+    commitEditName(); editClassId=e.target.value; renderClassEditArea();
+  };
+  document.getElementById('btnAddClass').onclick=()=>{
+    commitEditName();
+    const c = makeClass('クラス'+(store.classes.length+1));
+    store.classes.push(c); editClassId=c.id;
+    renderEditClassSel(); renderClassEditArea();
+  };
+  document.getElementById('btnDelClass').onclick=()=>{
+    if(store.classes.length<=1){ toast('クラスは最低1つ必要です'); return; }
+    const c = curEditClass();
+    if(!confirm(`「${c.name}」を削除しますか？\nこのクラスの記録も消えます。`)) return;
+    store.classes = store.classes.filter(x=>x.id!==c.id);
+    delete store.records[c.id];
+    editClassId = store.classes[0].id;
+    renderEditClassSel(); renderClassEditArea();
+  };
+  document.getElementById('btnAddStu').onclick=()=>{
+    const c = curEditClass();
+    if(c.students.length>=12){ toast('最大12名までです'); return; }
+    c.students.push({id:uid('s'),name:'',active:true}); renderStuEdit();
+  };
+  document.getElementById('btnSetCancel').onclick=()=>{ loadLocal(); renderAll(); document.getElementById('dlgSettings').close(); };
+  document.getElementById('btnSetSave').onclick=()=>{
+    commitEditName();
+    store.gasUrl = document.getElementById('setGasUrl').value.trim();
+    if(!curClass()) curClassId = store.classes[0]?.id;
+    saveLocal(); document.getElementById('dlgSettings').close();
+    renderAll(); markDirty(); toast('設定を保存しました');
+  };
+  window.addEventListener('beforeunload',e=>{ if(dirty){ e.preventDefault(); e.returnValue=''; } });
+}
+init();
+</script>
+</body>
+</html>
