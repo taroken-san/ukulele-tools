@@ -122,7 +122,7 @@
   <div class="dlg-h"><span>かんたん使い方</span></div>
   <div class="dlg-b">
     <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;">
-      <li>👆 出席は <b>○ ✕ 振替</b> をタップ（もう一度タップで取消）</li>
+      <li>👆 出席は <b>○ ✕</b> をタップ（もう一度タップで取消）</li>
       <li>💾 入力したら <b>必ず下の「保存」</b> をタップ</li>
       <li>↩️ <b>振替残</b>：休んで振替にしたら<b>＋</b>、別日に消化したら<b>−</b>（残り回数が見えます）</li>
       <li>🔄 別の端末の入力は <b>「再読込」</b> で取り込む</li>
@@ -181,7 +181,7 @@
 const STATUSES = [
   {v:'○', cls:'sel-ok',     label:'○'},
   {v:'×', cls:'sel-absent', label:'×'},
-  {v:'振替', cls:'sel-makeup', label:'振替'},
+  // 「振替」ボタンは紛らわしいため一旦削除（運用後に再検討）。振替残カウンターは維持。
 ];
 const LS_KEY = 'attendance_app_v2';
 
