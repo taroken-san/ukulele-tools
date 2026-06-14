@@ -49,6 +49,11 @@
   .seg button.sel-ok{background:var(--ok);border-color:var(--ok);color:#fff;}
   .seg button.sel-absent{background:var(--absent);border-color:var(--absent);color:#fff;}
   .seg button.sel-makeup{background:var(--makeup);border-color:var(--makeup);color:#fff;font-size:13px;}
+  .makeup-row{display:flex;align-items:center;gap:8px;margin-top:9px;}
+  .makeup-row .lbl{font-size:12px;color:var(--sub);}
+  .makeup-row button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:18px;line-height:1;padding:0;color:var(--txt);}
+  .makeup-row .val{min-width:26px;text-align:center;font-size:18px;font-weight:700;}
+  .makeup-row .unit{font-size:11px;color:var(--sub);}
   .pay-row{display:flex;gap:10px;margin-top:9px;flex-wrap:wrap;}
   .pay{flex:1;min-width:140px;}
   .pay label{font-size:11px;color:var(--sub);display:block;margin-bottom:3px;}
@@ -197,6 +202,10 @@ let editClassId = null; // 設定ダイアログ内で編集中のクラス
 function uid(p){ return (p||'') + Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function curClass(){ return store.classes.find(c=>c.id===curClassId) || null; }
+function makeupMap(){ // 振替残はクラス単位（年をまたいで持ち越し）
+  const r=store.records; r[curClassId]=r[curClassId]||{}; r[curClassId]._makeup=r[curClassId]._makeup||{};
+  return r[curClassId]._makeup;
+}
 
 /* ====== 永続化 ====== */
 function loadLocal(){
@@ -259,7 +268,7 @@ function renderYearSel(){
   const sel = document.getElementById('yearSel');
   const now = new Date().getFullYear();
   const years = new Set([now-1, now, now+1, curYear]);
-  Object.keys(store.records[curClassId]||{}).forEach(y=>years.add(+y));
+  Object.keys(store.records[curClassId]||{}).forEach(y=>{ if(/^\d{4}$/.test(y)) years.add(+y); });
   const sorted = [...years].sort();
   sel.innerHTML = sorted.map(y=>`<option value="${y}">${y}年</option>`).join('')
     + `<option value="__add__">＋ 年を追加…</option>`;
@@ -294,6 +303,7 @@ function renderContent(){
   if(!cls){ root.innerHTML = '<div class="muted">クラスがありません。設定から追加してください。</div>'; return; }
   const rec = ensure(curClassId, curYear, curMonth, curSession);
   const facility = (store.records[curClassId][curYear]._facility) || {};
+  const makeup = makeupMap();
   const actives = cls.students.filter(s=>s.active && (s.name||'').trim());
   let html = '';
 
@@ -314,6 +324,13 @@ function renderContent(){
       <div class="stu-top">
         <span class="stu-name">${escapeHtml(s.name)}</span>
         <div class="seg">${segBtns}</div>
+      </div>
+      <div class="makeup-row">
+        <span class="lbl">振替残</span>
+        <button data-mk="${s.id}" data-d="-1">−</button>
+        <span class="val">${makeup[s.id]||0}</span>
+        <button data-mk="${s.id}" data-d="1">＋</button>
+        <span class="unit">回</span>
       </div>
       <div class="pay-row">
         <div class="pay"><label>月謝 受領日（${curMonth}月）</label>
@@ -341,6 +358,14 @@ function renderContent(){
     b.onclick=()=>{
       const id=b.dataset.stu, val=b.dataset.val;
       rec.att[id] = (rec.att[id]===val)? '' : val;
+      markDirty(); renderContent();
+    };
+  });
+  root.querySelectorAll('.makeup-row button[data-mk]').forEach(b=>{
+    b.onclick=()=>{
+      const id=b.dataset.mk, d=+b.dataset.d;
+      const cur = makeup[id]||0;
+      makeup[id] = Math.max(0, cur + d);
       markDirty(); renderContent();
     };
   });
