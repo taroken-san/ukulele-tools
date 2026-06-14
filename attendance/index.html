@@ -88,7 +88,10 @@
 <header>
   <div class="head-row">
     <div class="head-title" id="appTitle">出席表</div>
-    <button class="btn-ghost" id="btnSettings" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:#fff;">設定</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-ghost" id="btnHelp" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:#fff;white-space:nowrap;">？使い方</button>
+      <button class="btn-ghost" id="btnSettings" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:#fff;white-space:nowrap;">設定</button>
+    </div>
   </div>
   <div class="selectors">
     <select class="hsel class-sel" id="classSel"></select>
@@ -108,6 +111,23 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- 使い方ダイアログ -->
+<dialog id="dlgHelp">
+  <div class="dlg-h"><span>かんたん使い方</span></div>
+  <div class="dlg-b">
+    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;">
+      <li>👆 出席は <b>○ ✕ 振替</b> をタップ（もう一度タップで取消）</li>
+      <li>💾 入力したら <b>必ず下の「保存」</b> をタップ</li>
+      <li>🔄 別の端末の入力は <b>「再読込」</b> で取り込む</li>
+      <li>📅 来年の記録は年の欄の <b>「＋年を追加」</b></li>
+      <li>📞 「保存に失敗」など困ったら <b>川瀬へ連絡</b></li>
+    </ul>
+  </div>
+  <div class="dlg-f">
+    <button class="btn-save" id="btnHelpClose">閉じる</button>
+  </div>
+</dialog>
 
 <!-- 設定ダイアログ -->
 <dialog id="dlgSettings">
@@ -441,6 +461,8 @@ function init(){
   document.getElementById('btnSave').onclick=doSave;
   document.getElementById('btnReload').onclick=doReload;
   document.getElementById('btnSettings').onclick=openSettings;
+  document.getElementById('btnHelp').onclick=()=>document.getElementById('dlgHelp').showModal();
+  document.getElementById('btnHelpClose').onclick=()=>document.getElementById('dlgHelp').close();
 
   // 設定ダイアログ：クラス切替
   document.getElementById('editClassSel').onchange=e=>{
