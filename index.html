@@ -325,7 +325,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
   if(isCur&&!PRINTING)g+=`<rect x="${mx-2}" y="${my+2}" width="${mw}" height="${cardH}" fill="${COLOR?'#fbf6e9':'#f2f2f2'}" rx="6"/>`;
   // コード（拍ごと）
   m.beats.forEach((bt,b)=>{if(bt.chord){const cx=mx+b*(mw/m.beats.length)+4;
-    g+=`<text x="${cx}" y="${my+14}" font-size="13" font-weight="bold" font-style="italic" fill="${P.ink}">${bt.chord}</text>`;}});
+    g+=`<text x="${cx}" y="${my+14}" font-size="13" font-weight="bold" fill="${P.ink}">${bt.chord}</text>`;}});
   // TAB線＋小節線
   for(let s=1;s<=4;s++){const y=yOf(s);
     g+=`<line x1="${mx}" y1="${y}" x2="${mx+mw}" y2="${y}" stroke="${P.tabline}" stroke-width="1"/>`;}
