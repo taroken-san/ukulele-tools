@@ -95,6 +95,20 @@
     <button id="tieBtn" disabled>🔗 タイ</button>
     <span class="hint" style="margin:0;">マスを選んで押すと、前の音とタイで連結（PCは T キーでも可）</span>
   </div>
+  <div class="ctrls" id="numpad" style="margin-top:8px;gap:5px;">
+    <span class="hint" style="margin:0 4px 0 0;">フレット入力（弦のマスを選んで押す）▶</span>
+    <button class="npd" data-n="0" disabled>0</button>
+    <button class="npd" data-n="1" disabled>1</button>
+    <button class="npd" data-n="2" disabled>2</button>
+    <button class="npd" data-n="3" disabled>3</button>
+    <button class="npd" data-n="4" disabled>4</button>
+    <button class="npd" data-n="5" disabled>5</button>
+    <button class="npd" data-n="6" disabled>6</button>
+    <button class="npd" data-n="7" disabled>7</button>
+    <button class="npd" data-n="8" disabled>8</button>
+    <button class="npd" data-n="9" disabled>9</button>
+    <button class="npd" data-n="back" disabled>⌫</button>
+  </div>
   <div class="mfields">
     <div class="f"><label>歌詞（スペースで音符ごとに区切る）</label><input type="text" id="lyric" placeholder="例：ラ ブ は せ か い の"></div>
   </div>
@@ -107,7 +121,7 @@
     <span><label>配色</label>
       <select id="theme"><option value="color" selected>カラー</option><option value="bw">白黒（印刷用）</option></select></span>
     <span><label>数字</label>
-      <select id="numstyle"><option value="fill" selected>塗り丸</option><option value="outline">白地丸</option><option value="none">囲みなし</option></select></span>
+      <select id="numstyle"><option value="fill">塗り丸</option><option value="outline">白地丸</option><option value="none" selected>囲みなし</option></select></span>
     <span><label>表示サイズ</label>
       <select id="zoom"><option value="0.8">小</option><option value="1" selected>中</option><option value="1.25">大</option><option value="1.5">特大</option></select></span>
     <button id="print">🖨 印刷 / PDF保存</button>
@@ -186,7 +200,7 @@ function buildEditGrid(){
 }
 
 // ===== 配色 =====
-let COLOR=true, NUMSTYLE='fill', PRINTING=false, SCALE=1;
+let COLOR=true, NUMSTYLE='none', PRINTING=false, SCALE=1;
 function pal(){return COLOR
   ?{tabline:'#cfcdc3',bar:'#23241f',stem:'#3a3a36',down:'#0c447c',up:'#993c1d',acc:'#a32d2d',pick:'#534ab7',ink:'#23241f',mut:'#6b6a63'}
   :{tabline:'#9a9a9a',bar:'#000',stem:'#000',down:'#000',up:'#000',acc:'#000',pick:'#000',ink:'#000',mut:'#333'};}
@@ -320,8 +334,22 @@ function render(){
   tb.disabled=!ss;
   tb.style.background=ss&&ss.tie?'#1d9e75':'';
   tb.style.color=ss&&ss.tie?'#fff':'';
+  // 数字パッドの状態（弦のマス＝pickかつ弦選択時のみ有効）
+  const fretOK=ss&&ss.type==='pick'&&SEL.s!=null&&(SEL.s in ss.frets);
+  document.querySelectorAll('.npd').forEach(b=>b.disabled=!fretOK);
   document.getElementById('out').value=exportJSON();
 }
+// フレット入力（キーボード／数字パッド共通）
+function applyFret(key){
+  if(!SEL)return;
+  const s=cm().beats[SEL.b].slots[SEL.i];
+  if(!s||s.type!=='pick'||!(SEL.s in s.frets))return;
+  if(/^[0-9]$/.test(key)){const cv=s.frets[SEL.s], nv=cv*10+ +key;
+    s.frets[SEL.s]= nv>24? +key : nv;}        // 0〜24、2桁超えはリセット
+  else if(key==='back'){s.frets[SEL.s]=Math.floor(s.frets[SEL.s]/10);}
+  render();
+}
+document.querySelectorAll('.npd').forEach(b=>b.onclick=()=>applyFret(b.dataset.n));
 document.getElementById('tieBtn').onclick=()=>{
   if(!SEL)return;
   const s=cm().beats[SEL.b].slots[SEL.i];
@@ -337,11 +365,8 @@ document.addEventListener('keydown',e=>{
   if(!s)return;
   if(e.key==='t'||e.key==='T'){s.tie=!s.tie;e.preventDefault();render();return;}
   if(s.type!=='pick'||!(SEL.s in s.frets))return;
-  if(/^[0-9]$/.test(e.key)){
-    const cv=s.frets[SEL.s], nv=cv*10+ +e.key;
-    s.frets[SEL.s]= nv>24? +e.key : nv;   // 0〜24、2桁超えはリセット
-    e.preventDefault();render();
-  }else if(e.key==='Backspace'){s.frets[SEL.s]=Math.floor(s.frets[SEL.s]/10);e.preventDefault();render();}
+  if(/^[0-9]$/.test(e.key)){applyFret(e.key);e.preventDefault();}
+  else if(e.key==='Backspace'){applyFret('back');e.preventDefault();}
   else if(e.key==='Escape'){SEL=null;render();}
 });
 // ===== コントロール =====
