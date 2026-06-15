@@ -91,6 +91,10 @@
     <b>ストローク行</b>：クリック＝休み→↓→∧（アップ）、ダブルクリック＝アクセント。<b>弦の行</b>：クリックで弦を弾く（→数字キーでフレット）／複数＝つまみ／ダブルクリック＝アクセント。コードは各拍の上の欄に入力（拍ごと）。
   </p>
   <div id="editgrid" class="editgrid"></div>
+  <div class="ctrls" style="margin-top:8px;">
+    <button id="tieBtn" disabled>🔗 タイ</button>
+    <span class="hint" style="margin:0;">マスを選んで押すと、前の音とタイで連結（PCは T キーでも可）</span>
+  </div>
   <div class="mfields">
     <div class="f"><label>歌詞（スペースで音符ごとに区切る）</label><input type="text" id="lyric" placeholder="例：ラ ブ は せ か い の"></div>
   </div>
@@ -214,10 +218,13 @@ function drawMeasure(mx,my,mw,m,isCur){
   // タイ弧のためにスロット位置を先に収集
   const slotXArr=[];
   m.beats.forEach((bt,b)=>{const div=bt.div,bx=mx+b*beatW;bt.slots.forEach((s,i)=>{slotXArr.push({x:bx+(i+0.5)*(beatW/div),s});});});
-  // タイ弧を描画（このスロットがtie:trueなら前スロットとの間に弧）
+  // タイ弧を描画（このスロットがtie:trueなら前スロットとの間に弧）＝数字のすぐ下に
   slotXArr.forEach((sp,idx)=>{if(sp.s.tie&&idx>0){
-    const x1=slotXArr[idx-1].x,x2=sp.x,ym=baseY+12,xm=(x1+x2)/2;
-    g+=`<path d="M ${x1},${ym} Q ${xm},${ym+10} ${x2},${ym}" fill="none" stroke="${P.stem}" stroke-width="1.4" stroke-dasharray="none"/>`;
+    const x1=slotXArr[idx-1].x,x2=sp.x,xm=(x1+x2)/2;
+    // 対象2スロットの数字のうち最も下(高い弦番号)の位置を基準にする
+    const ys=[];[slotXArr[idx-1].s,sp.s].forEach(sl=>{if(sl.type==='pick')Object.keys(sl.frets).forEach(st=>ys.push(yOf(+st)));});
+    const yb=ys.length?Math.max(...ys):baseY, ym=yb+11;
+    g+=`<path d="M ${x1},${ym} Q ${xm},${ym+11} ${x2},${ym}" fill="none" stroke="${P.stem}" stroke-width="1.4"/>`;
   }});
   m.beats.forEach((bt,b)=>{
     const div=bt.div, bx=mx+b*beatW;
@@ -307,8 +314,20 @@ function render(){
   document.getElementById('meter').value=cm().meter;
   document.getElementById('lyric').value=cm().lyric;
   buildEditGrid();drawScore();
+  // タイボタンの状態（選択マスがあれば有効・ON表示）
+  const tb=document.getElementById('tieBtn');
+  const ss=SEL&&cm().beats[SEL.b]&&cm().beats[SEL.b].slots[SEL.i];
+  tb.disabled=!ss;
+  tb.style.background=ss&&ss.tie?'#1d9e75':'';
+  tb.style.color=ss&&ss.tie?'#fff':'';
   document.getElementById('out').value=exportJSON();
 }
+document.getElementById('tieBtn').onclick=()=>{
+  if(!SEL)return;
+  const s=cm().beats[SEL.b].slots[SEL.i];
+  if(!s)return;
+  s.tie=!s.tie;render();
+};
 
 // ===== フレット数字入力（マス選択中に数字キー）=====
 document.addEventListener('keydown',e=>{
