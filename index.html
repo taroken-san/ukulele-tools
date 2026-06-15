@@ -338,7 +338,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
     bt.slots.forEach((s,i)=>{const x=xOf(i);
       const dotted=(s.type!=='rest')&&beams(div,span(i))>=1&&span(i)===3; // 付点8分
       if(s.type==='strum'){const col=s.stroke==='d'?P.down:P.up;
-        g+=`<line x1="${x-5}" y1="${baseY+4}" x2="${x+5}" y2="${yOf(1)-4}" stroke="${col}" stroke-width="2.2"/>`;
+        g+=`<line x1="${x-5}" y1="${baseY-4}" x2="${x+5}" y2="${yOf(1)+4}" stroke="${col}" stroke-width="2.2"/>`;
         if(s.stroke==='u')g+=`<text x="${x}" y="${baseY+18}" text-anchor="middle" font-size="12" fill="${col}" font-weight="bold">∧</text>`;
       }else if(s.type==='pick'){
         fretKeys(s).forEach(st=>{g+=noteNum(x,yOf(st),s.frets[st],P);});
@@ -425,6 +425,8 @@ function buildMobile(){
       h+=`<div class="chip${i===MFOCUS.i?' sel':''}" data-act="slot" data-i="${i}">${lbl}</div>`;}
     h+='</div>';}
   h+='</div>';
+  h+='<div class="mblabel">コード（この拍・空欄でなし）</div>'
+    +`<input type="text" id="mbChord" value="${(bt.chord||'').replace(/"/g,'&quot;')}" placeholder="例 C ／ F ／ G7" style="width:100%">`;
   h+='<div class="mblabel">弦をタップでオン／オフ（複数オン＝つまみ）</div>';
   [1,2,3,4].forEach(st=>{const on=slot.type==='pick'&&(st in slot.frets);
     const seld=SEL&&SEL.b===MFOCUS.b&&SEL.i===MFOCUS.i&&SEL.s===st;
@@ -452,6 +454,8 @@ function buildMobile(){
   host.innerHTML=h;
   const dv=host.querySelector('#mbDiv');
   dv.onchange=e=>{const ch=cm().beats[MFOCUS.b].chord;cm().beats[MFOCUS.b]=newBeat(+e.target.value);cm().beats[MFOCUS.b].chord=ch;MFOCUS.i=0;SEL=null;render();};
+  const ci=host.querySelector('#mbChord');
+  if(ci)ci.oninput=()=>{cm().beats[MFOCUS.b].chord=ci.value;drawMiniPreview();drawScore();}; // 軽量更新でフォーカス維持
   host.querySelectorAll('[data-act]').forEach(el=>el.addEventListener('click',()=>mbAction(el.dataset)));
 }
 function mbAction(ds){
