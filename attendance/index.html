@@ -141,8 +141,14 @@
   <div class="dlg-b">
     <div class="field">
       <label>あなたは誰？（講師を選択）</label>
-      <select id="setTeacher"></select>
-      <div style="font-size:11px;color:var(--sub);margin-top:4px;">一覧は代表が管理。見つからない時は再読込してください。</div>
+      <div id="teacherFixed" style="display:none;align-items:center;gap:10px;">
+        <span id="teacherName" style="font-size:16px;font-weight:600;"></span>
+        <a href="#" id="btnChangeTeacher" style="font-size:13px;color:var(--brand,#2b6);text-decoration:underline;">変更</a>
+      </div>
+      <div id="teacherPick">
+        <select id="setTeacher"></select>
+        <div style="font-size:11px;color:var(--sub);margin-top:4px;">一覧は代表が管理。見つからない時は再読込してください。</div>
+      </div>
     </div>
     <div class="field" id="centralUrlField">
       <label>中央URL（初回のみ・代表が設定）</label>
@@ -439,24 +445,31 @@ async function doReload(){
 }
 
 /* ====== 設定ダイアログ ====== */
+let teacherEditMode = false; // 設定内で講師プルダウンを表示中か
 function renderTeacherSel(){
   const sel = document.getElementById('setTeacher');
   let opts = '<option value="">（選択してください）</option>';
-  let found = false;
+  let found = false, curName = store.teacherId;
   teacherList.forEach(t=>{
-    if(t.id===store.teacherId) found=true;
+    if(t.id===store.teacherId){ found=true; curName=t.name; }
     opts += `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)}</option>`;
   });
   // 一覧が取れていないが既に選択済みの場合も現在値を表示
   if(store.teacherId && !found){ opts += `<option value="${escapeHtml(store.teacherId)}">${escapeHtml(store.teacherId)}</option>`; }
   sel.innerHTML = opts;
   sel.value = store.teacherId||'';
+  // 選択済み かつ 編集モードでなければ名前固定表示
+  const fixed = !!store.teacherId && !teacherEditMode;
+  document.getElementById('teacherFixed').style.display = fixed ? 'flex' : 'none';
+  document.getElementById('teacherPick').style.display = fixed ? 'none' : 'block';
+  document.getElementById('teacherName').textContent = curName || '';
 }
 async function openSettings(){
   // 中央URLはCENTRAL_URL固定ならフォールバック欄を隠す
   document.getElementById('centralUrlField').style.display = CENTRAL_URL ? 'none' : 'block';
   document.getElementById('setCentralUrl').value = store.centralUrl||'';
   editClassId = curClassId;
+  teacherEditMode = false; // 開くたびに固定表示に戻す
   renderEditClassSel();
   renderClassEditArea();
   renderTeacherSel();
@@ -531,6 +544,7 @@ function init(){
   document.getElementById('btnSave').onclick=doSave;
   document.getElementById('btnReload').onclick=doReload;
   document.getElementById('btnSettings').onclick=openSettings;
+  document.getElementById('btnChangeTeacher').onclick=(e)=>{ e.preventDefault(); teacherEditMode=true; renderTeacherSel(); };
   document.getElementById('btnHelp').onclick=()=>document.getElementById('dlgHelp').showModal();
   document.getElementById('btnHelpClose').onclick=()=>document.getElementById('dlgHelp').close();
 
