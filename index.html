@@ -67,6 +67,8 @@
   .mbtns button.act{background:var(--accent);color:#fff;border-color:var(--accent);}
   .mpad{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:6px;}
   .mpad button{padding:15px 0;font-size:18px;}
+  #mbPreview{position:sticky;top:0;z-index:40;background:var(--card);border-bottom:0.5px solid var(--line);margin:0 -4px 2px;padding:4px 2px;}
+  #mbPreview svg{display:block;width:100%;height:auto;}
   .mbdock{margin-top:12px;}
   .mbdock-fixed{position:fixed;left:0;right:0;bottom:0;margin:0;background:var(--card);border-top:0.5px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.07);padding:8px 12px calc(10px + env(safe-area-inset-bottom));z-index:50;}
   @media (max-width:760px){
@@ -161,7 +163,7 @@
     <button class="npd" data-n="back" disabled>⌫</button>
   </div>
   </div>
-  <div id="mobilePanel"><div id="mbBody"></div></div>
+  <div id="mobilePanel"><div id="mbPreview"></div><div id="mbBody"></div></div>
   <div class="mfields">
     <div class="f"><label>歌詞（スペースで音符ごとに区切る）</label><input type="text" id="lyric" placeholder="例：ラ ブ は せ か い の"></div>
   </div>
@@ -389,6 +391,18 @@ function chordsOf(m){return m.beats.map(bt=>bt.chord||'').join('|');}
 function exportJSON(){
   return '[\n'+song.map(m=>`  {chords:'${chordsOf(m)}',beats:${m.beats.length},seq:'${seqOf(m)}',lyric:'${m.lyric}'},`).join('\n')+'\n]';}
 
+// ===== スマホ用 ミニ譜面（編集中の小節だけ常時表示） =====
+function drawMiniPreview(){
+  const host=document.getElementById('mbPreview'); if(!host)return;
+  const m=cm();
+  const W=360, mx=10, my=4, mw=W-20;
+  const hasLyric=(m.lyric||'').trim().length>0;
+  const H=my+(hasLyric?138:114);
+  const beatW=mw/m.beats.length;
+  const hl=COLOR?`<rect x="${mx+MFOCUS.b*beatW}" y="${my}" width="${beatW}" height="${H-my-2}" fill="#fbf6e9" rx="4"/>`:'';
+  const g=drawMeasure(mx,my,mw,m,false,0);
+  host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${hl}${g}</svg>`;
+}
 // ===== スマホ「1拍集中型」UI =====
 function buildMobile(){
   const host=document.getElementById('mbBody'); if(!host)return;
@@ -457,7 +471,7 @@ function render(){
   document.getElementById('mpos').textContent=`${cur+1} / ${song.length}`;
   document.getElementById('meter').value=cm().meter;
   document.getElementById('lyric').value=cm().lyric;
-  buildEditGrid();buildMobile();drawScore();
+  buildEditGrid();buildMobile();drawMiniPreview();drawScore();
   // タイボタンの状態（選択マスがあれば有効・ON表示）
   const tb=document.getElementById('tieBtn');
   const ss=SEL&&cm().beats[SEL.b]&&cm().beats[SEL.b].slots[SEL.i];
