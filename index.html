@@ -72,7 +72,8 @@
   .mbdock{margin-top:12px;}
   .mbdock-fixed{position:fixed;left:0;right:0;bottom:0;margin:0;background:var(--card);border-top:0.5px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.07);padding:8px 12px calc(10px + env(safe-area-inset-bottom));z-index:50;}
   @media (max-width:760px){
-    .wrap{padding:14px 10px 264px;}
+    .wrap{padding:14px 10px 96px;}
+    body.numpad-open .wrap{padding-bottom:268px;}
     .pc-edit,.pc-only{display:none!important;}
     #mobilePanel{display:block;}
     .mbdock{position:fixed;left:0;right:0;bottom:0;margin:0;background:var(--card);border-top:0.5px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.07);padding:8px 12px calc(10px + env(safe-area-inset-bottom));z-index:50;}
@@ -82,7 +83,8 @@
   }
   body.force-mobile .pc-edit,body.force-mobile .pc-only{display:none!important;}
   body.force-mobile #mobilePanel{display:block;}
-  body.force-mobile .wrap{padding-bottom:264px;}
+  body.force-mobile .wrap{padding-bottom:96px;}
+  body.force-mobile.numpad-open .wrap{padding-bottom:268px;}
   body.force-mobile .mbdock{position:fixed;left:0;right:0;bottom:0;margin:0;background:var(--card);border-top:0.5px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.07);padding:8px 12px calc(10px + env(safe-area-inset-bottom));z-index:50;max-width:1000px;left:50%;transform:translateX(-50%);}
   @page{size:A4 portrait;margin:12mm;}
   @media print{
@@ -206,6 +208,7 @@ let song=[newMeasure(4,2)];
 let cur=0;
 let SEL=null;          // 選択中の弦マス {b,i,s}
 let MFOCUS={b:0,i:0};  // スマホUIで編集中の拍・スロット
+let NUMPAD_HIDDEN=false; // スマホ：数字パッドを手動で隠す
 const cm=()=>song[cur];
 const fretKeys=s=>Object.keys(s.frets||{}).map(Number).sort((a,b)=>b-a); // 4→1 の順
 
@@ -434,11 +437,18 @@ function buildMobile(){
     +`<button data-act="tie" class="${slot.tie?'act':''}">🔗 タイ</button>`
     +'</div>';
   const fretReady=SEL&&SEL.b===MFOCUS.b&&SEL.i===MFOCUS.i&&slot.type==='pick'&&(SEL.s in slot.frets);
-  h+=`<div class="mbdock"><div class="mblabel" style="margin-top:0">フレット入力${fretReady?'（選択中：'+LBL[SEL.s]+'）':'（上で弦を選んでください）'}</div><div class="mpad">`;
-  '1 2 3 4 5 6 7 8 9 0'.split(' ').forEach(n=>{h+=`<button data-act="num" data-n="${n}"${fretReady?'':' disabled'}>${n}</button>`;});
-  h+='</div><div style="display:flex;gap:8px;margin-top:7px;">'
-    +`<button data-act="back" style="flex:2;padding:13px 0;"${fretReady?'':' disabled'}>⌫ 1字消す</button>`
-    +`<button data-act="preview" class="primary" style="flex:3;padding:13px 0;">♪ 譜面プレビュー</button></div></div>`;
+  const showNumpad=fretReady&&!NUMPAD_HIDDEN;
+  document.body.classList.toggle('numpad-open',showNumpad);
+  h+='<div class="mbdock"><div style="display:flex;align-items:center;gap:8px;">'
+    +`<span class="hint" style="margin:0;flex:1;">${fretReady?'フレット入力（選択中：'+LBL[SEL.s]+'）':'弦を選ぶと数字が出ます'}</span>`
+    +(fretReady?`<button data-act="togglepad">${NUMPAD_HIDDEN?'🔢 数字を出す':'数字を隠す'}</button>`:'')
+    +`<button data-act="preview" class="primary">♪ プレビュー</button></div>`;
+  if(showNumpad){
+    h+='<div class="mpad">';
+    '1 2 3 4 5 6 7 8 9 0'.split(' ').forEach(n=>{h+=`<button data-act="num" data-n="${n}">${n}</button>`;});
+    h+='</div><div style="margin-top:7px;"><button data-act="back" style="width:100%;padding:13px 0;">⌫ 1字消す</button></div>';
+  }
+  h+='</div>';
   host.innerHTML=h;
   const dv=host.querySelector('#mbDiv');
   dv.onchange=e=>{const ch=cm().beats[MFOCUS.b].chord;cm().beats[MFOCUS.b]=newBeat(+e.target.value);cm().beats[MFOCUS.b].chord=ch;MFOCUS.i=0;SEL=null;render();};
@@ -461,6 +471,7 @@ function mbAction(ds){
     case 'rest': slot.type='rest';slot.frets={};slot.acc=false;SEL=null; break;
     case 'acc': if(slot.type!=='rest')slot.acc=!slot.acc; break;
     case 'tie': slot.tie=!slot.tie; break;
+    case 'togglepad': NUMPAD_HIDDEN=!NUMPAD_HIDDEN; break;
     case 'num': applyFret(ds.n); return;
     case 'back': applyFret('back'); return;
     case 'preview': document.getElementById('scoreWrap').scrollIntoView({behavior:'smooth'}); return;
