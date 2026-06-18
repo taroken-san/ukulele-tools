@@ -187,13 +187,14 @@
   </div>
   <p class="hint pc-only">
     各拍の上で<b>分割を個別変更</b>（例：2拍目だけ3連、4拍目だけ16分）。<b>付点8分＋16分</b>＝その拍を16分にして1マス目と4マス目だけ置く（自動で付点・二重連桁になります）。<br>
-    <b>ストローク行</b>：クリック＝休み→↓→∧（アップ）、ダブルクリック＝アクセント。<b>弦の行</b>：クリックで弦を弾く（→数字キーでフレット）／複数＝つまみ／ダブルクリック＝アクセント。コードは各拍の上の欄に入力（拍ごと）。
+    <b>ストローク行</b>：クリック＝休み→↓→∧（アップ）。<b>弦の行</b>：クリックで弦を弾く（→数字キーでフレット）／複数＝つまみ。<b>アクセント・タイ</b>はマスを選んで上のボタンで付与。コードは各拍の上の欄に入力（拍ごと）。
   </p>
   <div class="pc-edit">
   <div id="editgrid" class="editgrid"></div>
   <div class="ctrls" style="margin-top:8px;">
+    <button id="accBtn" disabled>＞ アクセント</button>
     <button id="tieBtn" disabled>🔗 タイ</button>
-    <span class="hint" style="margin:0;">マスを選んで押すと、前の音とタイで連結（PCは T キーでも可）</span>
+    <span class="hint" style="margin:0;">マスを選んで「アクセント」「タイ」を付与（タイはPCは T キーでも可）</span>
   </div>
   <div class="ctrls" id="numpad" style="margin-top:8px;gap:5px;">
     <span class="hint" style="margin:0 4px 0 0;">フレット入力（弦のマスを選んで押す）▶</span>
@@ -289,7 +290,7 @@ function buildEditGrid(){
       if(s.type!=='strum'){s.type='strum';s.stroke='d';s.acc=false;s.frets={};}
       else if(s.stroke==='d')s.stroke='u';else{s.type='rest';s.acc=false;}
       SEL={b,i,s:null};render();};
-    el.ondblclick=()=>{const s=cm().beats[+el.dataset.b].slots[+el.dataset.i];if(s.type==='strum'){s.acc=!s.acc;render();}};});
+    });
   g.querySelectorAll('.ecell[data-row="str"]').forEach(el=>{
     el.onclick=()=>{const b=+el.dataset.b,i=+el.dataset.i,st=+el.dataset.s,s=cm().beats[b].slots[i];
       if(s.type!=='pick'){s.type='pick';s.frets={};}
@@ -299,8 +300,7 @@ function buildEditGrid(){
         else SEL={b,i,s:st};                    // 選択し直し（数字入力できる）
       }else{s.frets[st]=0;SEL={b,i,s:st};}       // 新規ON（開放0）→選択
       render();};
-    el.ondblclick=()=>{const s=cm().beats[+el.dataset.b].slots[+el.dataset.i];
-      if(s.type==='pick'){s.acc=!s.acc;render();}};});   // ダブルクリック＝アクセント
+    });
 }
 
 // ===== 配色 =====
@@ -533,6 +533,12 @@ function render(){
   document.getElementById('lyric').value=cm().lyric;
   buildEditGrid();buildMobile();drawMiniPreview();drawScore();
   // タイボタンの状態（選択マスがあれば有効・ON表示）
+  const ab=document.getElementById('accBtn');
+  const accOK=SEL&&cm().beats[SEL.b]&&cm().beats[SEL.b].slots[SEL.i]&&cm().beats[SEL.b].slots[SEL.i].type!=='rest';
+  const accOn=accOK&&cm().beats[SEL.b].slots[SEL.i].acc;
+  ab.disabled=!accOK;
+  ab.style.background=accOn?'#a32d2d':'';
+  ab.style.color=accOn?'#fff':'';
   const tb=document.getElementById('tieBtn');
   const ss=SEL&&cm().beats[SEL.b]&&cm().beats[SEL.b].slots[SEL.i];
   tb.disabled=!ss;
@@ -554,6 +560,11 @@ function applyFret(key){
   render();
 }
 document.querySelectorAll('.npd').forEach(b=>b.onclick=()=>applyFret(b.dataset.n));
+document.getElementById('accBtn').onclick=()=>{
+  if(!SEL)return;const s=cm().beats[SEL.b].slots[SEL.i];
+  if(!s||s.type==='rest')return;
+  s.acc=!s.acc;render();
+};
 document.getElementById('tieBtn').onclick=()=>{
   if(!SEL)return;
   const s=cm().beats[SEL.b].slots[SEL.i];
