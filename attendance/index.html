@@ -58,6 +58,10 @@
   .pay{flex:1;min-width:140px;}
   .pay label{font-size:11px;color:var(--sub);display:block;margin-bottom:3px;}
   .pay input{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fafafa;}
+  .date-wrap{display:flex;gap:6px;align-items:stretch;}
+  .date-wrap input{flex:1;}
+  .date-clear{flex:0 0 auto;width:38px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--sub);font-size:14px;cursor:pointer;}
+  .date-clear:active{background:#f0f0f0;}
   .memo-field{padding:6px 14px 12px;}
   .memo-field label{font-size:12px;color:var(--sub);display:block;margin:8px 0 3px;font-weight:600;}
   .memo-field textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;resize:vertical;min-height:54px;background:#fafafa;}
@@ -360,9 +364,11 @@ function renderContent(){
       </div>
       <div class="pay-row">
         <div class="pay"><label>月謝 受領日（${curMonth}月）</label>
-          <input type="date" data-pay="${s.id}" value="${pay}"></div>
+          <div class="date-wrap"><input type="date" data-pay="${s.id}" value="${pay}">
+            <button type="button" class="date-clear" data-clearpay="${s.id}" title="受領日を消す">✕</button></div></div>
         <div class="pay"><label>施設費 受領日（${curYear}年・年1回）</label>
-          <input type="date" data-fac="${s.id}" value="${fac}"></div>
+          <div class="date-wrap"><input type="date" data-fac="${s.id}" value="${fac}">
+            <button type="button" class="date-clear" data-clearfac="${s.id}" title="受領日を消す">✕</button></div></div>
       </div>
     </div>`;
   });
@@ -403,6 +409,22 @@ function renderContent(){
       const yr = store.records[curClassId][curYear];
       yr._facility = yr._facility||{};
       yr._facility[inp.dataset.fac]=inp.value; markDirty();
+    };
+  });
+  root.querySelectorAll('button[data-clearpay]').forEach(b=>{
+    b.onclick=()=>{
+      const id=b.dataset.clearpay;
+      rec.pay[id]=''; markDirty();
+      const inp=root.querySelector(`input[data-pay="${id}"]`); if(inp) inp.value='';
+    };
+  });
+  root.querySelectorAll('button[data-clearfac]').forEach(b=>{
+    b.onclick=()=>{
+      const id=b.dataset.clearfac;
+      const yr = store.records[curClassId][curYear];
+      yr._facility = yr._facility||{};
+      yr._facility[id]=''; markDirty();
+      const inp=root.querySelector(`input[data-fac="${id}"]`); if(inp) inp.value='';
     };
   });
   root.querySelectorAll('textarea[data-memo]').forEach(t=>{
