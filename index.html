@@ -31,7 +31,9 @@
   .bdiv{height:24px;font-size:11px;padding:1px 4px;}
   .bchord{height:28px;width:100%;font-size:12px;padding:1px 4px;text-align:center;}
   .chordlbl{height:28px;}
-  .bgrid{display:grid;grid-template-rows:14px 30px 30px 30px 30px 30px;gap:3px;}
+  .bgrid{display:grid;grid-template-rows:14px 30px 8px 30px 30px 30px 30px;gap:3px;}
+  .grow-sep{grid-column:1/-1;border-top:1px dashed var(--line);}
+  .lblrow.sep{height:8px;}
   .ccell{display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--mut);}
   .ecell{width:30px;border-radius:6px;background:#f1efe8;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:2px solid transparent;font-size:15px;color:#bbb;font-weight:700;}
   .ecell.beat1{box-shadow:inset 3px 0 0 #cfcdc3;}
@@ -264,6 +266,7 @@ function buildEditGrid(){
   const g=document.getElementById('editgrid'),m=cm();
   let html=`<div class="lblcol"><div class="top"></div><div class="lblrow chordlbl">コード</div>`
     +`<div class="lblrow count"></div><div class="lblrow">ストローク</div>`
+    +`<div class="lblrow sep"></div>`
     +STRINGS.map(st=>`<div class="lblrow">${LBL[st]}</div>`).join('')+`</div>`;
   m.beats.forEach((bt,b)=>{
     const sel=`<select class="bdiv" data-b="${b}">`
@@ -274,6 +277,7 @@ function buildEditGrid(){
     for(let i=0;i<bt.div;i++){const s=bt.slots[i],on=s.type==='strum';
       const cls=['ecell','strum',on?s.stroke:'',on&&s.acc?'acc':'',s.tie?'tied':'',i===0?'beat1':''].join(' ');
       cells+=`<div class="${cls}" data-row="strum" data-b="${b}" data-i="${i}">${on?(s.stroke==='d'?'↓':'∧'):'·'}</div>`;}
+    cells+='<div class="grow-sep"></div>';
     STRINGS.forEach(st=>{for(let i=0;i<bt.div;i++){const s=bt.slots[i],
       on=s.type==='pick'&&(st in s.frets),dis=s.type==='strum',
       seld=SEL&&SEL.b===b&&SEL.i===i&&SEL.s===st;
@@ -463,8 +467,9 @@ function buildMobile(){
   m.beats.forEach((b,bi)=>{const has=b.slots.some(s=>s.type!=='rest');
     h+=`<div class="chip${bi===MFOCUS.b?' sel':''}${has?' has':''}" data-act="beat" data-b="${bi}">${bi+1}拍<br><span style="font-size:11px">${has?'●':'○'}</span></div>`;});
   h+='</div>';
-  h+='<div class="mblabel">分割</div><div style="display:flex;gap:8px;align-items:center;">'
-    +`<select id="mbDiv">`+[[1,'4分'],[2,'8分'],[3,'3連'],[4,'16分']].map(([v,t])=>`<option value="${v}"${v===bt.div?' selected':''}>${t}</option>`).join('')+`</select>`;
+  const DIVLBL={1:'4分',2:'8分',3:'3連',4:'16分'};
+  h+='<div class="mblabel">分割（タップで切替）</div><div style="display:flex;gap:8px;align-items:center;">'
+    +`<button data-act="cyclediv" style="min-width:92px;font-weight:700;">${DIVLBL[bt.div]||'8分'} ▸</button>`;
   if(bt.div>1){h+='<div class="chiprow" style="flex:1;">';
     for(let i=0;i<bt.div;i++){const lbl=i===0?'拍頭':(SUB[bt.div][i]||'・');
       h+=`<div class="chip${i===MFOCUS.i?' sel':''}" data-act="slot" data-i="${i}">${lbl}</div>`;}
@@ -497,8 +502,6 @@ function buildMobile(){
   }
   h+='</div>';
   host.innerHTML=h;
-  const dv=host.querySelector('#mbDiv');
-  dv.onchange=e=>{const ch=cm().beats[MFOCUS.b].chord;cm().beats[MFOCUS.b]=newBeat(+e.target.value);cm().beats[MFOCUS.b].chord=ch;MFOCUS.i=0;SEL=null;render();};
   const ci=host.querySelector('#mbChord');
   if(ci)ci.oninput=()=>{cm().beats[MFOCUS.b].chord=ci.value;drawMiniPreview();drawScore();}; // 軽量更新でフォーカス維持
   host.querySelectorAll('[data-act]').forEach(el=>el.addEventListener('click',()=>mbAction(el.dataset)));
@@ -508,6 +511,7 @@ function mbAction(ds){
   switch(ds.act){
     case 'beat': MFOCUS={b:+ds.b,i:0}; SEL=null; break;
     case 'slot': MFOCUS.i=+ds.i; SEL=null; break;
+    case 'cyclediv':{const order=[1,2,3,4];const bt=cm().beats[MFOCUS.b];const nd=order[(order.indexOf(bt.div)+1)%order.length];const ch=bt.chord;cm().beats[MFOCUS.b]=newBeat(nd);cm().beats[MFOCUS.b].chord=ch;MFOCUS.i=0;SEL=null;break;}
     case 'str':{const st=+ds.s;
       if(slot.type!=='pick'){slot.type='pick';slot.frets={};slot.acc=false;}
       if(st in slot.frets){
