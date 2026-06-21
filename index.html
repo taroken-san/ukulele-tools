@@ -227,6 +227,8 @@
       <select id="theme"><option value="color" selected>カラー</option><option value="bw">白黒（印刷用）</option></select></span>
     <span><label>数字</label>
       <select id="numstyle"><option value="fill">塗り丸</option><option value="outline">白地丸</option><option value="none" selected>囲みなし</option></select></span>
+    <span><label>数字サイズ</label>
+      <select id="numsize"><option value="0.85">小</option><option value="1" selected>標準</option><option value="1.2">大</option><option value="1.45">特大</option></select></span>
     <span><label>表示サイズ</label>
       <select id="zoom"><option value="0.8">小</option><option value="1" selected>中</option><option value="1.25">大</option><option value="1.5">特大</option></select></span>
     <button id="print">🖨 印刷 / PDF保存</button>
@@ -253,8 +255,6 @@ const SAN_CFG={id:'sanshin',name:'三線',strings:[1,2,3],
 const INST=/sanshin/i.test(location.search)?SAN_CFG:UKE_CFG;
 const STRINGS=INST.strings, LBL=INST.lbl, FREQ=INST.freq, N=STRINGS.length;
 const SUB={1:[''],2:['','&'],3:['','・','・'],4:['','e','&','a']};
-document.title=INST.name+'譜エディタ';
-document.addEventListener('DOMContentLoaded',()=>{const h=document.querySelector('h1');if(h)h.firstChild.textContent=INST.name+'譜エディタ ';});
 
 function newSlot(){return {type:'rest',stroke:'d',acc:false,tie:false,frets:{}};}
 function newBeat(div){return {div,chord:'',slots:Array.from({length:div},newSlot)};}
@@ -320,16 +320,17 @@ function buildEditGrid(){
 }
 
 // ===== 配色 =====
-let COLOR=true, NUMSTYLE='none', PRINTING=false, SCALE=1;
+let COLOR=true, NUMSTYLE='none', PRINTING=false, SCALE=1, NUMSCALE=1;
 function pal(){return COLOR
   ?{tabline:'#cfcdc3',bar:'#23241f',stem:'#3a3a36',down:'#0c447c',up:'#993c1d',acc:'#a32d2d',pick:'#534ab7',ink:'#23241f',mut:'#6b6a63'}
   :{tabline:'#9a9a9a',bar:'#000',stem:'#000',down:'#000',up:'#000',acc:'#000',pick:'#000',ink:'#000',mut:'#333'};}
 function noteNum(x,y,order,P){
+  const z=NUMSCALE;
   if(NUMSTYLE==='none')
-    return `<text x="${x}" y="${y+3.5}" text-anchor="middle" font-size="10" fill="${P.pick}" font-weight="bold" style="paint-order:stroke;stroke:#fff;stroke-width:3px;">${order}</text>`;
+    return `<text x="${x}" y="${y+3.5*z}" text-anchor="middle" font-size="${10*z}" fill="${P.pick}" font-weight="bold" style="paint-order:stroke;stroke:#fff;stroke-width:${3*z}px;">${order}</text>`;
   if(NUMSTYLE==='outline')
-    return `<circle cx="${x}" cy="${y}" r="6" fill="#fff" stroke="${P.pick}" stroke-width="1.3"/><text x="${x}" y="${y+3}" text-anchor="middle" font-size="8" fill="${P.pick}" font-weight="bold">${order}</text>`;
-  return `<circle cx="${x}" cy="${y}" r="5.5" fill="${P.pick}"/><text x="${x}" y="${y+3}" text-anchor="middle" font-size="8" fill="#fff" font-weight="bold">${order}</text>`;
+    return `<circle cx="${x}" cy="${y}" r="${6*z}" fill="#fff" stroke="${P.pick}" stroke-width="1.3"/><text x="${x}" y="${y+3*z}" text-anchor="middle" font-size="${8*z}" fill="${P.pick}" font-weight="bold">${order}</text>`;
+  return `<circle cx="${x}" cy="${y}" r="${5.5*z}" fill="${P.pick}"/><text x="${x}" y="${y+3*z}" text-anchor="middle" font-size="${8*z}" fill="#fff" font-weight="bold">${order}</text>`;
 }
 // ===== 五線描画（1小節）=====
 function drawMeasure(mx,my,mw,m,isCur,rowH){
@@ -618,6 +619,7 @@ document.getElementById('perrow').onchange=drawScore;
 document.getElementById('zoom').onchange=e=>{SCALE=+e.target.value;drawScore();};
 document.getElementById('theme').onchange=e=>{COLOR=e.target.value==='color';drawScore();};
 document.getElementById('numstyle').onchange=e=>{NUMSTYLE=e.target.value;drawScore();};
+document.getElementById('numsize').onchange=e=>{NUMSCALE=+e.target.value;drawScore();};
 document.getElementById('print').onclick=()=>{PRINTING=true;drawScore();
   setTimeout(()=>{window.print();PRINTING=false;drawScore();},60);};
 window.onbeforeprint=()=>{PRINTING=true;drawScore();};
@@ -653,12 +655,13 @@ let SAVE_ID=null;
 let baseline=null, undoStack=[], redoStack=[];
 
 // --- 正式JSON形式 ---
-function curSettings(){return {bpm:+$('bpm').value, theme:$('theme').value, numstyle:$('numstyle').value, zoom:$('zoom').value, perrow:$('perrow').value};}
+function curSettings(){return {bpm:+$('bpm').value, theme:$('theme').value, numstyle:$('numstyle').value, numsize:$('numsize').value, zoom:$('zoom').value, perrow:$('perrow').value};}
 function serialize(){return {format:'ukulele-pattern',version:1,id:SAVE_ID,title:titleEl.value||'無題',lyricist:lyricistEl.value||'',composer:composerEl.value||'',updatedAt:new Date().toISOString(),settings:curSettings(),song};}
 function applySettings(s){if(!s)return;
   if(s.bpm)$('bpm').value=s.bpm;
   if(s.theme){$('theme').value=s.theme;COLOR=s.theme==='color';}
   if(s.numstyle){$('numstyle').value=s.numstyle;NUMSTYLE=s.numstyle;}
+  if(s.numsize){$('numsize').value=s.numsize;NUMSCALE=+s.numsize;}
   if(s.zoom){$('zoom').value=s.zoom;SCALE=+s.zoom;}
   if(s.perrow!=null)$('perrow').value=s.perrow;}
 
@@ -739,6 +742,21 @@ function loadSongById(id){const doc=lsGet(LS.song(id),null);if(!doc)return false
 
 // --- イベント ---
 // 使い方モーダル
+function buildHelp(){const body=document.querySelector('#helpModal .modal-body');if(!body)return;const strk=INST.hasStroke;
+  body.innerHTML=
+    '<h4>🎼 全体の流れ</h4><p>① 小節を選ぶ → ② 音を入力 → ③ 上の譜面で確認 → ④ 印刷 / PDF保存。曲は自動保存され、次に開くと続きから編集できます。</p>'
+   +'<h4>📱 スマホで入力</h4><ul>'
+     +'<li>「拍を選ぶ」で入力する拍をタップ</li>'
+     +'<li>弦の行をタップでオン／オフ（複数オン＝つまみ）</li>'
+     +'<li>弦を選ぶと下に数字パッド → フレットを入力</li>'
+     +`<li>${strk?'ストローク・':''}休符・アクセント・タイは専用ボタン</li>`
+     +'<li>上部のミニ譜面でその場で結果を確認</li></ul>'
+   +'<h4>💻 パソコンで入力</h4><ul>'
+     +'<li>弦のマスをクリック → 数字キーでフレット</li>'
+     +(strk?'<li>ストローク行をクリック＝休み→↓→∧（アップ）</li>':'')
+     +'<li>アクセント・タイはマスを選んで上のボタンで付与（タイは T キーでも可）</li></ul>'
+   +'<h4>💾 保存・曲の管理</h4><ul><li>自動保存（端末内）。「＋新規」で別の曲、プルダウンで切替</li><li>「ファイル保存／読込」でバックアップ・受け渡し</li><li>「元に戻す／やり直し」で操作の取り消し</li></ul>'
+   +'<h4>🖨 印刷して渡す</h4><p>曲名・作詞・作曲を入れて「印刷 / PDF保存」。シニアの方にはこの印刷物を配布します。</p>';}
 function openHelp(){$('helpModal').classList.add('open');}
 function closeHelp(){$('helpModal').classList.remove('open');}
 $('helpBtn').onclick=openHelp;
@@ -776,10 +794,10 @@ $('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
   }catch(err){alert('読み込み失敗: '+err.message);}};
   r.readAsText(f); $('fileInput').value='';};
 // 設定変更も保存対象
-['bpm','theme','numstyle','zoom','perrow'].forEach(id=>$(id).addEventListener('change',scheduleAutosave));
+['bpm','theme','numstyle','numsize','zoom','perrow'].forEach(id=>$(id).addEventListener('change',scheduleAutosave));
 
 // --- 起動：前回の曲を復元、無ければ新規 ---
-(function init(){const curId=lsGet(LS.current,null);
+(function init(){buildHelp();const curId=lsGet(LS.current,null);
   if(curId&&loadSongById(curId)){}
   else{SAVE_ID=(crypto.randomUUID?crypto.randomUUID():'id'+Date.now());render();saveSong();}
   refreshSongList();
