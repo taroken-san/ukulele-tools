@@ -68,6 +68,9 @@
   .date-wrap input{flex:1;}
   .date-clear{flex:0 0 auto;width:38px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--sub);font-size:14px;cursor:pointer;}
   .date-clear:active{background:#f0f0f0;}
+  .date-edit-row{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .date-edit-row .lbl{font-size:12px;color:var(--sub);}
+  .date-edit-row input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fafafa;}
   .prev-plan{background:var(--accent-soft);border-radius:var(--radius);margin-bottom:12px;padding:10px 14px;border-left:4px solid var(--accent);}
   .prev-plan-h{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px;}
   .prev-plan-b{font-size:15px;color:var(--txt);white-space:pre-wrap;}
@@ -347,6 +350,15 @@ function lessonDate(year, month, schedule, weekday, session){
   if(day>daysInMonth) return null;
   return {month, day};
 }
+// 表示する実施日。手動上書き(rec.date)があれば優先、なければ曜日から自動計算
+function sessionDate(y, m, s){
+  const r = store.records[curClassId] && store.records[curClassId][y]
+    && store.records[curClassId][y][m] && store.records[curClassId][y][m][s];
+  if(r && r.date){ const p=r.date.split('-'); if(p.length===3) return {month:+p[1], day:+p[2], iso:r.date, manual:true}; }
+  const c = curClass();
+  const ld = c ? lessonDate(y, m, c.schedule, c.weekday, s) : null;
+  return ld ? {month:ld.month, day:ld.day, iso:`${y}-${String(ld.month).padStart(2,'0')}-${String(ld.day).padStart(2,'0')}`, manual:false} : null;
+}
 function renderSessionTabs(){
   const el = document.getElementById('sessionTabs');
   const c = curClass();
@@ -355,7 +367,7 @@ function renderSessionTabs(){
   [1,2].forEach(s=>{
     const b = document.createElement('button');
     b.className='stab'+(s===curSession?' active':'');
-    const d = c ? lessonDate(curYear, curMonth, c.schedule, c.weekday, s) : null;
+    const d = sessionDate(curYear, curMonth, s);
     b.textContent = d ? `第${s}回　${d.month}/${d.day}` : `第${s}回（${order[s-1]}）`;
     b.onclick=()=>{ curSession=s; renderSessionTabs(); renderContent(); };
     el.appendChild(b);
@@ -388,9 +400,14 @@ function renderContent(){
       <div class="prev-plan-b">${escapeHtml(prev.txt)}</div></div>`;
   }
 
-  const hd = lessonDate(curYear, curMonth, cls.schedule, cls.weekday, curSession);
+  const sd = sessionDate(curYear, curMonth, curSession);
   html += `<div class="card"><div class="card-h"><span>出席・受領記録</span>
-    <span style="font-weight:400;">${curMonth}月 第${curSession}回${hd?`（${hd.month}/${hd.day}）`:''}</span></div>`;
+    <span style="font-weight:400;">${curMonth}月 第${curSession}回${sd?`　${sd.month}/${sd.day}`:''}</span></div>
+    <div class="date-edit-row">
+      <span class="lbl">実施日（ずれた時に変更）</span>
+      <input type="date" id="sessionDateInput" value="${sd?sd.iso:''}">
+      ${sd&&sd.manual?'<button id="sessionDateAuto" class="btn-ghost">自動に戻す</button>':''}
+    </div>`;
   if(!actives.length){
     html += `<div class="muted">生徒が未登録です。右上「設定」から登録してください。</div>`;
   }
@@ -459,6 +476,10 @@ function renderContent(){
       if(stu){ stu.suspended = !stu.suspended; markDirty(); renderContent(); }
     };
   });
+  const sdInput = document.getElementById('sessionDateInput');
+  if(sdInput){ sdInput.onchange=()=>{ if(sdInput.value){ rec.date=sdInput.value; } else { delete rec.date; } markDirty(); renderSessionTabs(); renderContent(); }; }
+  const sdAuto = document.getElementById('sessionDateAuto');
+  if(sdAuto){ sdAuto.onclick=()=>{ delete rec.date; markDirty(); renderSessionTabs(); renderContent(); }; }
   root.querySelectorAll('input[data-pay]').forEach(inp=>{
     inp.onchange=()=>{ rec.pay[inp.dataset.pay]=inp.value; markDirty(); };
   });
