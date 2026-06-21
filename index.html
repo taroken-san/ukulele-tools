@@ -243,10 +243,18 @@
 </div>
 
 <script>
-const STRINGS=[1,2,3,4];
-const LBL={1:'1弦 A',2:'2弦 E',3:'3弦 C',4:'4弦 g'};
-const FREQ={4:196.00,3:261.63,2:329.63,1:440.00};
+// ===== 楽器設定（同一ソースでウクレレ／三線を切替。?inst=sanshin で三線） =====
+const UKE_CFG={id:'ukulele',name:'ウクレレ',strings:[1,2,3,4],
+  lbl:{1:'1弦 A',2:'2弦 E',3:'3弦 C',4:'4弦 g'},
+  freq:{4:196.00,3:261.63,2:329.63,1:440.00},hasChord:true,hasStroke:true,prefix:'ukp'};
+const SAN_CFG={id:'sanshin',name:'三線',strings:[1,2,3],
+  lbl:{1:'三 女絃',2:'二 中絃',3:'一 男絃'},                 // 上から（高音→低音）
+  freq:{1:261.63,2:174.61,3:130.81},hasChord:false,hasStroke:false,prefix:'snk'}; // 本調子 C-F-C
+const INST=/sanshin/i.test(location.search)?SAN_CFG:UKE_CFG;
+const STRINGS=INST.strings, LBL=INST.lbl, FREQ=INST.freq, N=STRINGS.length;
 const SUB={1:[''],2:['','&'],3:['','・','・'],4:['','e','&','a']};
+document.title=INST.name+'譜エディタ';
+document.addEventListener('DOMContentLoaded',()=>{const h=document.querySelector('h1');if(h)h.firstChild.textContent=INST.name+'譜エディタ ';});
 
 function newSlot(){return {type:'rest',stroke:'d',acc:false,tie:false,frets:{}};}
 function newBeat(div){return {div,chord:'',slots:Array.from({length:div},newSlot)};}
@@ -264,25 +272,29 @@ const fretKeys=s=>Object.keys(s.frets||{}).map(Number).sort((a,b)=>b-a); // 4→
 function beatCount(bt){const out=[];for(let i=0;i<bt.div;i++)out.push(i===0?'':SUB[bt.div][i]);return out;}
 function buildEditGrid(){
   const g=document.getElementById('editgrid'),m=cm();
-  let html=`<div class="lblcol"><div class="top"></div><div class="lblrow chordlbl">コード</div>`
-    +`<div class="lblrow count"></div><div class="lblrow">ストローク</div>`
-    +`<div class="lblrow sep"></div>`
-    +STRINGS.map(st=>`<div class="lblrow">${LBL[st]}</div>`).join('')+`</div>`;
+  const rowsCss=['14px',...(INST.hasStroke?['30px','8px']:[]),...STRINGS.map(()=>'30px')].join(' ');
+  let html='<div class="lblcol"><div class="top"></div>'
+    +(INST.hasChord?'<div class="lblrow chordlbl">コード</div>':'')
+    +'<div class="lblrow count"></div>'
+    +(INST.hasStroke?'<div class="lblrow">ストローク</div><div class="lblrow sep"></div>':'')
+    +STRINGS.map(st=>`<div class="lblrow">${LBL[st]}</div>`).join('')+'</div>';
   m.beats.forEach((bt,b)=>{
     const sel=`<select class="bdiv" data-b="${b}">`
       +[[1,'4分'],[2,'8分'],[3,'3連'],[4,'16分']].map(([v,t])=>`<option value="${v}"${v===bt.div?' selected':''}>${t}</option>`).join('')+`</select>`;
-    const chordIn=`<input class="bchord" data-b="${b}" value="${bt.chord||''}" placeholder="—">`;
+    const chordIn=INST.hasChord?`<input class="bchord" data-b="${b}" value="${bt.chord||''}" placeholder="—">`:'';
     const counts=beatCount(bt);let cells='';
     for(let i=0;i<bt.div;i++)cells+=`<div class="ccell">${i===0?(b+1):counts[i]}</div>`;
-    for(let i=0;i<bt.div;i++){const s=bt.slots[i],on=s.type==='strum';
-      const cls=['ecell','strum',on?s.stroke:'',on&&s.acc?'acc':'',s.tie?'tied':'',i===0?'beat1':''].join(' ');
-      cells+=`<div class="${cls}" data-row="strum" data-b="${b}" data-i="${i}">${on?(s.stroke==='d'?'↓':'∧'):'·'}</div>`;}
-    cells+='<div class="grow-sep"></div>';
+    if(INST.hasStroke){
+      for(let i=0;i<bt.div;i++){const s=bt.slots[i],on=s.type==='strum';
+        const cls=['ecell','strum',on?s.stroke:'',on&&s.acc?'acc':'',s.tie?'tied':'',i===0?'beat1':''].join(' ');
+        cells+=`<div class="${cls}" data-row="strum" data-b="${b}" data-i="${i}">${on?(s.stroke==='d'?'↓':'∧'):'·'}</div>`;}
+      cells+='<div class="grow-sep"></div>';
+    }
     STRINGS.forEach(st=>{for(let i=0;i<bt.div;i++){const s=bt.slots[i],
       on=s.type==='pick'&&(st in s.frets),dis=s.type==='strum',
       seld=SEL&&SEL.b===b&&SEL.i===i&&SEL.s===st;
       cells+=`<div class="${['ecell',on?'on':'',dis?'disabled':'',seld?'sel':'',s.tie?'tied':'',i===0?'beat1':''].join(' ')}" data-row="str" data-b="${b}" data-i="${i}" data-s="${st}">${on?s.frets[st]:''}</div>`;}});
-    html+=`<div class="beatcol">${sel}${chordIn}<div class="bgrid" style="grid-template-columns:repeat(${bt.div},30px)">${cells}</div></div>`;
+    html+=`<div class="beatcol">${sel}${chordIn}<div class="bgrid" style="grid-template-columns:repeat(${bt.div},30px);grid-template-rows:${rowsCss}">${cells}</div></div>`;
   });
   g.innerHTML=html;
   g.querySelectorAll('.bdiv').forEach(sel=>sel.onchange=()=>{const b=+sel.dataset.b,ch=cm().beats[b].chord;
@@ -323,7 +335,7 @@ function noteNum(x,y,order,P){
 function drawMeasure(mx,my,mw,m,isCur,rowH){
   const beamTop=my+20,stemBase=my+32,tabTop=my+44,sp=13;
   const cardH=Math.round((rowH||104)-8);
-  const yOf=s=>tabTop+(s-1)*sp, baseY=yOf(4);
+  const yOf=s=>tabTop+(s-1)*sp, baseY=yOf(N);
   const P=pal();
   let g='';
   if(isCur&&!PRINTING)g+=`<rect x="${mx-2}" y="${my+2}" width="${mw}" height="${cardH}" fill="${COLOR?'#fbf6e9':'#f2f2f2'}" rx="6"/>`;
@@ -331,7 +343,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
   m.beats.forEach((bt,b)=>{if(bt.chord){const cx=mx+b*(mw/m.beats.length)+4;
     g+=`<text x="${cx}" y="${my+14}" font-size="13" font-weight="bold" fill="${P.ink}">${bt.chord}</text>`;}});
   // TAB線＋小節線
-  for(let s=1;s<=4;s++){const y=yOf(s);
+  for(let s=1;s<=N;s++){const y=yOf(s);
     g+=`<line x1="${mx}" y1="${y}" x2="${mx+mw}" y2="${y}" stroke="${P.tabline}" stroke-width="1"/>`;}
   g+=`<line x1="${mx}" y1="${yOf(1)}" x2="${mx}" y2="${baseY}" stroke="${P.bar}" stroke-width="1.4"/>`;
   g+=`<line x1="${mx+mw}" y1="${yOf(1)}" x2="${mx+mw}" y2="${baseY}" stroke="${P.bar}" stroke-width="1.4"/>`;
@@ -377,7 +389,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
       g+=`<line x1="${x}" y1="${beamTop}" x2="${x2}" y2="${beamTop}" stroke="${P.stem}" stroke-width="3"/>`;
       if(nb>=2)g+=`<line x1="${x}" y1="${beamTop+4}" x2="${x2}" y2="${beamTop+4}" stroke="${P.stem}" stroke-width="3"/>`;
       // 手前の各「・」(休符)へ、点の手前まで縦線を下ろす（少し間隔をあける）
-      const yEnd=(yOf(1)+yOf(4))/2-8;
+      const yEnd=(yOf(1)+yOf(N))/2-8;
       for(let j=0;j<i;j++){const xj=xOf(j);
         g+=`<line x1="${xj}" y1="${beamTop}" x2="${xj}" y2="${yEnd}" stroke="${P.stem}" stroke-width="1.3"/>`;}
     }
@@ -393,7 +405,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
         fretKeys(s).forEach(st=>{g+=noteNum(x,yOf(st),s.frets[st],P);});
       }else{ // 休符：4分＝「ー」／8分以下＝「・」
         const rsym=div===1?'ー':'・';
-        g+=`<text x="${x}" y="${(yOf(1)+yOf(4))/2+5}" text-anchor="middle" font-size="${div===1?13:18}" fill="${P.mut}">${rsym}</text>`;}
+        g+=`<text x="${x}" y="${(yOf(1)+yOf(N))/2+5}" text-anchor="middle" font-size="${div===1?13:18}" fill="${P.mut}">${rsym}</text>`;}
       // アクセント＝数字／スラッシュの上に「＞」
       if(s.acc&&s.type!=='rest')g+=`<text x="${x}" y="${yOf(1)-6}" text-anchor="middle" font-size="13" fill="${P.acc}" font-weight="bold">＞</text>`;
       if(dotted)g+=`<circle cx="${x+8}" cy="${stemBase-3}" r="1.6" fill="${P.stem}"/>`;
@@ -475,15 +487,15 @@ function buildMobile(){
       h+=`<div class="chip${i===MFOCUS.i?' sel':''}" data-act="slot" data-i="${i}">${lbl}</div>`;}
     h+='</div>';}
   h+='</div>';
-  h+='<div class="mblabel">コード（この拍・空欄でなし）</div>'
+  if(INST.hasChord)h+='<div class="mblabel">コード（この拍・空欄でなし）</div>'
     +`<input type="text" id="mbChord" value="${(bt.chord||'').replace(/"/g,'&quot;')}" placeholder="例 C ／ F ／ G7" style="width:100%">`;
   h+='<div class="mblabel">弦をタップでオン／オフ（複数オン＝つまみ）</div>';
-  [1,2,3,4].forEach(st=>{const on=slot.type==='pick'&&(st in slot.frets);
+  STRINGS.forEach(st=>{const on=slot.type==='pick'&&(st in slot.frets);
     const seld=SEL&&SEL.b===MFOCUS.b&&SEL.i===MFOCUS.i&&SEL.s===st;
     h+=`<div class="srow ${on?'on':'off'}${seld?' sel':''}" data-act="str" data-s="${st}"><span>${LBL[st]}</span><span class="fr">${on?slot.frets[st]:'オフ'}</span></div>`;});
   h+='<div class="mblabel">この音の種類</div><div class="mbtns">'
-    +`<button data-act="down" class="${slot.type==='strum'&&slot.stroke==='d'?'act':''}">↓ ストローク</button>`
-    +`<button data-act="up" class="${slot.type==='strum'&&slot.stroke==='u'?'act':''}">∧ アップ</button>`
+    +(INST.hasStroke?`<button data-act="down" class="${slot.type==='strum'&&slot.stroke==='d'?'act':''}">↓ ストローク</button>`
+      +`<button data-act="up" class="${slot.type==='strum'&&slot.stroke==='u'?'act':''}">∧ アップ</button>`:'')
     +`<button data-act="rest" class="${slot.type==='rest'?'act':''}">休符</button>`
     +`<button data-act="acc" class="${slot.acc&&slot.type!=='rest'?'act':''}">＞ アクセント</button>`
     +`<button data-act="tie" class="${slot.tie?'act':''}">🔗 タイ</button>`
@@ -680,7 +692,8 @@ function normalize(doc){
 }
 
 // --- localStorage（複数曲） ---
-const LS={index:'ukp:index',song:id=>'ukp:song:'+id,current:'ukp:current'};
+const P_=INST.prefix;
+const LS={index:P_+':index',song:id=>P_+':song:'+id,current:P_+':current'};
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){saveStat.textContent='⚠ 保存失敗（容量超過の可能性）';saveStat.style.color='#a32d2d';return false;}}
 function refreshSongList(){const idx=lsGet(LS.index,[]);
@@ -770,7 +783,7 @@ $('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
   if(curId&&loadSongById(curId)){}
   else{SAVE_ID=(crypto.randomUUID?crypto.randomUUID():'id'+Date.now());render();saveSong();}
   refreshSongList();
-  if(!lsGet('ukp:seenHelp',false)){openHelp();lsSet('ukp:seenHelp',true);}  // 初回だけ自動で開く
+  if(!lsGet(P_+':seenHelp',false)){openHelp();lsSet(P_+':seenHelp',true);}  // 初回だけ自動で開く
 })();
 </script>
 </body>
