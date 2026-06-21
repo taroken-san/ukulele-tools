@@ -394,11 +394,10 @@ function renderContent(){
   const actives = cls.students.filter(s=>s.active && (s.name||'').trim());
   let html = '';
 
+  // 「今日の予定・やった内容」の初期値として前回の「次回予定」を入れておく(1回だけ)
   const prev = prevSessionPlan();
-  if(prev.txt){
-    html += `<div class="prev-plan"><div class="prev-plan-h">前回（${prev.m}月 第${prev.s}回）の「次回予定」</div>
-      <div class="prev-plan-b">${escapeHtml(prev.txt)}</div></div>`;
-  }
+  if(prev.txt && !rec.memo.songs && !rec.memo._seeded){ rec.memo.songs = prev.txt; }
+  rec.memo._seeded = true;
 
   const sd = sessionDate(curYear, curMonth, curSession);
   html += `<div class="card"><div class="card-h"><span>出席・受領記録</span>
@@ -445,8 +444,8 @@ function renderContent(){
 
   html += `<div class="card"><div class="card-h">進行メモ（このコマ）</div>
     <div class="memo-field">
-      <label>今日やった曲・内容</label>
-      <textarea data-memo="songs" placeholder="曲名・練習内容">${escapeHtml(rec.memo.songs)}</textarea>
+      <label>今日の予定・やった内容</label>
+      <textarea data-memo="songs" placeholder="前回の予定が入ります。実際にやった内容に追記・修正してください">${escapeHtml(rec.memo.songs)}</textarea>
       <label>講師コメント</label>
       <textarea data-memo="comment" placeholder="気づき・連絡事項">${escapeHtml(rec.memo.comment)}</textarea>
       <label>次回予定</label>
