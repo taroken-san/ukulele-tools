@@ -41,21 +41,27 @@
     display:flex;justify-content:space-between;align-items:center;}
   .stu{padding:10px 14px;border-bottom:1px solid var(--line);}
   .stu:last-child{border-bottom:none;}
+  .stu.suspended{opacity:.58;}
   .stu-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
-  .stu-name{font-weight:700;font-size:16px;flex:1;}
-  .seg{display:flex;gap:4px;}
-  .seg button{width:48px;height:40px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
+  .stu-id{display:flex;align-items:center;gap:8px;flex:1;min-width:0;flex-wrap:wrap;}
+  .stu-name{font-weight:700;font-size:16px;}
+  .seg{display:flex;gap:4px;flex:0 0 auto;}
+  .seg button{width:42px;height:40px;border-radius:9px;border:1.5px solid var(--line);background:#fff;
     font-size:18px;font-weight:700;color:var(--sub);white-space:nowrap;padding:0;}
   .seg button.sel-ok{background:var(--ok);border-color:var(--ok);color:#fff;}
   .seg button.sel-absent{background:var(--absent);border-color:var(--absent);color:#fff;}
-  .seg button.sel-makeup{background:var(--makeup);border-color:var(--makeup);color:#fff;font-size:13px;}
-  .makeup-row{display:flex;align-items:center;gap:8px;margin-top:9px;}
-  .makeup-row .lbl{font-size:12px;color:var(--sub);}
-  .makeup-row button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:18px;line-height:1;padding:0;color:var(--txt);}
-  .makeup-row .val{min-width:26px;text-align:center;font-size:18px;font-weight:700;}
-  .makeup-row .unit{font-size:11px;color:var(--sub);}
-  .pay-row{display:flex;gap:10px;margin-top:9px;flex-wrap:wrap;}
-  .pay{flex:1;min-width:140px;}
+  .seg button.btn-leave{font-size:14px;}
+  .seg button.btn-leave.active{background:var(--makeup);border-color:var(--makeup);color:#fff;}
+  .seg button:disabled{opacity:.4;}
+  .mk-chip{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--sub);
+    background:var(--bg);border-radius:20px;padding:2px 6px;}
+  .mk-chip .mk-lbl{font-size:11px;}
+  .mk-chip .mk-val{min-width:14px;text-align:center;font-weight:700;color:var(--txt);font-size:14px;}
+  .mk-chip button{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:#fff;
+    font-size:14px;line-height:1;padding:0;color:var(--txt);}
+  .leave-badge{font-size:11px;background:#fbe7cf;color:#8a5a00;border-radius:20px;padding:2px 8px;font-weight:700;}
+  .pay-row{display:flex;flex-direction:column;gap:8px;margin-top:9px;}
+  .pay{width:100%;}
   .pay label{font-size:11px;color:var(--sub);display:block;margin-bottom:3px;}
   .pay input{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fafafa;}
   .date-wrap{display:flex;gap:6px;align-items:stretch;}
@@ -343,25 +349,20 @@ function renderContent(){
     html += `<div class="muted">生徒が未登録です。右上「設定」から登録してください。</div>`;
   }
   actives.forEach(s=>{
+    const suspended = !!s.suspended;
     const att = rec.att[s.id]||'';
     const segBtns = STATUSES.map(st=>{
       const sel = att===st.v ? ' '+st.cls : '';
-      return `<button class="${sel.trim()}" data-stu="${s.id}" data-val="${st.v}">${st.label}</button>`;
+      return `<button class="${sel.trim()}" data-stu="${s.id}" data-val="${st.v}"${suspended?' disabled':''}>${st.label}</button>`;
     }).join('');
+    const leaveBtn = `<button class="btn-leave${suspended?' active':''}" data-leave="${s.id}" title="休会の切替">休</button>`;
+    const idArea = suspended
+      ? `<span class="stu-name">${escapeHtml(s.name)}</span><span class="leave-badge">休会中</span>`
+      : `<span class="stu-name">${escapeHtml(s.name)}</span>
+         <span class="mk-chip"><span class="mk-lbl">振替</span><button data-mk="${s.id}" data-d="-1">−</button><span class="mk-val">${makeup[s.id]||0}</span><button data-mk="${s.id}" data-d="1">＋</button></span>`;
     const pay = rec.pay[s.id]||'';
     const fac = facility[s.id]||'';
-    html += `<div class="stu">
-      <div class="stu-top">
-        <span class="stu-name">${escapeHtml(s.name)}</span>
-        <div class="seg">${segBtns}</div>
-      </div>
-      <div class="makeup-row">
-        <span class="lbl">振替残</span>
-        <button data-mk="${s.id}" data-d="-1">−</button>
-        <span class="val">${makeup[s.id]||0}</span>
-        <button data-mk="${s.id}" data-d="1">＋</button>
-        <span class="unit">回</span>
-      </div>
+    const payRow = suspended ? '' : `
       <div class="pay-row">
         <div class="pay"><label>月謝 受領日（${curMonth}月）</label>
           <div class="date-wrap"><input type="date" data-pay="${s.id}" value="${pay}">
@@ -369,7 +370,12 @@ function renderContent(){
         <div class="pay"><label>施設費 受領日（${curYear}年・年1回）</label>
           <div class="date-wrap"><input type="date" data-fac="${s.id}" value="${fac}">
             <button type="button" class="date-clear" data-clearfac="${s.id}" title="受領日を消す">✕</button></div></div>
-      </div>
+      </div>`;
+    html += `<div class="stu${suspended?' suspended':''}">
+      <div class="stu-top">
+        <div class="stu-id">${idArea}</div>
+        <div class="seg">${segBtns}${leaveBtn}</div>
+      </div>${payRow}
     </div>`;
   });
   html += `</div>`;
@@ -393,12 +399,18 @@ function renderContent(){
       markDirty(); renderContent();
     };
   });
-  root.querySelectorAll('.makeup-row button[data-mk]').forEach(b=>{
+  root.querySelectorAll('button[data-mk]').forEach(b=>{
     b.onclick=()=>{
       const id=b.dataset.mk, d=+b.dataset.d;
       const cur = makeup[id]||0;
       makeup[id] = Math.max(0, cur + d);
       markDirty(); renderContent();
+    };
+  });
+  root.querySelectorAll('button[data-leave]').forEach(b=>{
+    b.onclick=()=>{
+      const stu = cls.students.find(x=>x.id===b.dataset.leave);
+      if(stu){ stu.suspended = !stu.suspended; markDirty(); renderContent(); }
     };
   });
   root.querySelectorAll('input[data-pay]').forEach(inp=>{
