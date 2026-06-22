@@ -214,7 +214,13 @@
   </div>
   <div id="mobilePanel"><div id="mbPreview"></div><div id="mbBody"></div></div>
   <div class="mfields">
-    <div class="f"><label>歌詞（スペースで音符ごとに区切る）</label><input type="text" id="lyric" placeholder="例：ラ ブ は せ か い の"></div>
+    <div class="f"><label>歌詞（スペースで音符ごとに区切る／漢字混じりOK）</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="lyric" placeholder="例：感じ取れたら 手をつなごう" style="flex:1">
+        <button id="kanaBtn" title="漢字をひらがなに変換＋音符数で自動区切り">ひらがな化</button>
+      </div>
+      <div id="kanaStat" class="hint" style="margin:4px 0 0;"></div>
+    </div>
   </div>
 </div>
 
@@ -393,8 +399,17 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
       for(let j=0;j<i;j++){const xj=xOf(j);
         g+=`<line x1="${xj}" y1="${beamTop}" x2="${xj}" y2="${yEnd}" stroke="${P.stem}" stroke-width="1.3"/>`;}
     }
-    // 3連符
-    if(div===3&&played.length)g+=`<text x="${bx+beatW/2}" y="${beamTop-1}" text-anchor="middle" font-size="9" fill="${P.mut}" font-weight="bold">3</text>`;
+    // 3連符（連桁の上に「3」＋左右の弧）
+    if(div===3&&played.length){
+      const cx=bx+beatW/2, cy=beamTop-2;
+      const xL=bx+beatW*0.12, xR=bx+beatW*0.88;
+      // 左の弧（外側がふくらむ）
+      g+=`<path d="M ${xL},${beamTop-1} Q ${xL+5},${cy-5} ${cx-5},${cy-2}" fill="none" stroke="${P.stem}" stroke-width="1.1"/>`;
+      // 右の弧
+      g+=`<path d="M ${cx+5},${cy-2} Q ${xR-5},${cy-5} ${xR},${beamTop-1}" fill="none" stroke="${P.stem}" stroke-width="1.1"/>`;
+      // 「3」
+      g+=`<text x="${cx}" y="${cy+1}" text-anchor="middle" font-size="10" fill="${P.stem}" font-weight="bold">3</text>`;
+    }
     // 音符・付点・歌詞
     bt.slots.forEach((s,i)=>{const x=xOf(i);
       const dotted=(s.type!=='rest')&&beams(div,span(i))>=1&&span(i)===3; // 付点8分
@@ -794,6 +809,53 @@ $('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
   r.readAsText(f); $('fileInput').value='';};
 // 設定変更も保存対象
 ['bpm','theme','numstyle','numsize','zoom','perrow'].forEach(id=>$(id).addEventListener('change',scheduleAutosave));
+
+// ===== 歌詞のひらがな化（kuroshiro + kuromoji辞書）=====
+const KANA={ready:false,loading:null,kuroshiro:null};
+function loadScript(src){return new Promise((ok,ng)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>ng(new Error('load:'+src));document.head.appendChild(s);});}
+async function ensureKana(stat){
+  if(KANA.ready)return KANA.kuroshiro;
+  if(KANA.loading)return KANA.loading;
+  KANA.loading=(async()=>{
+    stat.style.color='';stat.textContent='辞書を読み込んでいます（初回のみ・10〜20秒）…';
+    await loadScript('https://cdn.jsdelivr.net/npm/kuroshiro@1.2.0/dist/kuroshiro.min.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js');
+    const KuroshiroCtor=(typeof Kuroshiro==='function')?Kuroshiro:Kuroshiro.default;
+    const AnalyzerCtor=(typeof KuromojiAnalyzer==='function')?KuromojiAnalyzer:KuromojiAnalyzer.default;
+    const k=new KuroshiroCtor();
+    await k.init(new AnalyzerCtor({dictPath:'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/'}));
+    KANA.kuroshiro=k; KANA.ready=true;
+    return k;
+  })().catch(e=>{KANA.loading=null;throw e;});
+  return KANA.loading;
+}
+// 音符数に合わせて文字を配分（1音=1文字、残りは最後にまとめる）
+function fitToBeats(text){
+  const m=cm(); const notes=m.beats.reduce((n,bt)=>n+bt.slots.filter(s=>s.type!=='rest').length,0);
+  // 空白・改行を除いた連続した文字
+  const chars=text.replace(/[\s　]+/g,'').split('');
+  if(notes<=0||chars.length<=notes)return chars.join(' ');
+  // 各音符に1文字、最後の音符に余りをくっつける
+  const out=chars.slice(0,notes-1);
+  out.push(chars.slice(notes-1).join(''));
+  return out.join(' ');
+}
+document.getElementById('kanaBtn').onclick=async()=>{
+  const inp=document.getElementById('lyric'), stat=document.getElementById('kanaStat');
+  const src=inp.value.trim(); if(!src){stat.style.color='#a32d2d';stat.textContent='歌詞を入力してから押してください';return;}
+  const btn=document.getElementById('kanaBtn'); btn.disabled=true;
+  try{
+    const k=await ensureKana(stat);
+    const hira=await k.convert(src,{to:'hiragana',mode:'normal'});
+    const fitted=fitToBeats(hira);
+    inp.value=fitted; cm().lyric=fitted;
+    drawMiniPreview&&drawMiniPreview(); drawScore();
+    document.getElementById('out').value=exportJSON();
+    scheduleAutosave();
+    stat.style.color='#1d9e75'; stat.textContent='✓ ひらがな化＋音符数で配分しました（手動でスペースを微調整可）';
+  }catch(e){stat.style.color='#a32d2d';stat.textContent='変換に失敗: '+e.message;}
+  finally{btn.disabled=false;}
+};
 
 // --- 起動：前回の曲を復元、無ければ新規 ---
 (function init(){buildHelp();const curId=lsGet(LS.current,null);
