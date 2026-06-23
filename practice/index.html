@@ -494,10 +494,10 @@ const PracticeTools = {
         return;
       }
       try{
-        await this.ensureAudio();
         this.state.stream = await navigator.mediaDevices.getUserMedia({
           audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}
         });
+        await this.ensureAudio();
         this.state.source = this.state.audio.createMediaStreamSource(this.state.stream);
         this.state.analyser = this.state.audio.createAnalyser();
         this.state.analyser.fftSize = 4096;
@@ -509,7 +509,10 @@ const PracticeTools = {
         els.status.textContent = "入力を監視中です。";
         this.tick(performance.now());
       }catch(err){
-        els.status.innerHTML = `<span class="error">マイクを開始できませんでした: ${err.message}</span>`;
+        const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
+        els.status.innerHTML = denied
+          ? '<span class="error">マイクが許可されていません。アドレスバーの「ぁあ」→「Webサイトの設定」→マイクを「許可」にするか、初回の許可ダイアログで「許可」を選んでください。iPhoneは 設定 → Safari → マイク も確認してください。</span>'
+          : `<span class="error">マイクを開始できませんでした: ${err.message}</span>`;
       }
     },
 
