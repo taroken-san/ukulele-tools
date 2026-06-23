@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>練習ツール - チューナー</title>
+<title>練習ツール - チューナー / メトロノーム</title>
 <style>
   :root{
     --bg:#111418;
@@ -78,6 +78,26 @@
   .string-btn small{display:block;color:var(--sub);font-size:11px;margin-top:2px;}
   .footer{color:var(--sub);font-size:12px;line-height:1.6;padding:0 2px 8px;}
   .error{color:#ffb1ab;}
+  .tabs{display:flex;gap:6px;}
+  .tabs button{background:var(--panel2);border:1px solid var(--line);color:var(--sub);
+    border-radius:7px;padding:8px 16px;font-size:14px;font-weight:700;}
+  .tabs button.on{background:var(--accent2);border-color:var(--accent);color:#fff;}
+  [hidden]{display:none !important;}
+  .bpm{font-size:90px;line-height:1;font-weight:800;letter-spacing:-2px;}
+  .bpm-sub{font-size:14px;color:var(--sub);min-height:20px;}
+  .beats{display:flex;justify-content:center;gap:14px;padding:6px 0;flex-wrap:wrap;}
+  .beat{width:22px;height:22px;border-radius:50%;background:#2a3340;border:1px solid #475264;
+    transition:background 60ms,box-shadow 60ms,border-color 60ms;}
+  .beat.accent{border-color:var(--accent);}
+  .beat.active{background:var(--good);border-color:var(--good);box-shadow:0 0 14px rgba(79,196,122,.5);}
+  .beat.active.accent{background:var(--accent);box-shadow:0 0 16px rgba(58,166,163,.6);}
+  .tempo-row{display:flex;align-items:center;gap:10px;}
+  .stepbtn{width:46px;font-size:20px;padding:8px 0;}
+  .segN{display:grid;border:1px solid var(--line);border-radius:7px;overflow:hidden;}
+  .segN button{border:0;border-right:1px solid var(--line);border-radius:0;background:var(--panel2);
+    padding:8px 0;font-size:13px;color:var(--txt);}
+  .segN button:last-child{border-right:0;}
+  .segN button.on{background:var(--accent2);color:#fff;}
   @media (max-width:760px){
     header{align-items:flex-start;flex-direction:column;}
     main{padding:12px;}
@@ -91,11 +111,16 @@
 <body>
 <header>
   <h1>練習ツール</h1>
-  <div class="phase">Phase 1: チューナー</div>
+  <div class="phase" id="phaseLabel">チューナー</div>
 </header>
 
 <main>
-  <section class="tool">
+  <nav class="tabs">
+    <button id="tabTuner" class="on" type="button">チューナー</button>
+    <button id="tabMetro" type="button">メトロノーム</button>
+  </nav>
+
+  <section class="tool" id="view-tuner">
     <div class="panel meter-panel">
       <div class="status">
         <div class="status-text" id="status">マイクを開始すると、入力音に近い音名とズレを表示します。</div>
@@ -173,6 +198,65 @@
       <div class="field">
         <label>感度</label>
         <input id="sensitivity" type="range" min="0.01" max="0.08" value="0.025" step="0.005">
+      </div>
+    </aside>
+  </section>
+
+  <section class="tool" id="view-metro" hidden>
+    <div class="panel meter-panel">
+      <div class="status">
+        <div class="status-text" id="metroStatus">スタートで拍を刻みます。</div>
+        <button class="primary" id="metroBtn">スタート</button>
+      </div>
+
+      <div class="readout">
+        <div class="bpm" id="bpmText">120</div>
+        <div class="bpm-sub" id="tempoName">BPM ・ モデラート</div>
+      </div>
+
+      <div class="beats" id="beats"></div>
+
+      <div class="tempo-row">
+        <button class="stepbtn" id="bpmDown" type="button">−</button>
+        <input id="bpm" type="range" min="40" max="240" value="120" step="1">
+        <button class="stepbtn" id="bpmUp" type="button">＋</button>
+      </div>
+
+      <div class="hint">
+        <span>遅い <b>←</b></span>
+        <span id="tapText">タップ未測定</span>
+        <span><b>→</b> 速い</span>
+      </div>
+    </div>
+
+    <aside class="panel settings">
+      <div class="field">
+        <label>拍子</label>
+        <div class="segN" id="meterSeg" style="grid-template-columns:repeat(4,1fr);">
+          <button data-v="2" type="button">2/4</button>
+          <button data-v="3" type="button">3/4</button>
+          <button data-v="4" class="on" type="button">4/4</button>
+          <button data-v="6" type="button">6/8</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>分割</label>
+        <div class="segN" id="subSeg" style="grid-template-columns:repeat(3,1fr);">
+          <button data-v="1" class="on" type="button">♩</button>
+          <button data-v="2" type="button">♫</button>
+          <button data-v="3" type="button">三連</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>テンポをタップ</label>
+        <button id="tapBtn" type="button">タップで測定</button>
+      </div>
+
+      <div class="field">
+        <label for="metroVol">音量</label>
+        <input id="metroVol" type="range" min="0" max="1" value="0.7" step="0.05">
       </div>
     </aside>
   </section>
@@ -506,7 +590,208 @@ const PracticeTools = {
   }
 };
 
+PracticeTools.metronome = {
+  TEMPO_NAMES:[[60,"ラルゴ"],[76,"アダージョ"],[108,"アンダンテ"],[132,"モデラート"],[168,"アレグロ"],[200,"プレスト"],[Infinity,"プレスティッシモ"]],
+  LOOKAHEAD_MS:25,
+  SCHEDULE_AHEAD:0.1,
+  state:{
+    audio:null,
+    running:false,
+    bpm:120,
+    beatsPerBar:4,
+    sub:1,
+    volume:0.7,
+    nextNoteTime:0,
+    beat:0,
+    subIndex:0,
+    timer:0,
+    raf:0,
+    queue:[],
+    tapTimes:[]
+  },
+  els:{
+    metroBtn:document.getElementById("metroBtn"),
+    metroStatus:document.getElementById("metroStatus"),
+    bpmText:document.getElementById("bpmText"),
+    tempoName:document.getElementById("tempoName"),
+    beats:document.getElementById("beats"),
+    bpm:document.getElementById("bpm"),
+    bpmDown:document.getElementById("bpmDown"),
+    bpmUp:document.getElementById("bpmUp"),
+    meterSeg:document.getElementById("meterSeg"),
+    subSeg:document.getElementById("subSeg"),
+    tapBtn:document.getElementById("tapBtn"),
+    tapText:document.getElementById("tapText"),
+    metroVol:document.getElementById("metroVol")
+  },
+
+  init(){
+    const els = this.els;
+    els.metroBtn.addEventListener("click", () => this.state.running ? this.stop() : this.start());
+    els.bpm.addEventListener("input", () => this.setBpm(Number(els.bpm.value)));
+    els.bpmDown.addEventListener("click", () => this.setBpm(this.state.bpm - 1));
+    els.bpmUp.addEventListener("click", () => this.setBpm(this.state.bpm + 1));
+    els.meterSeg.addEventListener("click", e => {
+      const btn = e.target.closest("button[data-v]");
+      if(!btn) return;
+      this.state.beatsPerBar = Number(btn.dataset.v);
+      els.meterSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+      this.state.beat = 0;
+      this.state.subIndex = 0;
+      this.renderBeats();
+    });
+    els.subSeg.addEventListener("click", e => {
+      const btn = e.target.closest("button[data-v]");
+      if(!btn) return;
+      this.state.sub = Number(btn.dataset.v);
+      els.subSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+      this.state.subIndex = 0;
+    });
+    els.tapBtn.addEventListener("click", () => this.tap());
+    els.metroVol.addEventListener("input", () => this.state.volume = Number(els.metroVol.value));
+    this.setBpm(this.state.bpm);
+    this.renderBeats();
+  },
+
+  tempoName(bpm){
+    for(const [max, name] of this.TEMPO_NAMES) if(bpm <= max) return name;
+    return "";
+  },
+
+  setBpm(v){
+    v = Math.max(40, Math.min(240, Math.round(v)));
+    this.state.bpm = v;
+    this.els.bpm.value = v;
+    this.els.bpmText.textContent = v;
+    this.els.tempoName.textContent = `BPM ・ ${this.tempoName(v)}`;
+  },
+
+  renderBeats(){
+    this.els.beats.innerHTML = "";
+    for(let i=0;i<this.state.beatsPerBar;i++){
+      const d = document.createElement("span");
+      d.className = "beat" + (i === 0 ? " accent" : "");
+      this.els.beats.appendChild(d);
+    }
+  },
+
+  async ensureAudio(){
+    this.state.audio = this.state.audio || new (window.AudioContext || window.webkitAudioContext)();
+    if(this.state.audio.state === "suspended") await this.state.audio.resume();
+    return this.state.audio;
+  },
+
+  scheduleClick(time, isMain, isAccent){
+    const s = this.state;
+    const osc = s.audio.createOscillator();
+    const gain = s.audio.createGain();
+    osc.type = "square";
+    osc.frequency.value = isAccent ? 1760 : isMain ? 1100 : 760;
+    const vol = isMain ? s.volume : s.volume * 0.45;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, vol), time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+    osc.connect(gain).connect(s.audio.destination);
+    osc.start(time);
+    osc.stop(time + 0.06);
+  },
+
+  scheduler(){
+    const s = this.state;
+    while(s.nextNoteTime < s.audio.currentTime + this.SCHEDULE_AHEAD){
+      const isMain = s.subIndex === 0;
+      const isAccent = isMain && s.beat === 0;
+      this.scheduleClick(s.nextNoteTime, isMain, isAccent);
+      if(isMain) s.queue.push({beat:s.beat, time:s.nextNoteTime});
+      const secondsPerBeat = 60 / s.bpm;
+      s.nextNoteTime += secondsPerBeat / s.sub;
+      s.subIndex++;
+      if(s.subIndex >= s.sub){
+        s.subIndex = 0;
+        s.beat = (s.beat + 1) % s.beatsPerBar;
+      }
+    }
+    s.timer = window.setTimeout(() => this.scheduler(), this.LOOKAHEAD_MS);
+  },
+
+  draw(){
+    if(!this.state.running) return;
+    const now = this.state.audio.currentTime;
+    while(this.state.queue.length && this.state.queue[0].time <= now){
+      this.highlight(this.state.queue.shift().beat);
+    }
+    this.state.raf = requestAnimationFrame(() => this.draw());
+  },
+
+  highlight(beat){
+    this.els.beats.querySelectorAll(".beat").forEach((el, i) => el.classList.toggle("active", i === beat));
+  },
+
+  async start(){
+    await this.ensureAudio();
+    const s = this.state;
+    s.running = true;
+    s.beat = 0;
+    s.subIndex = 0;
+    s.queue = [];
+    s.nextNoteTime = s.audio.currentTime + 0.06;
+    this.els.metroBtn.textContent = "ストップ";
+    this.els.metroStatus.textContent = "再生中です。";
+    this.scheduler();
+    this.draw();
+  },
+
+  stop(){
+    const s = this.state;
+    s.running = false;
+    clearTimeout(s.timer);
+    cancelAnimationFrame(s.raf);
+    s.queue = [];
+    this.els.beats.querySelectorAll(".beat").forEach(el => el.classList.remove("active"));
+    this.els.metroBtn.textContent = "スタート";
+    this.els.metroStatus.textContent = "停止中です。";
+  },
+
+  tap(){
+    const now = performance.now();
+    const t = this.state.tapTimes;
+    if(t.length && now - t[t.length - 1] > 2000) t.length = 0;
+    t.push(now);
+    if(t.length >= 2){
+      let sum = 0;
+      for(let i=1;i<t.length;i++) sum += t[i] - t[i-1];
+      const bpm = Math.round(60000 / (sum / (t.length - 1)));
+      if(bpm >= 40 && bpm <= 240){
+        this.setBpm(bpm);
+        this.els.tapText.textContent = `タップ ${bpm} BPM`;
+      }
+    }else{
+      this.els.tapText.textContent = "もう一度タップ";
+    }
+    if(t.length > 8) t.shift();
+  }
+};
+
+function showTab(which){
+  const isTuner = which === "tuner";
+  document.getElementById("view-tuner").hidden = !isTuner;
+  document.getElementById("view-metro").hidden = isTuner;
+  document.getElementById("tabTuner").classList.toggle("on", isTuner);
+  document.getElementById("tabMetro").classList.toggle("on", !isTuner);
+  document.getElementById("phaseLabel").textContent = isTuner ? "チューナー" : "メトロノーム";
+  if(isTuner){
+    if(PracticeTools.metronome.state.running) PracticeTools.metronome.stop();
+  }else{
+    if(PracticeTools.tuner.state.running) PracticeTools.tuner.stopMic();
+    PracticeTools.tuner.stopReference();
+  }
+}
+document.getElementById("tabTuner").addEventListener("click", () => showTab("tuner"));
+document.getElementById("tabMetro").addEventListener("click", () => showTab("metro"));
+window.addEventListener("pagehide", () => PracticeTools.metronome.stop());
+
 PracticeTools.tuner.init();
+PracticeTools.metronome.init();
 </script>
 </body>
 </html>
