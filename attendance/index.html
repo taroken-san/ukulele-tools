@@ -112,6 +112,10 @@
   .stu-edit input{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;}
   .stu-edit .tgl{font-size:12px;padding:6px 9px;border-radius:7px;border:1px solid var(--line);background:#fff;white-space:nowrap;}
   .stu-edit .tgl.off{background:#f0f0f0;color:#aaa;}
+  .withdrawn-head{font-size:12px;color:var(--sub);margin:12px 0 7px;padding-top:9px;border-top:1px dashed var(--line);}
+  .stu-edit.withdrawn{flex-wrap:wrap;}
+  .stu-edit.withdrawn input[data-i]{color:#888;background:#fafafa;}
+  .stu-edit .leftdate{flex:0 0 auto;width:130px;font-size:12px;padding:6px;border:1px solid var(--line);border-radius:7px;}
   .class-pick{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
   .class-pick select{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;}
   .section-div{border-top:1px solid var(--line);margin:14px 0 12px;padding-top:12px;font-weight:700;font-size:14px;color:var(--accent);}
@@ -688,20 +692,41 @@ function renderClassEditArea(){
   document.getElementById('setWeekday').value = c.weekday||'';
   renderStuEdit();
 }
+function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function renderStuEdit(){
   const c = curEditClass();
   const el=document.getElementById('stuEditList'); el.innerHTML='';
+  const withdrawn=[];
   c.students.forEach((s,i)=>{
+    if(!s.active){ withdrawn.push({s,i}); return; }
     const row=document.createElement('div'); row.className='stu-edit';
-    row.innerHTML=`<input value="${escapeHtml(s.name)}" placeholder="生徒名 ${i+1}" data-i="${i}">
-      <button class="tgl${s.active?'':' off'}" data-tgl="${i}">${s.active?'在籍':'退会'}</button>`;
+    row.innerHTML=`<input value="${escapeHtml(s.name)}" placeholder="生徒名" data-i="${i}">
+      <button class="tgl" data-leavestu="${i}">退会</button>`;
     el.appendChild(row);
   });
+  if(withdrawn.length){
+    const head=document.createElement('div'); head.className='withdrawn-head';
+    head.textContent=`退会者（${withdrawn.length}名）　※記録は保持されます`;
+    el.appendChild(head);
+    withdrawn.forEach(({s,i})=>{
+      const row=document.createElement('div'); row.className='stu-edit withdrawn';
+      row.innerHTML=`<input value="${escapeHtml(s.name)}" placeholder="生徒名" data-i="${i}">
+        <input type="date" class="leftdate" value="${s.leftDate||''}" data-leftdate="${i}" title="退会日">
+        <button class="tgl off" data-rejoin="${i}">復会</button>`;
+      el.appendChild(row);
+    });
+  }
   el.querySelectorAll('input[data-i]').forEach(inp=>{
     inp.oninput=()=>{ c.students[+inp.dataset.i].name=inp.value; };
   });
-  el.querySelectorAll('button[data-tgl]').forEach(b=>{
-    b.onclick=()=>{ const i=+b.dataset.tgl; c.students[i].active=!c.students[i].active; renderStuEdit(); };
+  el.querySelectorAll('input[data-leftdate]').forEach(inp=>{
+    inp.onchange=()=>{ c.students[+inp.dataset.leftdate].leftDate=inp.value; };
+  });
+  el.querySelectorAll('button[data-leavestu]').forEach(b=>{
+    b.onclick=()=>{ const s=c.students[+b.dataset.leavestu]; s.active=false; if(!s.leftDate){ s.leftDate=todayISO(); } renderStuEdit(); };
+  });
+  el.querySelectorAll('button[data-rejoin]').forEach(b=>{
+    b.onclick=()=>{ const s=c.students[+b.dataset.rejoin]; s.active=true; s.leftDate=''; renderStuEdit(); };
   });
 }
 function commitEditName(){ // 編集中フォームの値をオブジェクトに反映
