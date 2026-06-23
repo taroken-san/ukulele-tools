@@ -399,16 +399,13 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
       for(let j=0;j<i;j++){const xj=xOf(j);
         g+=`<line x1="${xj}" y1="${beamTop}" x2="${xj}" y2="${yEnd}" stroke="${P.stem}" stroke-width="1.3"/>`;}
     }
-    // 3連符（連桁の上に「3」＋左右の弧）
+    // 3連符（実際の音符位置に合わせた角丸ブラケット＋中央の「3」）
     if(div===3&&played.length){
-      const cx=bx+beatW/2, cy=beamTop-2;
-      const xL=bx+beatW*0.12, xR=bx+beatW*0.88;
-      // 左の弧（外側がふくらむ）
-      g+=`<path d="M ${xL},${beamTop-1} Q ${xL+5},${cy-5} ${cx-5},${cy-2}" fill="none" stroke="${P.stem}" stroke-width="1.1"/>`;
-      // 右の弧
-      g+=`<path d="M ${cx+5},${cy-2} Q ${xR-5},${cy-5} ${xR},${beamTop-1}" fill="none" stroke="${P.stem}" stroke-width="1.1"/>`;
-      // 「3」
-      g+=`<text x="${cx}" y="${cy+1}" text-anchor="middle" font-size="10" fill="${P.stem}" font-weight="bold">3</text>`;
+      const x1=xOf(0), x2=xOf(div-1);
+      const topY=beamTop-7, botY=beamTop-1, r=4, gapHalf=6.5, cx=(x1+x2)/2;
+      g+=`<path d="M ${x1},${botY} L ${x1},${topY+r} Q ${x1},${topY} ${x1+r},${topY} L ${cx-gapHalf},${topY}" fill="none" stroke="${P.stem}" stroke-width="1.2" stroke-linecap="round"/>`;
+      g+=`<path d="M ${cx+gapHalf},${topY} L ${x2-r},${topY} Q ${x2},${topY} ${x2},${topY+r} L ${x2},${botY}" fill="none" stroke="${P.stem}" stroke-width="1.2" stroke-linecap="round"/>`;
+      g+=`<text x="${cx}" y="${topY+3.5}" text-anchor="middle" font-size="10" fill="${P.stem}" font-weight="bold">3</text>`;
     }
     // 音符・付点・歌詞
     bt.slots.forEach((s,i)=>{const x=xOf(i);
