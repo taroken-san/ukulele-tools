@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>練習ツール - チューナー</title>
+<style>
+  :root{
+    --bg:#111418;
+    --panel:#1a2027;
+    --panel2:#222a33;
+    --line:#384250;
+    --txt:#eef2f5;
+    --sub:#9ba6b3;
+    --accent:#3aa6a3;
+    --accent2:#267b79;
+    --warn:#e3aa42;
+    --bad:#e65d52;
+    --good:#4fc47a;
+    --needle:#f7f3df;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Segoe UI",sans-serif;}
+  body{min-height:100vh;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 16px;border-bottom:1px solid var(--line);background:#151a20;position:sticky;top:0;z-index:2;}
+  h1{margin:0;font-size:17px;font-weight:700;}
+  .phase{color:var(--sub);font-size:12px;}
+  main{max-width:1080px;margin:0 auto;padding:16px;display:grid;gap:14px;}
+  .tool{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,0.8fr);gap:14px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;}
+  .meter-panel{padding:18px;display:grid;gap:16px;}
+  .status{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .status-text{color:var(--sub);font-size:13px;}
+  button,select,input{font:inherit;}
+  button,select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:7px;padding:8px 11px;font-size:14px;}
+  button{cursor:pointer;}
+  button.primary{background:var(--accent2);border-color:var(--accent);color:white;font-weight:700;}
+  button:disabled{opacity:.55;cursor:not-allowed;}
+  .readout{display:grid;justify-items:center;gap:4px;padding:4px 0 0;}
+  .note{font-size:90px;line-height:1;font-weight:800;letter-spacing:0;}
+  .freq{font-size:16px;color:var(--sub);min-height:22px;}
+  .cents{font-size:28px;font-weight:700;min-height:36px;}
+  .cents.good{color:var(--good);}
+  .cents.warn{color:var(--warn);}
+  .cents.bad{color:var(--bad);}
+  .meter{height:190px;position:relative;border-radius:8px;background:linear-gradient(180deg,#202832,#171c22);
+    border:1px solid var(--line);overflow:hidden;}
+  .scale{position:absolute;left:7%;right:7%;top:86px;height:6px;background:#313b47;border-radius:99px;}
+  .zone{position:absolute;top:0;height:100%;}
+  .zone.good{left:47%;width:6%;background:rgba(79,196,122,.18);}
+  .zone.warn-left{left:35%;width:12%;background:rgba(227,170,66,.08);}
+  .zone.warn-right{left:53%;width:12%;background:rgba(227,170,66,.08);}
+  .tick{position:absolute;top:70px;width:1px;height:38px;background:#657181;}
+  .tick.major{height:54px;top:62px;background:#a7b0bc;}
+  .tick-label{position:absolute;top:124px;transform:translateX(-50%);font-size:11px;color:var(--sub);}
+  .needle{position:absolute;left:50%;top:34px;width:4px;height:114px;border-radius:99px;
+    background:var(--needle);transform-origin:50% 92%;transform:translateX(-50%) rotate(0deg);
+    box-shadow:0 0 16px rgba(247,243,223,.35);transition:transform 80ms linear;}
+  .needle::after{content:"";position:absolute;left:50%;bottom:-9px;width:18px;height:18px;border-radius:50%;
+    transform:translateX(-50%);background:var(--needle);}
+  .hint{display:flex;justify-content:space-between;gap:10px;color:var(--sub);font-size:13px;}
+  .hint b{color:var(--txt);}
+  .settings{padding:14px;display:grid;gap:14px;}
+  .field{display:grid;gap:6px;}
+  label{font-size:12px;color:var(--sub);}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .seg{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid var(--line);border-radius:7px;overflow:hidden;}
+  .seg button{border:0;border-right:1px solid var(--line);border-radius:0;background:var(--panel2);}
+  .seg button:last-child{border-right:0;}
+  .seg button.on{background:var(--accent2);color:white;}
+  input[type=range]{width:100%;}
+  .strings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+  .string-btn{min-height:46px;padding:7px 6px;}
+  .string-btn.on{border-color:var(--accent);background:#1f3a3c;}
+  .string-btn small{display:block;color:var(--sub);font-size:11px;margin-top:2px;}
+  .footer{color:var(--sub);font-size:12px;line-height:1.6;padding:0 2px 8px;}
+  .error{color:#ffb1ab;}
+  @media (max-width:760px){
+    header{align-items:flex-start;flex-direction:column;}
+    main{padding:12px;}
+    .tool{grid-template-columns:1fr;}
+    .note{font-size:74px;}
+    .meter{height:170px;}
+    .strings{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>練習ツール</h1>
+  <div class="phase">Phase 1: チューナー</div>
+</header>
+
+<main>
+  <section class="tool">
+    <div class="panel meter-panel">
+      <div class="status">
+        <div class="status-text" id="status">マイクを開始すると、入力音に近い音名とズレを表示します。</div>
+        <button class="primary" id="micBtn">マイク開始</button>
+      </div>
+
+      <div class="readout">
+        <div class="note" id="noteName">--</div>
+        <div class="freq" id="freqText">-- Hz</div>
+        <div class="cents" id="centText">-- cents</div>
+      </div>
+
+      <div class="meter" aria-label="チューニングメーター">
+        <div class="zone warn-left"></div>
+        <div class="zone good"></div>
+        <div class="zone warn-right"></div>
+        <div class="scale"></div>
+        <div class="tick major" style="left:7%;"></div>
+        <div class="tick" style="left:28.5%;"></div>
+        <div class="tick major" style="left:50%;"></div>
+        <div class="tick" style="left:71.5%;"></div>
+        <div class="tick major" style="left:93%;"></div>
+        <div class="tick-label" style="left:7%;">-50</div>
+        <div class="tick-label" style="left:50%;">0</div>
+        <div class="tick-label" style="left:93%;">+50</div>
+        <div class="needle" id="needle"></div>
+      </div>
+
+      <div class="hint">
+        <span>低い <b>←</b></span>
+        <span id="judgeText">待機中</span>
+        <span><b>→</b> 高い</span>
+      </div>
+    </div>
+
+    <aside class="panel settings">
+      <div class="field">
+        <label for="instrument">楽器プリセット</label>
+        <select id="instrument">
+          <option value="ukulele">ウクレレ G-C-E-A</option>
+          <option value="guitar">ギター E-A-D-G-B-E</option>
+          <option value="chromatic">クロマチック</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>対象弦</label>
+        <div class="strings" id="stringButtons"></div>
+      </div>
+
+      <div class="field">
+        <label>表示</label>
+        <div class="seg" id="spellSeg">
+          <button data-v="sharp" class="on">#</button>
+          <button data-v="flat">b</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="a4">基準ピッチ A4</label>
+        <div class="row">
+          <input id="a4" type="range" min="432" max="446" value="440">
+          <b id="a4Text">440 Hz</b>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>基準音</label>
+        <div class="row">
+          <button id="refBtn">基準音を鳴らす</button>
+          <button id="stopRefBtn" disabled>停止</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>感度</label>
+        <input id="sensitivity" type="range" min="0.01" max="0.08" value="0.025" step="0.005">
+      </div>
+    </aside>
+  </section>
+
+  <div class="footer">
+    マイク許可が必要です。静かな場所で単音を少し長めに鳴らすと安定します。マイクは https または localhost で開いた場合に使えます。
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const PracticeTools = {
+  tuner:{
+    SHARP:["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"],
+    FLAT:["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"],
+    MIN_FREQ:45,
+    MAX_FREQ:1600,
+    ANALYZE_INTERVAL_MS:33,
+    REF_TONE_SECONDS:4,
+    PRESETS:{
+      ukulele:[
+        {label:"4弦 G", midi:67},
+        {label:"3弦 C", midi:60},
+        {label:"2弦 E", midi:64},
+        {label:"1弦 A", midi:69}
+      ],
+      guitar:[
+        {label:"6弦 E", midi:40},
+        {label:"5弦 A", midi:45},
+        {label:"4弦 D", midi:50},
+        {label:"3弦 G", midi:55},
+        {label:"2弦 B", midi:59},
+        {label:"1弦 E", midi:64}
+      ],
+      chromatic:[]
+    },
+    state:{
+      audio:null,
+      analyser:null,
+      stream:null,
+      source:null,
+      raf:0,
+      running:false,
+      spelling:"sharp",
+      instrument:"ukulele",
+      targetMidi:null,
+      a4:440,
+      refOsc:null,
+      refGain:null,
+      refTimer:0,
+      lastAnalyzeAt:0,
+      buffer:null,
+      lastMessageWasRef:false
+    },
+    els:{
+      micBtn:document.getElementById("micBtn"),
+      status:document.getElementById("status"),
+      noteName:document.getElementById("noteName"),
+      freqText:document.getElementById("freqText"),
+      centText:document.getElementById("centText"),
+      needle:document.getElementById("needle"),
+      judgeText:document.getElementById("judgeText"),
+      instrument:document.getElementById("instrument"),
+      stringButtons:document.getElementById("stringButtons"),
+      spellSeg:document.getElementById("spellSeg"),
+      a4:document.getElementById("a4"),
+      a4Text:document.getElementById("a4Text"),
+      refBtn:document.getElementById("refBtn"),
+      stopRefBtn:document.getElementById("stopRefBtn"),
+      sensitivity:document.getElementById("sensitivity")
+    },
+
+    init(){
+      const els = this.els;
+      els.micBtn.addEventListener("click", () => this.state.running ? this.stopMic() : this.startMic());
+      els.instrument.addEventListener("change", () => {
+        this.state.instrument = els.instrument.value;
+        this.renderStrings();
+        this.updateReferenceButtons();
+      });
+      els.spellSeg.addEventListener("click", e => {
+        const btn = e.target.closest("button[data-v]");
+        if(!btn) return;
+        this.state.spelling = btn.dataset.v;
+        els.spellSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+        this.renderStrings();
+      });
+      els.a4.addEventListener("input", () => {
+        this.state.a4 = Number(els.a4.value);
+        els.a4Text.textContent = `${this.state.a4} Hz`;
+        this.renderStrings();
+        if(this.state.refOsc && this.state.targetMidi !== null){
+          this.state.refOsc.frequency.value = this.midiToFreq(this.state.targetMidi);
+        }
+      });
+      els.refBtn.addEventListener("click", () => this.playReference());
+      els.stopRefBtn.addEventListener("click", () => this.stopReference());
+      window.addEventListener("pagehide", () => {
+        this.stopReference();
+        if(this.state.running) this.stopMic();
+      });
+      this.renderStrings();
+      this.updateReferenceButtons();
+    },
+
+    noteName(midi){
+      const names = this.state.spelling === "flat" ? this.FLAT : this.SHARP;
+      const oct = Math.floor(midi / 12) - 1;
+      return names[((midi % 12) + 12) % 12] + oct;
+    },
+
+    midiToFreq(midi){
+      return this.state.a4 * Math.pow(2, (midi - 69) / 12);
+    },
+
+    freqToMidi(freq){
+      return Math.round(69 + 12 * Math.log2(freq / this.state.a4));
+    },
+
+    centsOff(freq, midi){
+      return 1200 * Math.log2(freq / this.midiToFreq(midi));
+    },
+
+    closestTargetMidi(freq){
+      if(this.state.targetMidi !== null) return this.state.targetMidi;
+      return this.freqToMidi(freq);
+    },
+
+    renderStrings(){
+      const preset = this.PRESETS[this.state.instrument];
+      const els = this.els;
+      els.stringButtons.innerHTML = "";
+      if(!preset.length){
+        this.state.targetMidi = null;
+        const btn = document.createElement("button");
+        btn.className = "string-btn on";
+        btn.textContent = "自動";
+        btn.type = "button";
+        els.stringButtons.appendChild(btn);
+        return;
+      }
+      if(!preset.some(s => s.midi === this.state.targetMidi)) this.state.targetMidi = preset[0].midi;
+      preset.forEach(s => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "string-btn" + (s.midi === this.state.targetMidi ? " on" : "");
+        btn.innerHTML = `${s.label}<small>${this.noteName(s.midi)} / ${this.midiToFreq(s.midi).toFixed(1)} Hz</small>`;
+        btn.addEventListener("click", () => {
+          this.state.targetMidi = s.midi;
+          this.renderStrings();
+          this.updateReferenceButtons();
+        });
+        els.stringButtons.appendChild(btn);
+      });
+    },
+
+    async ensureAudio(){
+      this.state.audio = this.state.audio || new (window.AudioContext || window.webkitAudioContext)();
+      if(this.state.audio.state === "suspended") await this.state.audio.resume();
+      return this.state.audio;
+    },
+
+    async startMic(){
+      const els = this.els;
+      if(window.isSecureContext === false || !navigator.mediaDevices?.getUserMedia){
+        els.status.innerHTML = '<span class="error">このページは https または localhost で開いてください。file:// ではマイクを使えません。</span>';
+        return;
+      }
+      try{
+        await this.ensureAudio();
+        this.state.stream = await navigator.mediaDevices.getUserMedia({
+          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}
+        });
+        this.state.source = this.state.audio.createMediaStreamSource(this.state.stream);
+        this.state.analyser = this.state.audio.createAnalyser();
+        this.state.analyser.fftSize = 4096;
+        this.state.buffer = new Float32Array(this.state.analyser.fftSize);
+        this.state.source.connect(this.state.analyser);
+        this.state.running = true;
+        this.state.lastAnalyzeAt = 0;
+        els.micBtn.textContent = "マイク停止";
+        els.status.textContent = "入力を監視中です。";
+        this.tick(performance.now());
+      }catch(err){
+        els.status.innerHTML = `<span class="error">マイクを開始できませんでした: ${err.message}</span>`;
+      }
+    },
+
+    stopMic(){
+      this.state.running = false;
+      cancelAnimationFrame(this.state.raf);
+      if(this.state.stream) this.state.stream.getTracks().forEach(t => t.stop());
+      this.state.stream = null;
+      this.state.source = null;
+      this.state.analyser = null;
+      this.state.buffer = null;
+      this.els.micBtn.textContent = "マイク開始";
+      this.els.status.textContent = "マイクは停止中です。";
+    },
+
+    autoCorrelate(buf, sampleRate){
+      let rms = 0;
+      for(let i=0;i<buf.length;i++) rms += buf[i] * buf[i];
+      rms = Math.sqrt(rms / buf.length);
+      if(rms < Number(this.els.sensitivity.value)) return null;
+
+      let start = 0;
+      let end = buf.length - 1;
+      const threshold = 0.2;
+      for(let i=0;i<buf.length/2;i++){
+        if(Math.abs(buf[i]) < threshold){ start = i; break; }
+      }
+      for(let i=1;i<buf.length/2;i++){
+        if(Math.abs(buf[buf.length - i]) < threshold){ end = buf.length - i; break; }
+      }
+
+      const size = end - start;
+      if(size < 32) return null;
+      const minLag = Math.max(1, Math.floor(sampleRate / this.MAX_FREQ));
+      const maxLag = Math.min(size - 2, Math.ceil(sampleRate / this.MIN_FREQ));
+      let best = -1;
+      let max = -1;
+      let previous = 1;
+      let foundValley = false;
+      const corrs = new Map();
+
+      for(let lag=minLag; lag<=maxLag; lag++){
+        let sum = 0;
+        const limit = size - lag;
+        for(let i=0; i<limit; i++){
+          sum += Math.abs(buf[start + i] - buf[start + i + lag]);
+        }
+        const corr = 1 - (sum / limit);
+        corrs.set(lag, corr);
+        if(corr > previous) foundValley = true;
+        if(foundValley && corr > max){
+          max = corr;
+          best = lag;
+        }
+        previous = corr;
+      }
+      if(best <= 0 || max < 0.35) return null;
+
+      const x1 = corrs.get(best - 1) ?? corrs.get(best);
+      const x2 = corrs.get(best);
+      const x3 = corrs.get(best + 1) ?? corrs.get(best);
+      const shift = (x3 - x1) / (2 * (2 * x2 - x1 - x3));
+      return sampleRate / (best + (Number.isFinite(shift) ? shift : 0));
+    },
+
+    tick(now){
+      if(!this.state.running || !this.state.analyser) return;
+      if(!this.state.refOsc && now - this.state.lastAnalyzeAt >= this.ANALYZE_INTERVAL_MS){
+        this.state.lastAnalyzeAt = now;
+        this.state.lastMessageWasRef = false;
+        this.state.analyser.getFloatTimeDomainData(this.state.buffer);
+        const freq = this.autoCorrelate(this.state.buffer, this.state.audio.sampleRate);
+        if(freq && freq > this.MIN_FREQ && freq < this.MAX_FREQ){
+          const target = this.closestTargetMidi(freq);
+          const cents = Math.max(-50, Math.min(50, this.centsOff(freq, target)));
+          this.updateReadout(freq, target, cents);
+        }else{
+          this.showWaiting();
+        }
+      }else if(this.state.refOsc && !this.state.lastMessageWasRef){
+        this.state.lastMessageWasRef = true;
+        this.els.judgeText.textContent = "基準音再生中";
+      }
+      this.state.raf = requestAnimationFrame(t => this.tick(t));
+    },
+
+    showWaiting(){
+      this.els.freqText.textContent = "-- Hz";
+      this.els.centText.textContent = "-- cents";
+      this.els.centText.className = "cents";
+      this.els.needle.style.transform = "translateX(-50%) rotate(0deg)";
+      this.els.judgeText.textContent = "音を待っています";
+    },
+
+    updateReadout(freq, midi, cents){
+      this.els.noteName.textContent = this.noteName(midi).replace(/\d$/, "");
+      this.els.freqText.textContent = `${freq.toFixed(1)} Hz  /  目標 ${this.midiToFreq(midi).toFixed(1)} Hz`;
+      const rounded = Math.round(cents);
+      this.els.centText.textContent = `${rounded > 0 ? "+" : ""}${rounded} cents`;
+      const abs = Math.abs(cents);
+      this.els.centText.className = "cents " + (abs <= 5 ? "good" : abs <= 15 ? "warn" : "bad");
+      this.els.needle.style.transform = `translateX(-50%) rotate(${cents * 1.25}deg)`;
+      if(abs <= 5) this.els.judgeText.textContent = "合っています";
+      else if(cents < 0) this.els.judgeText.textContent = "少し低いです";
+      else this.els.judgeText.textContent = "少し高いです";
+    },
+
+    async playReference(){
+      if(this.state.targetMidi === null) return;
+      await this.ensureAudio();
+      this.stopReference();
+      this.state.refOsc = this.state.audio.createOscillator();
+      this.state.refGain = this.state.audio.createGain();
+      this.state.refOsc.type = "sine";
+      this.state.refOsc.frequency.value = this.midiToFreq(this.state.targetMidi);
+      this.state.refGain.gain.setValueAtTime(0.0001, this.state.audio.currentTime);
+      this.state.refGain.gain.exponentialRampToValueAtTime(0.18, this.state.audio.currentTime + 0.03);
+      this.state.refOsc.connect(this.state.refGain).connect(this.state.audio.destination);
+      this.state.refOsc.start();
+      this.state.refTimer = window.setTimeout(() => this.stopReference(), this.REF_TONE_SECONDS * 1000);
+      this.els.judgeText.textContent = "基準音再生中";
+      this.updateReferenceButtons();
+    },
+
+    stopReference(){
+      clearTimeout(this.state.refTimer);
+      this.state.refTimer = 0;
+      if(this.state.refOsc){
+        const now = this.state.audio.currentTime;
+        this.state.refGain.gain.cancelScheduledValues(now);
+        this.state.refGain.gain.setValueAtTime(Math.max(0.0001, this.state.refGain.gain.value), now);
+        this.state.refGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+        this.state.refOsc.stop(now + 0.06);
+      }
+      this.state.refOsc = null;
+      this.state.refGain = null;
+      this.state.lastMessageWasRef = false;
+      this.updateReferenceButtons();
+    },
+
+    updateReferenceButtons(){
+      this.els.refBtn.disabled = this.state.targetMidi === null;
+      this.els.stopRefBtn.disabled = !this.state.refOsc;
+    }
+  }
+};
+
+PracticeTools.tuner.init();
+</script>
+</body>
+</html>
