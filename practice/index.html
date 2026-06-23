@@ -279,6 +279,32 @@
         <label for="metroVol">音量</label>
         <input id="metroVol" type="range" min="0" max="1" value="0.7" step="0.05">
       </div>
+
+      <div class="field">
+        <label class="row" style="justify-content:space-between;color:var(--txt);">
+          <span>テンポ自動アップ</span>
+          <input type="checkbox" id="autoUp">
+        </label>
+        <div class="row">
+          <select id="autoBars">
+            <option value="2">2小節ごと</option>
+            <option value="4" selected>4小節ごと</option>
+            <option value="8">8小節ごと</option>
+          </select>
+          <select id="autoStep">
+            <option value="1">+1</option>
+            <option value="2">+2</option>
+            <option value="5" selected>+5</option>
+            <option value="10">+10</option>
+          </select>
+        </div>
+        <div class="row">
+          <label style="flex:0 0 auto;">上限</label>
+          <input id="autoMax" type="range" min="60" max="240" value="160" step="1" style="flex:1;">
+          <b id="autoMaxText">160</b>
+        </div>
+        <div id="autoStatus" style="font-size:12px;color:var(--sub);min-height:16px;"></div>
+      </div>
     </aside>
 
     <div class="panel" style="grid-column:1/-1;padding:16px;display:grid;gap:12px;">
@@ -660,6 +686,12 @@ PracticeTools.metronome = {
     timbre:"click",
     res:1,
     steps:[2,1,1,1],
+    autoUp:false,
+    autoBars:4,
+    autoStep:5,
+    autoMax:160,
+    barCount:0,
+    barStarted:false,
     currentStep:0,
     nextNoteTime:0,
     timer:0,
@@ -685,7 +717,13 @@ PracticeTools.metronome = {
     pattern:document.getElementById("pattern"),
     grid:document.getElementById("grid"),
     savePattern:document.getElementById("savePattern"),
-    delPattern:document.getElementById("delPattern")
+    delPattern:document.getElementById("delPattern"),
+    autoUp:document.getElementById("autoUp"),
+    autoBars:document.getElementById("autoBars"),
+    autoStep:document.getElementById("autoStep"),
+    autoMax:document.getElementById("autoMax"),
+    autoMaxText:document.getElementById("autoMaxText"),
+    autoStatus:document.getElementById("autoStatus")
   },
 
   init(){
@@ -718,8 +756,28 @@ PracticeTools.metronome = {
     els.pattern.addEventListener("change", () => this.onPatternChange());
     els.savePattern.addEventListener("click", () => this.savePattern());
     els.delPattern.addEventListener("click", () => this.delPattern());
+    els.autoUp.addEventListener("change", () => {
+      this.state.autoUp = els.autoUp.checked;
+      this.state.barCount = 0;
+      this.updateAutoStatus();
+    });
+    els.autoBars.addEventListener("change", () => { this.state.autoBars = Number(els.autoBars.value); this.state.barCount = 0; this.updateAutoStatus(); });
+    els.autoStep.addEventListener("change", () => this.state.autoStep = Number(els.autoStep.value));
+    els.autoMax.addEventListener("input", () => {
+      this.state.autoMax = Number(els.autoMax.value);
+      els.autoMaxText.textContent = this.state.autoMax;
+      this.updateAutoStatus();
+    });
     this.setBpm(this.state.bpm);
     this.refreshOptions("基本クリック");
+  },
+
+  updateAutoStatus(){
+    const s = this.state;
+    if(!s.autoUp){ this.els.autoStatus.textContent = ""; return; }
+    const pos = (s.barCount % s.autoBars) + 1;
+    const cap = s.bpm >= s.autoMax ? "上限到達" : `上限 ${s.autoMax}`;
+    this.els.autoStatus.textContent = `小節 ${pos}/${s.autoBars}・${cap}`;
   },
 
   tempoName(bpm){
@@ -930,6 +988,16 @@ PracticeTools.metronome = {
     const s = this.state;
     while(s.nextNoteTime < s.audio.currentTime + this.SCHEDULE_AHEAD){
       const idx = s.currentStep % s.steps.length;
+      if(idx === 0){
+        if(s.barStarted){
+          s.barCount++;
+          if(s.autoUp && s.bpm < s.autoMax && s.barCount % s.autoBars === 0){
+            this.setBpm(Math.min(s.autoMax, s.bpm + s.autoStep));
+          }
+        }
+        s.barStarted = true;
+        this.updateAutoStatus();
+      }
       const v = s.steps[idx];
       if(v > 0) this.scheduleClick(s.nextNoteTime, v);
       s.queue.push({step:idx, time:s.nextNoteTime});
@@ -960,6 +1028,8 @@ PracticeTools.metronome = {
     const s = this.state;
     s.running = true;
     s.currentStep = 0;
+    s.barCount = 0;
+    s.barStarted = false;
     s.queue = [];
     s.nextNoteTime = s.audio.currentTime + 0.06;
     this.els.metroBtn.textContent = "ストップ";
