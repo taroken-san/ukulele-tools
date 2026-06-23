@@ -60,13 +60,20 @@
   .mk-chip button{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:#fff;
     font-size:14px;line-height:1;padding:0;color:var(--txt);}
   .leave-badge{font-size:11px;background:#fbe7cf;color:#8a5a00;border-radius:20px;padding:2px 8px;font-weight:700;}
-  .pay-row{display:flex;flex-direction:column;gap:8px;margin-top:9px;}
-  .pay{width:100%;}
-  .pay label{font-size:11px;color:var(--sub);display:block;margin-bottom:3px;}
-  .pay input{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fafafa;}
-  .date-wrap{display:flex;gap:6px;align-items:stretch;}
-  .date-wrap input{flex:1;}
-  .date-clear{flex:0 0 auto;width:38px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--sub);font-size:14px;cursor:pointer;}
+  .pay-row{display:flex;gap:8px;margin-top:8px;}
+  .pay{flex:1;min-width:0;}
+  .pay label{font-size:10px;color:var(--sub);display:block;margin-bottom:2px;white-space:nowrap;}
+  .pay input{width:100%;padding:6px 4px;border:1px solid var(--line);border-radius:8px;background:#fafafa;font-size:13px;min-width:0;}
+  .date-wrap{display:flex;gap:4px;align-items:stretch;}
+  .date-wrap input{flex:1;min-width:0;}
+  .date-clear{flex:0 0 auto;width:28px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--sub);font-size:13px;cursor:pointer;padding:0;}
+  .note-pencil{flex:0 0 auto;width:26px;height:24px;border:1px solid var(--line);border-radius:6px;background:#fff;color:#b0b0b5;font-size:13px;padding:0;line-height:1;}
+  .note-pencil.has{color:var(--makeup);border-color:var(--makeup);}
+  .note-pencil.open{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .note-badge{margin-top:6px;font-size:12px;color:#8a5a00;background:#fbe7cf;border-radius:6px;padding:4px 8px;display:inline-block;}
+  .note-badge .warn-ico{font-weight:700;}
+  .note-edit{margin-top:6px;}
+  .note-edit textarea{width:100%;border:1px solid var(--accent);border-radius:8px;padding:7px 9px;font-size:13px;background:#fff;resize:vertical;min-height:40px;}
   .date-clear:active{background:#f0f0f0;}
   .hist-month{padding:6px 14px;font-size:12px;color:var(--sub);background:var(--bg);position:sticky;top:0;}
   .hist-row{padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;background:#fff;}
@@ -263,6 +270,7 @@ let curYear = new Date().getFullYear();
 let curMonth = new Date().getMonth() + 1;
 let curSession = 1;
 let dirty = false;
+let noteOpen = new Set(); // 生徒メモを編集中(開いている)生徒ID
 let editClassId = null; // 設定ダイアログ内で編集中のクラス
 
 /* ====== ユーティリティ ====== */
@@ -488,18 +496,23 @@ function renderContent(){
       return `<button class="${sel.trim()}" data-stu="${s.id}" data-val="${st.v}"${suspended?' disabled':''}>${st.label}</button>`;
     }).join('');
     const leaveBtn = `<button class="btn-leave${suspended?' active':''}" data-leave="${s.id}" title="休会の切替">休</button>`;
-    const idArea = suspended
-      ? `<span class="stu-name">${escapeHtml(s.name)}</span><span class="leave-badge">休会中</span>`
-      : `<span class="stu-name">${escapeHtml(s.name)}</span>
-         <span class="mk-chip"><span class="mk-lbl">振替</span><button data-mk="${s.id}" data-d="-1">−</button><span class="mk-val">${makeup[s.id]||0}</span><button data-mk="${s.id}" data-d="1">＋</button></span>`;
+    const noteOpenNow = noteOpen.has(s.id);
+    const pencilBtn = `<button class="note-pencil${s.note?' has':''}${noteOpenNow?' open':''}" data-noteedit="${s.id}" aria-label="生徒メモ">✎</button>`;
+    const tail = suspended
+      ? `<span class="leave-badge">休会中</span>`
+      : `<span class="mk-chip"><span class="mk-lbl">振替</span><button data-mk="${s.id}" data-d="-1">−</button><span class="mk-val">${makeup[s.id]||0}</span><button data-mk="${s.id}" data-d="1">＋</button></span>`;
+    const idArea = `<span class="stu-name">${escapeHtml(s.name)}</span>${pencilBtn}${tail}`;
+    const noteBlock = noteOpenNow
+      ? `<div class="note-edit"><textarea data-note="${s.id}" placeholder="特徴・注意事項（例：右耳が難聴。右側で話す）">${escapeHtml(s.note||'')}</textarea></div>`
+      : (s.note ? `<div class="note-badge"><span class="warn-ico">⚠</span> ${escapeHtml(s.note)}</div>` : '');
     const pay = rec.pay[s.id]||'';
     const fac = facility[s.id]||'';
     const payRow = suspended ? '' : `
       <div class="pay-row">
-        <div class="pay"><label>月謝 受領日（${curMonth}月）</label>
+        <div class="pay"><label>月謝（${curMonth}月）</label>
           <div class="date-wrap"><input type="date" data-pay="${s.id}" value="${pay}">
             <button type="button" class="date-clear" data-clearpay="${s.id}" title="受領日を消す">✕</button></div></div>
-        <div class="pay"><label>施設費 受領日（${curYear}年・年1回）</label>
+        <div class="pay"><label>施設費（年1回）</label>
           <div class="date-wrap"><input type="date" data-fac="${s.id}" value="${fac}">
             <button type="button" class="date-clear" data-clearfac="${s.id}" title="受領日を消す">✕</button></div></div>
       </div>`;
@@ -507,7 +520,7 @@ function renderContent(){
       <div class="stu-top">
         <div class="stu-id">${idArea}</div>
         <div class="seg">${segBtns}${leaveBtn}</div>
-      </div>${payRow}
+      </div>${noteBlock}${payRow}
     </div>`;
   });
   html += `</div>`;
@@ -544,6 +557,16 @@ function renderContent(){
       const stu = cls.students.find(x=>x.id===b.dataset.leave);
       if(stu){ stu.suspended = !stu.suspended; markDirty(); renderContent(); }
     };
+  });
+  root.querySelectorAll('button[data-noteedit]').forEach(b=>{
+    b.onclick=()=>{
+      const id=b.dataset.noteedit;
+      if(noteOpen.has(id)) noteOpen.delete(id); else noteOpen.add(id);
+      renderContent();
+    };
+  });
+  root.querySelectorAll('textarea[data-note]').forEach(t=>{
+    t.oninput=()=>{ const stu=cls.students.find(x=>x.id===t.dataset.note); if(stu){ stu.note=t.value; markDirty(); } };
   });
   const sdInput = document.getElementById('sessionDateInput');
   if(sdInput){ sdInput.onchange=()=>{ if(sdInput.value){ rec.date=sdInput.value; } else { delete rec.date; } markDirty(); renderSessionTabs(); renderContent(); }; }
