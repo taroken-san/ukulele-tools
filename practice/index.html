@@ -98,6 +98,16 @@
     padding:8px 0;font-size:13px;color:var(--txt);}
   .segN button:last-child{border-right:0;}
   .segN button.on{background:var(--accent2);color:#fff;}
+  .grid16{display:grid;gap:5px;}
+  .cell{aspect-ratio:1;border-radius:5px;background:#2a3340;border:1px solid #475264;cursor:pointer;}
+  .cell.nrm{background:var(--good);border-color:#6fe09a;}
+  .cell.acc{background:var(--accent);border-color:#4fd4d0;}
+  .cell.cur{outline:2px solid #fff;outline-offset:1px;}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--sub);flex-wrap:wrap;align-items:center;}
+  .legend .dot{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px;}
+  .legend .dot.acc{background:var(--accent);}
+  .legend .dot.nrm{background:var(--good);}
+  .legend .dot.rst{background:#2a3340;border:1px solid #475264;}
   @media (max-width:760px){
     header{align-items:flex-start;flex-direction:column;}
     main{padding:12px;}
@@ -250,6 +260,17 @@
       </div>
 
       <div class="field">
+        <label for="timbre">音色</label>
+        <select id="timbre">
+          <option value="click">クリック（電子音）</option>
+          <option value="wood">ウッドブロック</option>
+          <option value="cowbell">カウベル</option>
+          <option value="rim">リムショット</option>
+          <option value="beep">ビープ</option>
+        </select>
+      </div>
+
+      <div class="field">
         <label>テンポをタップ</label>
         <button id="tapBtn" type="button">タップで測定</button>
       </div>
@@ -259,6 +280,26 @@
         <input id="metroVol" type="range" min="0" max="1" value="0.7" step="0.05">
       </div>
     </aside>
+
+    <div class="panel" style="grid-column:1/-1;padding:16px;display:grid;gap:12px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-end;">
+        <div class="field" style="flex:1;min-width:180px;">
+          <label for="pattern">リズムパターン</label>
+          <select id="pattern"></select>
+        </div>
+        <div class="row">
+          <button id="savePattern" type="button">保存</button>
+          <button id="delPattern" type="button" disabled>削除</button>
+        </div>
+      </div>
+      <div class="grid16" id="grid"></div>
+      <div class="legend">
+        <span><i class="dot acc"></i>強拍</span>
+        <span><i class="dot nrm"></i>弱拍</span>
+        <span><i class="dot rst"></i>休符</span>
+        <span style="margin-left:auto;">マスをタップで切替（休→弱→強）</span>
+      </div>
+    </div>
   </section>
 
   <div class="footer">
@@ -594,16 +635,33 @@ PracticeTools.metronome = {
   TEMPO_NAMES:[[60,"ラルゴ"],[76,"アダージョ"],[108,"アンダンテ"],[132,"モデラート"],[168,"アレグロ"],[200,"プレスト"],[Infinity,"プレスティッシモ"]],
   LOOKAHEAD_MS:25,
   SCHEDULE_AHEAD:0.1,
+  STORE_KEY:"practice_metronome_patterns",
+  PATTERNS:{
+    "基本クリック":null,
+    "8ビート":{res:2, steps:[2,1,1,1,2,1,1,1]},
+    "16ビート":{res:4, steps:[2,1,1,1,2,1,1,1,2,1,1,1,2,1,1,1]},
+    "シャッフル":{res:3, steps:[2,0,1,1,0,1,1,0,1,1,0,1]},
+    "ボサノバ":{res:4, steps:[2,0,1,0,0,1,0,1,1,0,0,1,0,1,1,0]},
+    "ワルツ":{res:2, steps:[2,0,1,0,1,0]},
+    "三三七拍子":{res:1, steps:[2,1,1,0,2,1,1,0,2,1,1,1,1,1,1,0]},
+    "サンバ":{res:4, steps:[2,1,0,1,1,0,1,1,2,1,0,1,1,0,1,1]},
+    "カチャーシー":{res:2, steps:[2,1,2,1,2,1,2,1]},
+    "スローハワイアン":{res:2, steps:[2,0,1,1,1,0,1,1]},
+    "ビギン":{res:4, steps:[2,0,0,1,1,0,1,0,2,0,0,1,1,0,1,0]}
+  },
   state:{
     audio:null,
+    noiseBuffer:null,
     running:false,
     bpm:120,
     beatsPerBar:4,
     sub:1,
     volume:0.7,
+    timbre:"click",
+    res:1,
+    steps:[2,1,1,1],
+    currentStep:0,
     nextNoteTime:0,
-    beat:0,
-    subIndex:0,
     timer:0,
     raf:0,
     queue:[],
@@ -622,7 +680,12 @@ PracticeTools.metronome = {
     subSeg:document.getElementById("subSeg"),
     tapBtn:document.getElementById("tapBtn"),
     tapText:document.getElementById("tapText"),
-    metroVol:document.getElementById("metroVol")
+    metroVol:document.getElementById("metroVol"),
+    timbre:document.getElementById("timbre"),
+    pattern:document.getElementById("pattern"),
+    grid:document.getElementById("grid"),
+    savePattern:document.getElementById("savePattern"),
+    delPattern:document.getElementById("delPattern")
   },
 
   init(){
@@ -636,21 +699,27 @@ PracticeTools.metronome = {
       if(!btn) return;
       this.state.beatsPerBar = Number(btn.dataset.v);
       els.meterSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
-      this.state.beat = 0;
-      this.state.subIndex = 0;
-      this.renderBeats();
+      els.pattern.value = "基本クリック";
+      this.genBasic();
+      els.delPattern.disabled = true;
     });
     els.subSeg.addEventListener("click", e => {
       const btn = e.target.closest("button[data-v]");
       if(!btn) return;
       this.state.sub = Number(btn.dataset.v);
       els.subSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
-      this.state.subIndex = 0;
+      els.pattern.value = "基本クリック";
+      this.genBasic();
+      els.delPattern.disabled = true;
     });
     els.tapBtn.addEventListener("click", () => this.tap());
     els.metroVol.addEventListener("input", () => this.state.volume = Number(els.metroVol.value));
+    els.timbre.addEventListener("change", () => this.state.timbre = els.timbre.value);
+    els.pattern.addEventListener("change", () => this.onPatternChange());
+    els.savePattern.addEventListener("click", () => this.savePattern());
+    els.delPattern.addEventListener("click", () => this.delPattern());
     this.setBpm(this.state.bpm);
-    this.renderBeats();
+    this.refreshOptions("基本クリック");
   },
 
   tempoName(bpm){
@@ -666,50 +735,206 @@ PracticeTools.metronome = {
     this.els.tempoName.textContent = `BPM ・ ${this.tempoName(v)}`;
   },
 
+  applyPattern(res, steps){
+    this.state.res = res;
+    this.state.steps = steps.slice();
+    this.state.currentStep = 0;
+    this.renderGrid();
+  },
+
+  genBasic(){
+    const s = this.state;
+    const res = s.sub;
+    const steps = [];
+    for(let b=0;b<s.beatsPerBar;b++){
+      for(let k=0;k<res;k++) steps.push(k === 0 ? (b === 0 ? 2 : 1) : 1);
+    }
+    this.applyPattern(res, steps);
+  },
+
+  renderGrid(){
+    const s = this.state;
+    this.els.grid.style.gridTemplateColumns = `repeat(${s.steps.length},1fr)`;
+    this.els.grid.innerHTML = "";
+    s.steps.forEach((v, i) => {
+      const c = document.createElement("div");
+      c.className = "cell" + (v === 2 ? " acc" : v === 1 ? " nrm" : "");
+      c.addEventListener("click", () => {
+        s.steps[i] = (s.steps[i] + 1) % 3;
+        c.className = "cell" + (s.steps[i] === 2 ? " acc" : s.steps[i] === 1 ? " nrm" : "");
+        this.markCustom();
+      });
+      this.els.grid.appendChild(c);
+    });
+    this.renderBeats();
+  },
+
   renderBeats(){
+    const s = this.state;
+    const beats = Math.round(s.steps.length / s.res);
     this.els.beats.innerHTML = "";
-    for(let i=0;i<this.state.beatsPerBar;i++){
+    if(beats < 1 || beats > 8) return;
+    for(let i=0;i<beats;i++){
       const d = document.createElement("span");
       d.className = "beat" + (i === 0 ? " accent" : "");
       this.els.beats.appendChild(d);
     }
   },
 
+  onPatternChange(){
+    const val = this.els.pattern.value;
+    if(val === "基本クリック"){
+      this.genBasic();
+      this.els.delPattern.disabled = true;
+    }else if(val.startsWith("saved:")){
+      const p = this.loadSaved().find(x => x.name === val.slice(6));
+      if(p) this.applyPattern(p.res, p.steps);
+      this.els.delPattern.disabled = false;
+    }else if(this.PATTERNS[val]){
+      this.applyPattern(this.PATTERNS[val].res, this.PATTERNS[val].steps);
+      this.els.delPattern.disabled = true;
+    }
+  },
+
+  markCustom(){
+    let opt = this.els.pattern.querySelector('option[value="custom"]');
+    if(!opt){
+      opt = document.createElement("option");
+      opt.value = "custom";
+      opt.textContent = "（編集中）";
+      this.els.pattern.appendChild(opt);
+    }
+    this.els.pattern.value = "custom";
+    this.els.delPattern.disabled = true;
+  },
+
+  loadSaved(){
+    try{ return JSON.parse(localStorage.getItem(this.STORE_KEY)) || []; }
+    catch(e){ return []; }
+  },
+
+  storeSaved(list){
+    try{ localStorage.setItem(this.STORE_KEY, JSON.stringify(list)); }
+    catch(e){}
+  },
+
+  refreshOptions(selectValue){
+    this.els.pattern.innerHTML = "";
+    Object.keys(this.PATTERNS).forEach(n => {
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n;
+      this.els.pattern.appendChild(o);
+    });
+    this.loadSaved().forEach(p => {
+      const o = document.createElement("option");
+      o.value = "saved:" + p.name; o.textContent = "★ " + p.name;
+      this.els.pattern.appendChild(o);
+    });
+    if(selectValue) this.els.pattern.value = selectValue;
+    this.onPatternChange();
+  },
+
+  savePattern(){
+    const name = (prompt("パターン名を入力", "マイパターン") || "").trim();
+    if(!name) return;
+    const list = this.loadSaved();
+    const idx = list.findIndex(p => p.name === name);
+    const entry = {name, res:this.state.res, steps:this.state.steps.slice()};
+    if(idx >= 0) list[idx] = entry; else list.push(entry);
+    this.storeSaved(list);
+    this.refreshOptions("saved:" + name);
+  },
+
+  delPattern(){
+    const val = this.els.pattern.value;
+    if(!val.startsWith("saved:")) return;
+    const name = val.slice(6);
+    this.storeSaved(this.loadSaved().filter(p => p.name !== name));
+    this.refreshOptions("基本クリック");
+  },
+
   async ensureAudio(){
     this.state.audio = this.state.audio || new (window.AudioContext || window.webkitAudioContext)();
     if(this.state.audio.state === "suspended") await this.state.audio.resume();
+    if(!this.state.noiseBuffer){
+      const len = Math.floor(this.state.audio.sampleRate * 0.2);
+      const buf = this.state.audio.createBuffer(1, len, this.state.audio.sampleRate);
+      const data = buf.getChannelData(0);
+      for(let i=0;i<len;i++) data[i] = Math.random() * 2 - 1;
+      this.state.noiseBuffer = buf;
+    }
     return this.state.audio;
   },
 
-  scheduleClick(time, isMain, isAccent){
+  playOsc(time, freq, type, decay, vol){
     const s = this.state;
     const osc = s.audio.createOscillator();
     const gain = s.audio.createGain();
-    osc.type = "square";
-    osc.frequency.value = isAccent ? 1760 : isMain ? 1100 : 760;
-    const vol = isMain ? s.volume : s.volume * 0.45;
+    osc.type = type;
+    osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, vol), time + 0.002);
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
     osc.connect(gain).connect(s.audio.destination);
     osc.start(time);
-    osc.stop(time + 0.06);
+    osc.stop(time + decay + 0.02);
+  },
+
+  playCowbell(time, vol, accent){
+    const s = this.state;
+    const gain = s.audio.createGain();
+    const decay = accent ? 0.22 : 0.16;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, vol), time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
+    gain.connect(s.audio.destination);
+    [560, 845].forEach(f => {
+      const o = s.audio.createOscillator();
+      o.type = "square";
+      o.frequency.value = f * (accent ? 1.04 : 1);
+      o.connect(gain);
+      o.start(time);
+      o.stop(time + decay + 0.02);
+    });
+  },
+
+  playNoise(time, vol, accent){
+    const s = this.state;
+    const src = s.audio.createBufferSource();
+    src.buffer = s.noiseBuffer;
+    const bp = s.audio.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = accent ? 2600 : 1900;
+    bp.Q.value = 1.2;
+    const gain = s.audio.createGain();
+    gain.gain.setValueAtTime(Math.max(0.0005, vol), time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+    src.connect(bp).connect(gain).connect(s.audio.destination);
+    src.start(time);
+    src.stop(time + 0.06);
+  },
+
+  scheduleClick(time, velocity){
+    const accent = velocity === 2;
+    const vol = accent ? this.state.volume : this.state.volume * 0.6;
+    switch(this.state.timbre){
+      case "wood": this.playOsc(time, accent ? 1400 : 1000, "triangle", 0.03, vol); break;
+      case "cowbell": this.playCowbell(time, vol, accent); break;
+      case "rim": this.playNoise(time, vol, accent); break;
+      case "beep": this.playOsc(time, accent ? 988 : 660, "sine", 0.09, vol); break;
+      default: this.playOsc(time, accent ? 2000 : 1100, "square", 0.03, vol);
+    }
   },
 
   scheduler(){
     const s = this.state;
     while(s.nextNoteTime < s.audio.currentTime + this.SCHEDULE_AHEAD){
-      const isMain = s.subIndex === 0;
-      const isAccent = isMain && s.beat === 0;
-      this.scheduleClick(s.nextNoteTime, isMain, isAccent);
-      if(isMain) s.queue.push({beat:s.beat, time:s.nextNoteTime});
-      const secondsPerBeat = 60 / s.bpm;
-      s.nextNoteTime += secondsPerBeat / s.sub;
-      s.subIndex++;
-      if(s.subIndex >= s.sub){
-        s.subIndex = 0;
-        s.beat = (s.beat + 1) % s.beatsPerBar;
-      }
+      const idx = s.currentStep % s.steps.length;
+      const v = s.steps[idx];
+      if(v > 0) this.scheduleClick(s.nextNoteTime, v);
+      s.queue.push({step:idx, time:s.nextNoteTime});
+      s.nextNoteTime += (60 / s.bpm) / s.res;
+      s.currentStep = (idx + 1) % s.steps.length;
     }
     s.timer = window.setTimeout(() => this.scheduler(), this.LOOKAHEAD_MS);
   },
@@ -718,12 +943,15 @@ PracticeTools.metronome = {
     if(!this.state.running) return;
     const now = this.state.audio.currentTime;
     while(this.state.queue.length && this.state.queue[0].time <= now){
-      this.highlight(this.state.queue.shift().beat);
+      this.highlight(this.state.queue.shift().step);
     }
     this.state.raf = requestAnimationFrame(() => this.draw());
   },
 
-  highlight(beat){
+  highlight(step){
+    const cells = this.els.grid.children;
+    for(let i=0;i<cells.length;i++) cells[i].classList.toggle("cur", i === step);
+    const beat = Math.floor(step / this.state.res);
     this.els.beats.querySelectorAll(".beat").forEach((el, i) => el.classList.toggle("active", i === beat));
   },
 
@@ -731,8 +959,7 @@ PracticeTools.metronome = {
     await this.ensureAudio();
     const s = this.state;
     s.running = true;
-    s.beat = 0;
-    s.subIndex = 0;
+    s.currentStep = 0;
     s.queue = [];
     s.nextNoteTime = s.audio.currentTime + 0.06;
     this.els.metroBtn.textContent = "ストップ";
@@ -747,6 +974,7 @@ PracticeTools.metronome = {
     clearTimeout(s.timer);
     cancelAnimationFrame(s.raf);
     s.queue = [];
+    this.els.grid.querySelectorAll(".cell").forEach(el => el.classList.remove("cur"));
     this.els.beats.querySelectorAll(".beat").forEach(el => el.classList.remove("active"));
     this.els.metroBtn.textContent = "スタート";
     this.els.metroStatus.textContent = "停止中です。";
