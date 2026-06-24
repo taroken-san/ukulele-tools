@@ -230,6 +230,8 @@
       <select id="perrow"><option value="0" selected>自動</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option></select></span>
     <span><label>配色</label>
       <select id="theme"><option value="color" selected>カラー</option><option value="bw">白黒（印刷用）</option></select></span>
+    <span id="notationWrap" style="display:none"><label>表記</label>
+      <select id="notation"><option value="num" selected>数字</option><option value="kunkunshi">工工四</option></select></span>
     <span><label>数字</label>
       <select id="numstyle"><option value="fill">塗り丸</option><option value="outline">白地丸</option><option value="none" selected>囲みなし</option></select></span>
     <span><label>数字サイズ</label>
@@ -256,7 +258,13 @@ const UKE_CFG={id:'ukulele',name:'ウクレレ',strings:[1,2,3,4],
   freq:{4:196.00,3:261.63,2:329.63,1:440.00},hasChord:true,hasStroke:true,prefix:'ukp'};
 const SAN_CFG={id:'sanshin',name:'三線',strings:[1,2,3],
   lbl:{1:'三 女絃',2:'二 中絃',3:'一 男絃'},                 // 上から（高音→低音）
-  freq:{1:261.63,2:174.61,3:130.81},hasChord:false,hasStroke:false,prefix:'snk'}; // 本調子 C-F-C
+  freq:{1:261.63,2:174.61,3:130.81},hasChord:false,hasStroke:false,prefix:'snk', // 本調子 C-F-C
+  // 工工四（本調子）: position(1=女絃 / 2=中絃 / 3=男絃) → {フレット半音: 漢字}
+  kunkunshi:{
+    1:{0:'工',2:'五',4:'六',5:'七',7:'八',9:'九'},      // 女絃
+    2:{0:'四',2:'上',4:'中',5:'尺',6:'尺♯',7:'下尺'},   // 中絃
+    3:{0:'合',2:'乙',4:'老',5:'下老'}                    // 男絃
+  }};
 const INST=/sanshin/i.test(location.search)?SAN_CFG:UKE_CFG;
 const STRINGS=INST.strings, LBL=INST.lbl, FREQ=INST.freq, N=STRINGS.length;
 const SUB={1:[''],2:['','&'],3:['','・','・'],4:['','e','&','a']};
@@ -325,12 +333,18 @@ function buildEditGrid(){
 }
 
 // ===== 配色 =====
-let COLOR=true, NUMSTYLE='none', PRINTING=false, SCALE=1, NUMSCALE=1;
+let COLOR=true, NUMSTYLE='none', PRINTING=false, SCALE=1, NUMSCALE=1, NOTATION='num';
 function pal(){return COLOR
   ?{tabline:'#cfcdc3',bar:'#23241f',stem:'#3a3a36',down:'#0c447c',up:'#993c1d',acc:'#a32d2d',pick:'#534ab7',ink:'#23241f',mut:'#6b6a63'}
   :{tabline:'#9a9a9a',bar:'#000',stem:'#000',down:'#000',up:'#000',acc:'#000',pick:'#000',ink:'#000',mut:'#333'};}
-function noteNum(x,y,order,P){
+function noteNum(x,y,order,P,st){
   const z=NUMSCALE;
+  // 工工四モード（三線）：勘所にある音は漢字で表示（囲みなし）
+  if(NOTATION==='kunkunshi'&&INST.kunkunshi){
+    const k=INST.kunkunshi[st]&&INST.kunkunshi[st][order];
+    if(k)return `<text x="${x}" y="${y+4*z}" text-anchor="middle" font-size="${11*z}" fill="${P.pick}" font-weight="bold" style="paint-order:stroke;stroke:#fff;stroke-width:${3*z}px;">${k}</text>`;
+    // 勘所に無いフレットは安全のため数字のまま（通常出ない）
+  }
   if(NUMSTYLE==='none')
     return `<text x="${x}" y="${y+3.5*z}" text-anchor="middle" font-size="${10*z}" fill="${P.pick}" font-weight="bold" style="paint-order:stroke;stroke:#fff;stroke-width:${3*z}px;">${order}</text>`;
   if(NUMSTYLE==='outline')
@@ -420,7 +434,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH){
         g+=`<line x1="${x-5}" y1="${baseY-4}" x2="${x+5}" y2="${yOf(1)+4}" stroke="${col}" stroke-width="2.2"/>`;
         if(s.stroke==='u')g+=`<text x="${x}" y="${baseY+18}" text-anchor="middle" font-size="12" fill="${col}" font-weight="bold">∧</text>`;
       }else if(s.type==='pick'){
-        fretKeys(s).forEach(st=>{g+=noteNum(x,yOf(st),s.frets[st],P);});
+        fretKeys(s).forEach(st=>{g+=noteNum(x,yOf(st),s.frets[st],P,st);});
       }else{ // 休符：4分＝「ー」／8分以下＝「・」
         const rsym=div===1?'ー':'・';
         g+=`<text x="${x}" y="${(yOf(1)+yOf(N))/2+5}" text-anchor="middle" font-size="${div===1?13:18}" fill="${P.mut}">${rsym}</text>`;}
@@ -637,6 +651,8 @@ document.getElementById('zoom').onchange=e=>{SCALE=+e.target.value;drawScore();}
 document.getElementById('theme').onchange=e=>{COLOR=e.target.value==='color';drawScore();};
 document.getElementById('numstyle').onchange=e=>{NUMSTYLE=e.target.value;drawScore();};
 document.getElementById('numsize').onchange=e=>{NUMSCALE=+e.target.value;drawScore();};
+document.getElementById('notation').onchange=e=>{NOTATION=e.target.value;drawMiniPreview&&drawMiniPreview();drawScore();};
+if(INST.kunkunshi)document.getElementById('notationWrap').style.display='';
 document.getElementById('print').onclick=()=>{PRINTING=true;drawScore();
   setTimeout(()=>{window.print();PRINTING=false;drawScore();},60);};
 window.onbeforeprint=()=>{PRINTING=true;drawScore();};
@@ -672,13 +688,14 @@ let SAVE_ID=null;
 let baseline=null, undoStack=[], redoStack=[];
 
 // --- 正式JSON形式 ---
-function curSettings(){return {bpm:+$('bpm').value, theme:$('theme').value, numstyle:$('numstyle').value, numsize:$('numsize').value, zoom:$('zoom').value, perrow:$('perrow').value};}
+function curSettings(){return {bpm:+$('bpm').value, theme:$('theme').value, numstyle:$('numstyle').value, numsize:$('numsize').value, notation:$('notation').value, zoom:$('zoom').value, perrow:$('perrow').value};}
 function serialize(){return {format:'ukulele-pattern',version:1,id:SAVE_ID,title:titleEl.value||'無題',lyricist:lyricistEl.value||'',composer:composerEl.value||'',updatedAt:new Date().toISOString(),settings:curSettings(),song};}
 function applySettings(s){if(!s)return;
   if(s.bpm)$('bpm').value=s.bpm;
   if(s.theme){$('theme').value=s.theme;COLOR=s.theme==='color';}
   if(s.numstyle){$('numstyle').value=s.numstyle;NUMSTYLE=s.numstyle;}
   if(s.numsize){$('numsize').value=s.numsize;NUMSCALE=+s.numsize;}
+  if(s.notation){$('notation').value=s.notation;NOTATION=s.notation;}
   if(s.zoom){$('zoom').value=s.zoom;SCALE=+s.zoom;}
   if(s.perrow!=null)$('perrow').value=s.perrow;}
 
@@ -811,7 +828,7 @@ $('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
   }catch(err){alert('読み込み失敗: '+err.message);}};
   r.readAsText(f); $('fileInput').value='';};
 // 設定変更も保存対象
-['bpm','theme','numstyle','numsize','zoom','perrow'].forEach(id=>$(id).addEventListener('change',scheduleAutosave));
+['bpm','theme','numstyle','numsize','notation','zoom','perrow'].forEach(id=>$(id).addEventListener('change',scheduleAutosave));
 
 // ===== 歌詞のひらがな化（kuroshiro + kuromoji辞書）=====
 const KANA={ready:false,loading:null,kuroshiro:null};
