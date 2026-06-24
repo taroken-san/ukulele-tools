@@ -108,6 +108,13 @@
   .legend .dot.acc{background:var(--accent);}
   .legend .dot.nrm{background:var(--good);}
   .legend .dot.rst{background:#2a3340;border:1px solid #475264;}
+  .polyrow{display:flex;align-items:center;gap:8px;}
+  .polyrow .lab{width:60px;font-size:12px;color:var(--sub);flex:0 0 auto;}
+  .polydots{flex:1;display:flex;gap:6px;}
+  .pd{flex:1;height:22px;border-radius:5px;background:#2a3340;border:1px solid #475264;
+    transition:background 60ms,box-shadow 60ms,border-color 60ms;}
+  .pd.lo.active{background:var(--good);border-color:var(--good);box-shadow:0 0 12px rgba(79,196,122,.5);}
+  .pd.hi.active{background:var(--accent);border-color:var(--accent);box-shadow:0 0 12px rgba(58,166,163,.6);}
   @media (max-width:760px){
     header{align-items:flex-start;flex-direction:column;}
     main{padding:12px;}
@@ -315,6 +322,7 @@
         </div>
         <div class="row">
           <button id="savePattern" type="button">保存</button>
+          <button id="ovwPattern" type="button" disabled>上書き</button>
           <button id="delPattern" type="button" disabled>削除</button>
         </div>
       </div>
@@ -325,6 +333,27 @@
         <span><i class="dot rst"></i>休符</span>
         <span style="margin-left:auto;">マスをタップで切替（休→弱→強）</span>
       </div>
+    </div>
+
+    <div class="panel" style="grid-column:1/-1;padding:16px;display:grid;gap:12px;">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <label style="color:var(--txt);font-weight:700;font-size:14px;">ポリリズム練習</label>
+        <span class="bpm-sub" style="min-height:0;">2声を同時に鳴らして覚える</span>
+      </div>
+      <div class="row">
+        <select id="polyRatio" style="flex:1;min-width:120px;">
+          <option value="3:2">3 : 2</option>
+          <option value="4:3">4 : 3</option>
+          <option value="5:4">5 : 4</option>
+          <option value="3:4">3 : 4</option>
+          <option value="5:3">5 : 3</option>
+          <option value="2:3">2 : 3</option>
+        </select>
+        <button class="primary" id="polyBtn" type="button">ポリ再生</button>
+      </div>
+      <div class="polyrow"><span class="lab" id="polyLabHi">高音 3</span><div class="polydots" id="polyDotsHi"></div></div>
+      <div class="polyrow"><span class="lab" id="polyLabLo">低音 2</span><div class="polydots" id="polyDotsLo"></div></div>
+      <div class="bpm-sub" style="min-height:0;">高音＝上の数・低音＝下の数（低音がメインの拍）。テンポ自動アップ対応。</div>
     </div>
   </section>
 
@@ -676,7 +705,13 @@ PracticeTools.metronome = {
     "サンバ":{res:4, steps:[2,1,0,1,1,0,1,1,2,1,0,1,1,0,1,1]},
     "カチャーシー":{res:2, steps:[2,1,2,1,2,1,2,1]},
     "スローハワイアン":{res:2, steps:[2,0,1,1,1,0,1,1]},
-    "ビギン":{res:4, steps:[2,0,0,1,1,0,1,0,2,0,0,1,1,0,1,0]}
+    "ビギン":{res:4, steps:[2,0,0,1,1,0,1,0,2,0,0,1,1,0,1,0]},
+    "スウィング":{res:3, steps:[2,0,0,1,0,1,1,0,0,1,0,1]},
+    "ラテン(ソンクラーベ)":{res:4, steps:[2,0,0,1,0,0,1,0,0,0,1,0,1,0,0,0]},
+    "ルンバ(クラーベ)":{res:4, steps:[2,0,0,1,0,0,0,1,0,0,1,0,1,0,0,0]},
+    "2拍3連符":{res:3, steps:[2,0,1,0,1,0,1,0,1,0,1,0]},
+    "ハーフ3連(4拍に3つ)":{res:3, steps:[2,0,0,0,1,0,0,0,1,0,0,0]},
+    "5連符":{res:5, steps:[2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}
   },
   state:{
     audio:null,
@@ -700,7 +735,9 @@ PracticeTools.metronome = {
     timer:0,
     raf:0,
     queue:[],
-    tapTimes:[]
+    tapTimes:[],
+    editingSaved:null,
+    poly:{running:false, a:3, b:2, nextCycleTime:0, timer:0, raf:0, queue:[], cycleCount:0}
   },
   els:{
     metroBtn:document.getElementById("metroBtn"),
@@ -720,7 +757,14 @@ PracticeTools.metronome = {
     pattern:document.getElementById("pattern"),
     grid:document.getElementById("grid"),
     savePattern:document.getElementById("savePattern"),
+    ovwPattern:document.getElementById("ovwPattern"),
     delPattern:document.getElementById("delPattern"),
+    polyRatio:document.getElementById("polyRatio"),
+    polyBtn:document.getElementById("polyBtn"),
+    polyDotsHi:document.getElementById("polyDotsHi"),
+    polyDotsLo:document.getElementById("polyDotsLo"),
+    polyLabHi:document.getElementById("polyLabHi"),
+    polyLabLo:document.getElementById("polyLabLo"),
     autoUp:document.getElementById("autoUp"),
     autoBars:document.getElementById("autoBars"),
     autoStep:document.getElementById("autoStep"),
@@ -742,7 +786,9 @@ PracticeTools.metronome = {
       els.meterSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
       els.pattern.value = "基本クリック";
       this.genBasic();
+      this.state.editingSaved = null;
       els.delPattern.disabled = true;
+      this.updateOvwButton();
     });
     els.subSeg.addEventListener("click", e => {
       const btn = e.target.closest("button[data-v]");
@@ -751,14 +797,19 @@ PracticeTools.metronome = {
       els.subSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
       els.pattern.value = "基本クリック";
       this.genBasic();
+      this.state.editingSaved = null;
       els.delPattern.disabled = true;
+      this.updateOvwButton();
     });
     els.tapBtn.addEventListener("click", () => this.tap());
     els.metroVol.addEventListener("input", () => this.state.volume = Number(els.metroVol.value));
     els.timbre.addEventListener("change", () => this.state.timbre = els.timbre.value);
     els.pattern.addEventListener("change", () => this.onPatternChange());
     els.savePattern.addEventListener("click", () => this.savePattern());
+    els.ovwPattern.addEventListener("click", () => this.overwritePattern());
     els.delPattern.addEventListener("click", () => this.delPattern());
+    els.polyBtn.addEventListener("click", () => this.state.poly.running ? this.stopPoly() : this.startPoly());
+    els.polyRatio.addEventListener("change", () => this.setupPoly());
     els.autoUp.addEventListener("change", () => {
       this.state.autoUp = els.autoUp.checked;
       this.state.barCount = 0;
@@ -773,6 +824,7 @@ PracticeTools.metronome = {
     });
     this.setBpm(this.state.bpm);
     this.refreshOptions("基本クリック");
+    this.setupPoly();
   },
 
   updateAutoStatus(){
@@ -846,15 +898,25 @@ PracticeTools.metronome = {
     const val = this.els.pattern.value;
     if(val === "基本クリック"){
       this.genBasic();
+      this.state.editingSaved = null;
       this.els.delPattern.disabled = true;
     }else if(val.startsWith("saved:")){
-      const p = this.loadSaved().find(x => x.name === val.slice(6));
+      const name = val.slice(6);
+      const p = this.loadSaved().find(x => x.name === name);
       if(p) this.applyPattern(p.res, p.steps);
+      this.state.editingSaved = name;
       this.els.delPattern.disabled = false;
     }else if(this.PATTERNS[val]){
       this.applyPattern(this.PATTERNS[val].res, this.PATTERNS[val].steps);
+      this.state.editingSaved = null;
       this.els.delPattern.disabled = true;
     }
+    this.updateOvwButton();
+  },
+
+  updateOvwButton(){
+    this.els.ovwPattern.disabled = !this.state.editingSaved;
+    this.els.ovwPattern.textContent = this.state.editingSaved ? `「${this.state.editingSaved}」を上書き` : "上書き";
   },
 
   markCustom(){
@@ -862,11 +924,14 @@ PracticeTools.metronome = {
     if(!opt){
       opt = document.createElement("option");
       opt.value = "custom";
-      opt.textContent = "（編集中）";
+      opt.textContent = this.state.editingSaved ? `（${this.state.editingSaved} 編集中）` : "（編集中）";
       this.els.pattern.appendChild(opt);
+    }else{
+      opt.textContent = this.state.editingSaved ? `（${this.state.editingSaved} 編集中）` : "（編集中）";
     }
     this.els.pattern.value = "custom";
     this.els.delPattern.disabled = true;
+    this.updateOvwButton();
   },
 
   loadSaved(){
@@ -911,7 +976,112 @@ PracticeTools.metronome = {
     if(!val.startsWith("saved:")) return;
     const name = val.slice(6);
     this.storeSaved(this.loadSaved().filter(p => p.name !== name));
+    this.state.editingSaved = null;
     this.refreshOptions("基本クリック");
+  },
+
+  overwritePattern(){
+    const name = this.state.editingSaved;
+    if(!name) return;
+    const list = this.loadSaved();
+    const idx = list.findIndex(p => p.name === name);
+    const entry = {name, res:this.state.res, steps:this.state.steps.slice()};
+    if(idx >= 0) list[idx] = entry; else list.push(entry);
+    this.storeSaved(list);
+    this.refreshOptions("saved:" + name);
+    this.els.metroStatus.textContent = `「${name}」を上書き保存しました。`;
+  },
+
+  setupPoly(){
+    const [a, b] = this.els.polyRatio.value.split(":").map(Number);
+    this.state.poly.a = a;
+    this.state.poly.b = b;
+    this.els.polyLabHi.textContent = `高音 ${a}`;
+    this.els.polyLabLo.textContent = `低音 ${b}`;
+    this.buildPolyDots(this.els.polyDotsHi, a, "hi");
+    this.buildPolyDots(this.els.polyDotsLo, b, "lo");
+  },
+
+  buildPolyDots(container, n, cls){
+    container.innerHTML = "";
+    for(let i=0;i<n;i++){
+      const d = document.createElement("div");
+      d.className = "pd " + cls;
+      container.appendChild(d);
+    }
+  },
+
+  playPolyHigh(time, accent){
+    const vol = (accent ? this.state.volume : this.state.volume * 0.6);
+    this.playOsc(time, accent ? 2200 : 1500, "square", 0.03, vol);
+  },
+
+  playPolyLow(time, accent){
+    const vol = (accent ? this.state.volume : this.state.volume * 0.6);
+    this.playOsc(time, accent ? 900 : 650, "triangle", 0.05, vol);
+  },
+
+  async startPoly(){
+    if(this.state.running) this.stop();
+    await this.ensureAudio();
+    this.setupPoly();
+    const p = this.state.poly;
+    p.running = true;
+    p.cycleCount = 0;
+    p.queue = [];
+    p.nextCycleTime = this.state.audio.currentTime + 0.06;
+    this.els.polyBtn.textContent = "ポリ停止";
+    this.els.metroStatus.textContent = `ポリリズム ${p.a}:${p.b} を再生中です。`;
+    this.polyScheduler();
+    this.polyDraw();
+  },
+
+  stopPoly(){
+    const p = this.state.poly;
+    p.running = false;
+    clearTimeout(p.timer);
+    cancelAnimationFrame(p.raf);
+    p.queue = [];
+    this.els.polyDotsHi.querySelectorAll(".pd").forEach(el => el.classList.remove("active"));
+    this.els.polyDotsLo.querySelectorAll(".pd").forEach(el => el.classList.remove("active"));
+    this.els.polyBtn.textContent = "ポリ再生";
+    this.els.metroStatus.textContent = "停止中です。";
+  },
+
+  polyScheduler(){
+    const s = this.state;
+    const p = s.poly;
+    while(p.nextCycleTime < s.audio.currentTime + this.SCHEDULE_AHEAD){
+      const T = p.b * (60 / s.bpm);
+      for(let i=0;i<p.a;i++){
+        const t = p.nextCycleTime + i * (T / p.a);
+        this.playPolyHigh(t, i === 0);
+        p.queue.push({voice:"hi", index:i, time:t});
+      }
+      for(let j=0;j<p.b;j++){
+        const t = p.nextCycleTime + j * (T / p.b);
+        this.playPolyLow(t, j === 0);
+        p.queue.push({voice:"lo", index:j, time:t});
+      }
+      p.nextCycleTime += T;
+      p.cycleCount++;
+      if(s.autoUp && s.bpm < s.autoMax && p.cycleCount % s.autoBars === 0){
+        this.setBpm(Math.min(s.autoMax, s.bpm + s.autoStep));
+      }
+    }
+    p.timer = window.setTimeout(() => this.polyScheduler(), this.LOOKAHEAD_MS);
+  },
+
+  polyDraw(){
+    const p = this.state.poly;
+    if(!p.running) return;
+    const now = this.state.audio.currentTime;
+    while(p.queue.length && p.queue[0].time <= now){
+      const ev = p.queue.shift();
+      const dots = (ev.voice === "hi" ? this.els.polyDotsHi : this.els.polyDotsLo).querySelectorAll(".pd");
+      dots.forEach((el, i) => el.classList.toggle("active", i === ev.index));
+    }
+    p.raf = requestAnimationFrame(() => this.polyDraw());
   },
 
   async ensureAudio(){
@@ -1027,6 +1197,7 @@ PracticeTools.metronome = {
   },
 
   async start(){
+    if(this.state.poly.running) this.stopPoly();
     await this.ensureAudio();
     const s = this.state;
     s.running = true;
@@ -1082,6 +1253,7 @@ function showTab(which){
   document.getElementById("phaseLabel").textContent = isTuner ? "チューナー" : "メトロノーム";
   if(isTuner){
     if(PracticeTools.metronome.state.running) PracticeTools.metronome.stop();
+    if(PracticeTools.metronome.state.poly.running) PracticeTools.metronome.stopPoly();
   }else{
     if(PracticeTools.tuner.state.running) PracticeTools.tuner.stopMic();
     PracticeTools.tuner.stopReference();
@@ -1089,7 +1261,10 @@ function showTab(which){
 }
 document.getElementById("tabTuner").addEventListener("click", () => showTab("tuner"));
 document.getElementById("tabMetro").addEventListener("click", () => showTab("metro"));
-window.addEventListener("pagehide", () => PracticeTools.metronome.stop());
+window.addEventListener("pagehide", () => {
+  PracticeTools.metronome.stop();
+  PracticeTools.metronome.stopPoly();
+});
 
 PracticeTools.tuner.init();
 PracticeTools.metronome.init();
