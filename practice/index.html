@@ -115,6 +115,10 @@
     transition:background 60ms,box-shadow 60ms,border-color 60ms;}
   .pd.lo.active{background:var(--good);border-color:var(--good);box-shadow:0 0 12px rgba(79,196,122,.5);}
   .pd.hi.active{background:var(--accent);border-color:var(--accent);box-shadow:0 0 12px rgba(58,166,163,.6);}
+  .fab{position:fixed;right:16px;bottom:16px;z-index:5;background:var(--accent2);color:#fff;
+    border:1px solid var(--accent);border-radius:30px;padding:14px 22px;font-size:15px;font-weight:700;
+    box-shadow:0 6px 20px rgba(0,0,0,.45);}
+  .fab.stop{background:var(--bad);border-color:var(--bad);}
   @media (max-width:760px){
     header{align-items:flex-start;flex-direction:column;}
     main{padding:12px;}
@@ -177,10 +181,26 @@
       <div class="field">
         <label for="instrument">楽器プリセット</label>
         <select id="instrument">
+          <option value="chromatic" selected>クロマチック</option>
           <option value="ukulele">ウクレレ G-C-E-A</option>
           <option value="guitar">ギター E-A-D-G-B-E</option>
-          <option value="chromatic">クロマチック</option>
+          <option value="sanshin">三線（本調子 C-F-C）</option>
         </select>
+      </div>
+
+      <div class="field" id="sanshinPanel" hidden>
+        <label>三線 調子</label>
+        <div class="seg" id="choshiSeg" style="grid-template-columns:repeat(3,1fr);">
+          <button data-v="honchoshi" class="on" type="button">本調子</button>
+          <button data-v="niage" type="button">二揚げ</button>
+          <button data-v="sansage" type="button">三下げ</button>
+        </div>
+        <label style="margin-top:8px;">全体移調（半音）</label>
+        <div class="row">
+          <button id="transDown" class="stepbtn" type="button">−</button>
+          <b id="transText" style="flex:1;text-align:center;">±0（C-F-C）</b>
+          <button id="transUp" class="stepbtn" type="button">＋</button>
+        </div>
       </div>
 
       <div class="field">
@@ -259,10 +279,11 @@
 
       <div class="field">
         <label>分割</label>
-        <div class="segN" id="subSeg" style="grid-template-columns:repeat(3,1fr);">
+        <div class="segN" id="subSeg" style="grid-template-columns:repeat(4,1fr);">
           <button data-v="1" class="on" type="button">♩</button>
           <button data-v="2" type="button">♫</button>
           <button data-v="3" type="button">三連</button>
+          <button data-v="4" type="button">16分</button>
         </div>
       </div>
 
@@ -357,6 +378,8 @@
     </div>
   </section>
 
+  <button id="metroFab" class="fab" type="button" hidden>▶ スタート</button>
+
   <div class="footer">
     マイク許可が必要です。静かな場所で単音を少し長めに鳴らすと安定します。マイクは https または localhost で開いた場合に使えます。
   </div>
@@ -390,6 +413,11 @@ const PracticeTools = {
       ],
       chromatic:[]
     },
+    SANSHIN:{
+      labels:["男弦","中弦","女弦"],
+      base:{ honchoshi:[48,53,60], niage:[48,55,60], sansage:[48,53,58] },
+      name:{ honchoshi:"本調子", niage:"二揚げ", sansage:"三下げ" }
+    },
     state:{
       audio:null,
       analyser:null,
@@ -398,7 +426,9 @@ const PracticeTools = {
       raf:0,
       running:false,
       spelling:"sharp",
-      instrument:"ukulele",
+      instrument:"chromatic",
+      sanshinChoshi:"honchoshi",
+      transpose:0,
       targetMidi:null,
       a4:440,
       refOsc:null,
@@ -418,6 +448,11 @@ const PracticeTools = {
       judgeText:document.getElementById("judgeText"),
       instrument:document.getElementById("instrument"),
       stringButtons:document.getElementById("stringButtons"),
+      sanshinPanel:document.getElementById("sanshinPanel"),
+      choshiSeg:document.getElementById("choshiSeg"),
+      transDown:document.getElementById("transDown"),
+      transUp:document.getElementById("transUp"),
+      transText:document.getElementById("transText"),
       spellSeg:document.getElementById("spellSeg"),
       a4:document.getElementById("a4"),
       a4Text:document.getElementById("a4Text"),
@@ -431,15 +466,26 @@ const PracticeTools = {
       els.micBtn.addEventListener("click", () => this.state.running ? this.stopMic() : this.startMic());
       els.instrument.addEventListener("change", () => {
         this.state.instrument = els.instrument.value;
+        this.updateSanshin();
         this.renderStrings();
         this.updateReferenceButtons();
       });
+      els.choshiSeg.addEventListener("click", e => {
+        const btn = e.target.closest("button[data-v]");
+        if(!btn) return;
+        this.state.sanshinChoshi = btn.dataset.v;
+        els.choshiSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+        this.applySanshinChange();
+      });
+      els.transDown.addEventListener("click", () => { this.state.transpose = Math.max(-12, this.state.transpose - 1); this.applySanshinChange(); });
+      els.transUp.addEventListener("click", () => { this.state.transpose = Math.min(12, this.state.transpose + 1); this.applySanshinChange(); });
       els.spellSeg.addEventListener("click", e => {
         const btn = e.target.closest("button[data-v]");
         if(!btn) return;
         this.state.spelling = btn.dataset.v;
         els.spellSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
         this.renderStrings();
+        this.updateSanshin();
       });
       els.a4.addEventListener("input", () => {
         this.state.a4 = Number(els.a4.value);
@@ -455,8 +501,37 @@ const PracticeTools = {
         this.stopReference();
         if(this.state.running) this.stopMic();
       });
+      this.updateSanshin();
       this.renderStrings();
       this.updateReferenceButtons();
+    },
+
+    getPreset(){
+      if(this.state.instrument === "sanshin"){
+        const base = this.SANSHIN.base[this.state.sanshinChoshi];
+        const t = this.state.transpose;
+        return base.map((m, i) => ({label:this.SANSHIN.labels[i], midi:m + t}));
+      }
+      return this.PRESETS[this.state.instrument];
+    },
+
+    updateSanshin(){
+      const show = this.state.instrument === "sanshin";
+      this.els.sanshinPanel.hidden = !show;
+      if(!show) return;
+      const names = this.getPreset().map(s => this.noteName(s.midi).replace(/\d$/, "")).join("-");
+      const t = this.state.transpose;
+      const sign = t > 0 ? `+${t}` : (t < 0 ? `${t}` : "±0");
+      this.els.transText.textContent = `${sign}（${names}）`;
+    },
+
+    applySanshinChange(){
+      this.updateSanshin();
+      this.renderStrings();
+      this.updateReferenceButtons();
+      if(this.state.refOsc && this.state.targetMidi !== null){
+        this.state.refOsc.frequency.value = this.midiToFreq(this.state.targetMidi);
+      }
     },
 
     noteName(midi){
@@ -483,7 +558,7 @@ const PracticeTools = {
     },
 
     renderStrings(){
-      const preset = this.PRESETS[this.state.instrument];
+      const preset = this.getPreset();
       const els = this.els;
       els.stringButtons.innerHTML = "";
       if(!preset.length){
@@ -741,6 +816,7 @@ PracticeTools.metronome = {
   },
   els:{
     metroBtn:document.getElementById("metroBtn"),
+    metroFab:document.getElementById("metroFab"),
     metroStatus:document.getElementById("metroStatus"),
     bpmText:document.getElementById("bpmText"),
     tempoName:document.getElementById("tempoName"),
@@ -776,6 +852,11 @@ PracticeTools.metronome = {
   init(){
     const els = this.els;
     els.metroBtn.addEventListener("click", () => this.state.running ? this.stop() : this.start());
+    els.metroFab.addEventListener("click", () => {
+      if(this.state.running) this.stop();
+      else if(this.state.poly.running) this.stopPoly();
+      else this.start();
+    });
     els.bpm.addEventListener("input", () => this.setBpm(Number(els.bpm.value)));
     els.bpmDown.addEventListener("click", () => this.setBpm(this.state.bpm - 1));
     els.bpmUp.addEventListener("click", () => this.setBpm(this.state.bpm + 1));
@@ -825,6 +906,12 @@ PracticeTools.metronome = {
     this.setBpm(this.state.bpm);
     this.refreshOptions("基本クリック");
     this.setupPoly();
+  },
+
+  updateFab(){
+    const running = this.state.running || this.state.poly.running;
+    this.els.metroFab.classList.toggle("stop", running);
+    this.els.metroFab.textContent = running ? "■ 停止" : "▶ スタート";
   },
 
   updateAutoStatus(){
@@ -1032,6 +1119,7 @@ PracticeTools.metronome = {
     p.nextCycleTime = this.state.audio.currentTime + 0.06;
     this.els.polyBtn.textContent = "ポリ停止";
     this.els.metroStatus.textContent = `ポリリズム ${p.a}:${p.b} を再生中です。`;
+    this.updateFab();
     this.polyScheduler();
     this.polyDraw();
   },
@@ -1046,6 +1134,7 @@ PracticeTools.metronome = {
     this.els.polyDotsLo.querySelectorAll(".pd").forEach(el => el.classList.remove("active"));
     this.els.polyBtn.textContent = "ポリ再生";
     this.els.metroStatus.textContent = "停止中です。";
+    this.updateFab();
   },
 
   polyScheduler(){
@@ -1208,6 +1297,7 @@ PracticeTools.metronome = {
     s.nextNoteTime = s.audio.currentTime + 0.06;
     this.els.metroBtn.textContent = "ストップ";
     this.els.metroStatus.textContent = "再生中です。";
+    this.updateFab();
     this.scheduler();
     this.draw();
   },
@@ -1222,6 +1312,7 @@ PracticeTools.metronome = {
     this.els.beats.querySelectorAll(".beat").forEach(el => el.classList.remove("active"));
     this.els.metroBtn.textContent = "スタート";
     this.els.metroStatus.textContent = "停止中です。";
+    this.updateFab();
   },
 
   tap(){
@@ -1251,6 +1342,7 @@ function showTab(which){
   document.getElementById("tabTuner").classList.toggle("on", isTuner);
   document.getElementById("tabMetro").classList.toggle("on", !isTuner);
   document.getElementById("phaseLabel").textContent = isTuner ? "チューナー" : "メトロノーム";
+  document.getElementById("metroFab").hidden = isTuner;
   if(isTuner){
     if(PracticeTools.metronome.state.running) PracticeTools.metronome.stop();
     if(PracticeTools.metronome.state.poly.running) PracticeTools.metronome.stopPoly();
