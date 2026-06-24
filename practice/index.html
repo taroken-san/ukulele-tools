@@ -101,12 +101,14 @@
   .grid16{display:grid;gap:5px;}
   .cell{aspect-ratio:1;border-radius:5px;background:#2a3340;border:1px solid #475264;cursor:pointer;}
   .cell.nrm{background:var(--good);border-color:#6fe09a;}
+  .cell.kick{background:#3a6fa5;border-color:#5b8fc4;}
   .cell.acc{background:var(--accent);border-color:#4fd4d0;}
   .cell.cur{outline:2px solid #fff;outline-offset:1px;}
   .legend{display:flex;gap:14px;font-size:12px;color:var(--sub);flex-wrap:wrap;align-items:center;}
   .legend .dot{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px;}
   .legend .dot.acc{background:var(--accent);}
   .legend .dot.nrm{background:var(--good);}
+  .legend .dot.kick{background:#3a6fa5;}
   .legend .dot.rst{background:#2a3340;border:1px solid #475264;}
   .polyrow{display:flex;align-items:center;gap:8px;}
   .polyrow .lab{width:60px;font-size:12px;color:var(--sub);flex:0 0 auto;}
@@ -233,8 +235,8 @@
       </div>
 
       <div class="field">
-        <label>感度</label>
-        <input id="sensitivity" type="range" min="0.01" max="0.08" value="0.025" step="0.005">
+        <label>感度（反応しにくい時は左へ）</label>
+        <input id="sensitivity" type="range" min="0.004" max="0.08" value="0.012" step="0.002">
       </div>
     </aside>
   </section>
@@ -294,6 +296,7 @@
           <option value="wood">ウッドブロック</option>
           <option value="cowbell">カウベル</option>
           <option value="rim">リムショット</option>
+          <option value="stick">スティック</option>
           <option value="beep">ビープ</option>
         </select>
       </div>
@@ -349,10 +352,11 @@
       </div>
       <div class="grid16" id="grid"></div>
       <div class="legend">
-        <span><i class="dot acc"></i>強拍</span>
-        <span><i class="dot nrm"></i>弱拍</span>
+        <span><i class="dot acc"></i>強（アクセント）</span>
+        <span><i class="dot kick"></i>低（バスドラ）</span>
+        <span><i class="dot nrm"></i>弱（ハット）</span>
         <span><i class="dot rst"></i>休符</span>
-        <span style="margin-left:auto;">マスをタップで切替（休→弱→強）</span>
+        <span style="margin-left:auto;">マスをタップで切替（休→弱→低→強）</span>
       </div>
     </div>
 
@@ -591,10 +595,18 @@ const PracticeTools = {
       return this.state.audio;
     },
 
+    inAppBrowser(){
+      return /Line\/|FBAN|FBAV|Instagram|Twitter|MicroMessenger|; wv\)/i.test(navigator.userAgent);
+    },
+
     async startMic(){
       const els = this.els;
       if(window.isSecureContext === false || !navigator.mediaDevices?.getUserMedia){
-        els.status.innerHTML = '<span class="error">このページは https または localhost で開いてください。file:// ではマイクを使えません。</span>';
+        els.status.innerHTML = '<span class="error">このページは https または localhost で開いてください。file:// やアプリ内ブラウザではマイクを使えません。</span>';
+        return;
+      }
+      if(this.inAppBrowser()){
+        els.status.innerHTML = '<span class="error">LINEやInstagramなどアプリ内ブラウザではマイクが使えません。メニュー（···）から「Safariで開く」「ブラウザで開く」を選んでから、もう一度お試しください。</span>';
         return;
       }
       try{
@@ -615,7 +627,7 @@ const PracticeTools = {
       }catch(err){
         const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
         els.status.innerHTML = denied
-          ? '<span class="error">マイクが許可されていません。アドレスバーの「ぁあ」→「Webサイトの設定」→マイクを「許可」にするか、初回の許可ダイアログで「許可」を選んでください。iPhoneは 設定 → Safari → マイク も確認してください。</span>'
+          ? '<span class="error">マイクが許可されていません。①LINE等のアプリ内ブラウザではなくSafari/Chromeで開く ②初回の許可ダイアログで「許可」 ③iPhoneは 設定→Safari→マイク／設定→該当ブラウザ でマイクを確認してください。</span>'
           : `<span class="error">マイクを開始できませんでした: ${err.message}</span>`;
       }
     },
@@ -771,22 +783,22 @@ PracticeTools.metronome = {
   STORE_KEY:"practice_metronome_patterns",
   PATTERNS:{
     "基本クリック":null,
-    "8ビート":{res:2, steps:[2,1,1,1,2,1,1,1]},
-    "16ビート":{res:4, steps:[2,1,1,1,2,1,1,1,2,1,1,1,2,1,1,1]},
-    "シャッフル":{res:3, steps:[2,0,1,1,0,1,1,0,1,1,0,1]},
-    "ボサノバ":{res:4, steps:[2,0,1,0,0,1,0,1,1,0,0,1,0,1,1,0]},
-    "ワルツ":{res:2, steps:[2,0,1,0,1,0]},
-    "三三七拍子":{res:1, steps:[2,1,1,0,2,1,1,0,2,1,1,1,1,1,1,0]},
-    "サンバ":{res:4, steps:[2,1,0,1,1,0,1,1,2,1,0,1,1,0,1,1]},
-    "カチャーシー":{res:2, steps:[2,1,2,1,2,1,2,1]},
-    "スローハワイアン":{res:2, steps:[2,0,1,1,1,0,1,1]},
-    "ビギン":{res:4, steps:[2,0,0,1,1,0,1,0,2,0,0,1,1,0,1,0]},
-    "スウィング":{res:3, steps:[2,0,0,1,0,1,1,0,0,1,0,1]},
-    "ラテン(ソンクラーベ)":{res:4, steps:[2,0,0,1,0,0,1,0,0,0,1,0,1,0,0,0]},
-    "ルンバ(クラーベ)":{res:4, steps:[2,0,0,1,0,0,0,1,0,0,1,0,1,0,0,0]},
-    "2拍3連符":{res:3, steps:[2,0,1,0,1,0,1,0,1,0,1,0]},
-    "ハーフ3連(4拍に3つ)":{res:3, steps:[2,0,0,0,1,0,0,0,1,0,0,0]},
-    "5連符":{res:5, steps:[2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}
+    "8ビート":{res:2, steps:[2,1,3,1,2,1,3,1]},
+    "16ビート":{res:4, steps:[2,1,1,1,3,1,1,1,2,1,1,1,3,1,1,1]},
+    "シャッフル":{res:3, steps:[2,0,1,3,0,1,2,0,1,3,0,1]},
+    "ボサノバ":{res:4, steps:[2,0,0,3,0,0,3,0,2,0,3,0,3,0,0,0]},
+    "ワルツ":{res:2, steps:[2,0,3,0,3,0]},
+    "三三七拍子":{res:1, steps:[3,1,1,0,3,1,1,0,3,1,1,1,1,1,1,0]},
+    "サンバ":{res:4, steps:[1,1,3,1,2,1,1,1,1,1,3,1,2,1,1,1]},
+    "カチャーシー":{res:2, steps:[3,1,3,1,3,1,3,1]},
+    "スローハワイアン":{res:2, steps:[2,0,3,1,2,0,3,1]},
+    "ビギン":{res:4, steps:[2,0,0,3,3,0,3,0,2,0,0,3,3,0,3,0]},
+    "スウィング":{res:3, steps:[1,0,1,3,0,1,1,0,1,3,0,1]},
+    "ラテン(ソンクラーベ)":{res:4, steps:[2,0,0,3,0,0,3,0,2,0,3,0,3,0,0,0]},
+    "ルンバ(クラーベ)":{res:4, steps:[2,0,0,3,0,0,0,3,2,0,3,0,3,0,0,0]},
+    "2拍3連符":{res:3, steps:[3,0,1,0,1,0,3,0,1,0,1,0]},
+    "ハーフ3連(4拍に3つ)":{res:3, steps:[3,0,0,0,1,0,0,0,1,0,0,0]},
+    "5連符":{res:5, steps:[3,1,1,1,1,3,1,1,1,1,3,1,1,1,1,3,1,1,1,1]}
   },
   state:{
     audio:null,
@@ -798,7 +810,7 @@ PracticeTools.metronome = {
     volume:0.7,
     timbre:"click",
     res:1,
-    steps:[2,1,1,1],
+    steps:[3,1,1,1],
     autoUp:false,
     autoBars:4,
     autoStep:5,
@@ -947,9 +959,13 @@ PracticeTools.metronome = {
     const res = s.sub;
     const steps = [];
     for(let b=0;b<s.beatsPerBar;b++){
-      for(let k=0;k<res;k++) steps.push(k === 0 ? (b === 0 ? 2 : 1) : 1);
+      for(let k=0;k<res;k++) steps.push(k === 0 ? (b === 0 ? 3 : 1) : 1);
     }
     this.applyPattern(res, steps);
+  },
+
+  cellClass(v){
+    return "cell" + (v === 3 ? " acc" : v === 2 ? " kick" : v === 1 ? " nrm" : "");
   },
 
   renderGrid(){
@@ -958,10 +974,10 @@ PracticeTools.metronome = {
     this.els.grid.innerHTML = "";
     s.steps.forEach((v, i) => {
       const c = document.createElement("div");
-      c.className = "cell" + (v === 2 ? " acc" : v === 1 ? " nrm" : "");
+      c.className = this.cellClass(v);
       c.addEventListener("click", () => {
-        s.steps[i] = (s.steps[i] + 1) % 3;
-        c.className = "cell" + (s.steps[i] === 2 ? " acc" : s.steps[i] === 1 ? " nrm" : "");
+        s.steps[i] = (s.steps[i] + 1) % 4;
+        c.className = this.cellClass(s.steps[i]);
         this.markCustom();
       });
       this.els.grid.appendChild(c);
@@ -1234,13 +1250,46 @@ PracticeTools.metronome = {
     src.stop(time + 0.06);
   },
 
+  playKick(time, vol){
+    const s = this.state;
+    const osc = s.audio.createOscillator();
+    const gain = s.audio.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(145, time);
+    osc.frequency.exponentialRampToValueAtTime(52, time + 0.11);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0008, vol), time + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.18);
+    osc.connect(gain).connect(s.audio.destination);
+    osc.start(time);
+    osc.stop(time + 0.2);
+  },
+
+  playStick(time, vol, accent){
+    const s = this.state;
+    this.playOsc(time, accent ? 5200 : 4200, "square", 0.012, vol * 0.85);
+    const src = s.audio.createBufferSource();
+    src.buffer = s.noiseBuffer;
+    const hp = s.audio.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 3200;
+    const gain = s.audio.createGain();
+    gain.gain.setValueAtTime(Math.max(0.0005, vol * 0.6), time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.02);
+    src.connect(hp).connect(gain).connect(s.audio.destination);
+    src.start(time);
+    src.stop(time + 0.03);
+  },
+
   scheduleClick(time, velocity){
-    const accent = velocity === 2;
-    const vol = accent ? this.state.volume : this.state.volume * 0.6;
+    if(velocity === 2){ this.playKick(time, this.state.volume); return; }
+    const accent = velocity === 3;
+    const vol = accent ? this.state.volume : this.state.volume * 0.55;
     switch(this.state.timbre){
       case "wood": this.playOsc(time, accent ? 1400 : 1000, "triangle", 0.03, vol); break;
       case "cowbell": this.playCowbell(time, vol, accent); break;
       case "rim": this.playNoise(time, vol, accent); break;
+      case "stick": this.playStick(time, vol, accent); break;
       case "beep": this.playOsc(time, accent ? 988 : 660, "sine", 0.09, vol); break;
       default: this.playOsc(time, accent ? 2000 : 1100, "square", 0.03, vol);
     }
