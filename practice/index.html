@@ -810,7 +810,7 @@ PracticeTools.metronome = {
     volume:0.7,
     timbre:"click",
     res:1,
-    steps:[3,1,1,1],
+    steps:[1,1,1,1],
     autoUp:false,
     autoBars:4,
     autoStep:5,
@@ -959,7 +959,7 @@ PracticeTools.metronome = {
     const res = s.sub;
     const steps = [];
     for(let b=0;b<s.beatsPerBar;b++){
-      for(let k=0;k<res;k++) steps.push(k === 0 ? (b === 0 ? 3 : 1) : 1);
+      for(let k=0;k<res;k++) steps.push(1);
     }
     this.applyPattern(res, steps);
   },
