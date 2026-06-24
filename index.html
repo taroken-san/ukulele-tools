@@ -267,6 +267,9 @@ const SAN_CFG={id:'sanshin',name:'三線',strings:[1,2,3],
   }};
 const INST=/sanshin/i.test(location.search)?SAN_CFG:UKE_CFG;
 const STRINGS=INST.strings, LBL=INST.lbl, FREQ=INST.freq, N=STRINGS.length;
+// 画面の見出し・タブ名を楽器名に（印刷時はCSSでh1非表示）
+document.title=INST.name+'譜エディタ';
+{const _h=document.querySelector('h1'); if(_h&&_h.firstChild)_h.firstChild.textContent=INST.name+'譜エディタ ';}
 const SUB={1:[''],2:['','&'],3:['','・','・'],4:['','e','&','a']};
 
 function newSlot(){return {type:'rest',stroke:'d',acc:false,tie:false,frets:{}};}
