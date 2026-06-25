@@ -94,6 +94,7 @@
   .memo-field{padding:6px 14px 12px;}
   .memo-field label{font-size:12px;color:var(--sub);display:block;margin:8px 0 3px;font-weight:600;}
   .memo-field textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;resize:vertical;min-height:54px;background:#fafafa;}
+  .memo-field textarea.ta-songs{min-height:120px;}
   .save-bar{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);
     padding:9px 14px;display:flex;gap:10px;align-items:center;z-index:25;box-shadow:0 -1px 4px rgba(0,0,0,.06);}
   .save-bar .status{flex:1;font-size:13px;color:var(--sub);}
@@ -371,7 +372,7 @@ function renderMonthTabs(){
     const b = document.createElement('button');
     b.className = 'mtab'+(m===curMonth?' active':'');
     b.textContent = m+'月';
-    b.onclick = ()=>{ curMonth=m; renderMonthTabs(); renderContent(); };
+    b.onclick = ()=>{ curMonth=m; curSession=1; renderMonthTabs(); renderSessionTabs(); renderContent(); };
     el.appendChild(b);
   }
 }
@@ -538,7 +539,7 @@ function renderContent(){
   html += `<div class="card"><div class="card-h">進行メモ（このコマ）</div>
     <div class="memo-field">
       <label>今日の予定・やった内容</label>
-      <textarea data-memo="songs" placeholder="前回の予定が入ります。実際にやった内容に追記・修正してください">${escapeHtml(rec.memo.songs)}</textarea>
+      <textarea class="ta-songs" data-memo="songs" placeholder="前回の予定が入ります。実際にやった内容に追記・修正してください">${escapeHtml(rec.memo.songs)}</textarea>
       <label>講師コメント</label>
       <textarea data-memo="comment" placeholder="気づき・連絡事項">${escapeHtml(rec.memo.comment)}</textarea>
       <label>次回予定</label>
