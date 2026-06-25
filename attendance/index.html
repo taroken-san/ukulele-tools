@@ -8,7 +8,7 @@
 <style>
   :root{
     --bg:#f5f5f7; --card:#fff; --line:#e3e3e8; --txt:#1c1c1e; --sub:#6b6b70;
-    --accent:#2e7d57; --accent-soft:#e3f1ea;
+    --accent:#e8943a; --accent-soft:#fbe7d6;
     --ok:#2e9e5b; --absent:#d9534f; --makeup:#e0922f;
     --radius:14px; --shadow:0 1px 3px rgba(0,0,0,.08);
   }
@@ -354,7 +354,7 @@ function ensure(classId, year, month, session){
 
 /* ====== 描画 ====== */
 function renderHeader(){
-  document.getElementById('appTitle').textContent = curClass()?.name || '出席表';
+  document.getElementById('appTitle').textContent = '出席表';
 }
 // クラス名から開始時刻(分)を取り出してソートキーに。無ければ大きい値で後ろへ
 function classTimeKey(c){
