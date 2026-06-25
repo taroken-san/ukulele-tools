@@ -219,6 +219,11 @@
         <input id="setName" placeholder="例：ウクレレ初級クラス（火）">
       </div>
       <div class="field">
+        <label>教室（プルダウンの並びをまとめます）</label>
+        <input id="setStudio" list="studioList" placeholder="例：横浜（未入力は「その他」）">
+        <datalist id="studioList"></datalist>
+      </div>
+      <div class="field">
         <label>開催パターン（第何週）</label>
         <select id="setSchedule">
           <option value="第1・第3">第1・第3</option>
@@ -351,9 +356,44 @@ function ensure(classId, year, month, session){
 function renderHeader(){
   document.getElementById('appTitle').textContent = curClass()?.name || '出席表';
 }
+// クラス名から開始時刻(分)を取り出してソートキーに。無ければ大きい値で後ろへ
+function classTimeKey(c){
+  const m = (c.name||'').match(/(\d{1,2})[:：](\d{2})/);
+  return m ? (+m[1])*60 + (+m[2]) : 9999;
+}
+// 曜日→時刻でクラスを並べる
+function sortClasses(list){
+  return list.slice().sort((a,b)=>{
+    const wa = a.weekday===''||a.weekday==null ? 99 : +a.weekday;
+    const wb = b.weekday===''||b.weekday==null ? 99 : +b.weekday;
+    if(wa!==wb) return wa-wb;
+    return classTimeKey(a)-classTimeKey(b);
+  });
+}
 function renderClassSel(){
   const sel = document.getElementById('classSel');
-  sel.innerHTML = store.classes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  // 教室ごとにグループ化（未設定は「その他」へ）
+  const groups = new Map();
+  store.classes.forEach(c=>{
+    const key = (c.studio||'').trim() || '__other__';
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  });
+  // 教室名は名前順、「その他」は最後
+  const names = [...groups.keys()].filter(k=>k!=='__other__').sort();
+  if(groups.has('__other__')) names.push('__other__');
+  // 教室が1つ(その他のみ)ならグループ無しのフラット表示
+  const useGroups = names.filter(n=>n!=='__other__').length > 0;
+  const opt = c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`;
+  if(!useGroups){
+    sel.innerHTML = sortClasses(store.classes).map(opt).join('');
+  } else {
+    sel.innerHTML = names.map(key=>{
+      const label = key==='__other__' ? 'その他' : key;
+      const items = sortClasses(groups.get(key)).map(opt).join('');
+      return `<optgroup label="${escapeHtml(label)}">${items}</optgroup>`;
+    }).join('');
+  }
   sel.value = curClassId;
 }
 function renderYearSel(){
@@ -694,8 +734,12 @@ function renderClassEditArea(){
   if(!c){ document.getElementById('classEditArea').style.display='none'; return; }
   document.getElementById('classEditArea').style.display='block';
   document.getElementById('setName').value = c.name||'';
+  document.getElementById('setStudio').value = c.studio||'';
   document.getElementById('setSchedule').value = c.schedule||'第1・第3';
   document.getElementById('setWeekday').value = c.weekday||'';
+  // 既存の教室名を候補(datalist)に集約
+  const studios = [...new Set(store.classes.map(x=>(x.studio||'').trim()).filter(Boolean))].sort();
+  document.getElementById('studioList').innerHTML = studios.map(s=>`<option value="${escapeHtml(s)}">`).join('');
   renderStuEdit();
 }
 function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -738,6 +782,7 @@ function renderStuEdit(){
 function commitEditName(){ // 編集中フォームの値をオブジェクトに反映
   const c = curEditClass(); if(!c) return;
   c.name = document.getElementById('setName').value.trim() || 'クラス';
+  c.studio = document.getElementById('setStudio').value.trim();
   c.schedule = document.getElementById('setSchedule').value;
   c.weekday = document.getElementById('setWeekday').value;
 }
