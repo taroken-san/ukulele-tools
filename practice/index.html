@@ -149,6 +149,12 @@
         <div class="status-text" id="status">マイクを開始すると、入力音に近い音名とズレを表示します。</div>
         <button class="primary" id="micBtn">マイク開始</button>
       </div>
+      <div id="micLevel" hidden>
+        <div style="font-size:11px;color:var(--sub);margin-bottom:3px;">入力レベル</div>
+        <div style="height:8px;background:#222a33;border-radius:99px;overflow:hidden;">
+          <div id="micLevelBar" style="height:100%;width:0%;background:var(--accent);transition:width 60ms linear;"></div>
+        </div>
+      </div>
 
       <div class="readout">
         <div class="note" id="noteName">--</div>
@@ -445,6 +451,8 @@ const PracticeTools = {
     els:{
       micBtn:document.getElementById("micBtn"),
       status:document.getElementById("status"),
+      micLevel:document.getElementById("micLevel"),
+      micLevelBar:document.getElementById("micLevelBar"),
       noteName:document.getElementById("noteName"),
       freqText:document.getElementById("freqText"),
       centText:document.getElementById("centText"),
@@ -610,10 +618,13 @@ const PracticeTools = {
         return;
       }
       try{
+        this.state.audio = this.state.audio || new (window.AudioContext || window.webkitAudioContext)();
+        const resumeP = this.state.audio.state === "suspended" ? this.state.audio.resume() : Promise.resolve();
         this.state.stream = await navigator.mediaDevices.getUserMedia({
           audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}
         });
-        await this.ensureAudio();
+        await resumeP;
+        if(this.state.audio.state === "suspended"){ try{ await this.state.audio.resume(); }catch(e){} }
         this.state.source = this.state.audio.createMediaStreamSource(this.state.stream);
         this.state.analyser = this.state.audio.createAnalyser();
         this.state.analyser.fftSize = 4096;
@@ -622,7 +633,8 @@ const PracticeTools = {
         this.state.running = true;
         this.state.lastAnalyzeAt = 0;
         els.micBtn.textContent = "マイク停止";
-        els.status.textContent = "入力を監視中です。";
+        els.micLevel.hidden = false;
+        els.status.textContent = "入力レベルが動けばマイクは効いています。動かない時はSafari/Chromeで開き、許可を確認してください。";
         this.tick(performance.now());
       }catch(err){
         const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
@@ -641,6 +653,8 @@ const PracticeTools = {
       this.state.analyser = null;
       this.state.buffer = null;
       this.els.micBtn.textContent = "マイク開始";
+      this.els.micLevel.hidden = true;
+      this.els.micLevelBar.style.width = "0%";
       this.els.status.textContent = "マイクは停止中です。";
     },
 
@@ -700,6 +714,10 @@ const PracticeTools = {
         this.state.lastAnalyzeAt = now;
         this.state.lastMessageWasRef = false;
         this.state.analyser.getFloatTimeDomainData(this.state.buffer);
+        let rms = 0;
+        for(let i=0;i<this.state.buffer.length;i++) rms += this.state.buffer[i] * this.state.buffer[i];
+        rms = Math.sqrt(rms / this.state.buffer.length);
+        this.els.micLevelBar.style.width = Math.min(100, Math.round(rms * 700)) + "%";
         const freq = this.autoCorrelate(this.state.buffer, this.state.audio.sampleRate);
         if(freq && freq > this.MIN_FREQ && freq < this.MAX_FREQ){
           const target = this.closestTargetMidi(freq);
