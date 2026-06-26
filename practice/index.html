@@ -446,6 +446,7 @@ const PracticeTools = {
       refTimer:0,
       lastAnalyzeAt:0,
       buffer:null,
+      levelPeak:0,
       lastMessageWasRef:false
     },
     els:{
@@ -653,6 +654,7 @@ const PracticeTools = {
       this.state.analyser = null;
       this.state.buffer = null;
       this.els.micBtn.textContent = "マイク開始";
+      this.state.levelPeak = 0;
       this.els.micLevel.hidden = true;
       this.els.micLevelBar.style.width = "0%";
       this.els.status.textContent = "マイクは停止中です。";
@@ -710,26 +712,30 @@ const PracticeTools = {
 
     tick(now){
       if(!this.state.running || !this.state.analyser) return;
-      if(!this.state.refOsc && now - this.state.lastAnalyzeAt >= this.ANALYZE_INTERVAL_MS){
-        this.state.lastAnalyzeAt = now;
-        this.state.lastMessageWasRef = false;
-        this.state.analyser.getFloatTimeDomainData(this.state.buffer);
-        let rms = 0;
-        for(let i=0;i<this.state.buffer.length;i++) rms += this.state.buffer[i] * this.state.buffer[i];
-        rms = Math.sqrt(rms / this.state.buffer.length);
-        this.els.micLevelBar.style.width = Math.min(100, Math.round(rms * 700)) + "%";
-        const freq = this.autoCorrelate(this.state.buffer, this.state.audio.sampleRate);
-        if(freq && freq > this.MIN_FREQ && freq < this.MAX_FREQ){
-          const target = this.closestTargetMidi(freq);
-          const cents = Math.max(-50, Math.min(50, this.centsOff(freq, target)));
-          this.updateReadout(freq, target, cents);
-        }else{
-          this.showWaiting();
+      try{
+        if(this.state.audio && this.state.audio.state === "suspended") this.state.audio.resume();
+        if(!this.state.refOsc && now - this.state.lastAnalyzeAt >= this.ANALYZE_INTERVAL_MS){
+          this.state.lastAnalyzeAt = now;
+          this.state.lastMessageWasRef = false;
+          this.state.analyser.getFloatTimeDomainData(this.state.buffer);
+          let rms = 0;
+          for(let i=0;i<this.state.buffer.length;i++) rms += this.state.buffer[i] * this.state.buffer[i];
+          rms = Math.sqrt(rms / this.state.buffer.length);
+          this.state.levelPeak = Math.max(rms, (this.state.levelPeak || 0) * 0.88);
+          this.els.micLevelBar.style.width = Math.min(100, Math.round(this.state.levelPeak * 700)) + "%";
+          const freq = this.autoCorrelate(this.state.buffer, this.state.audio.sampleRate);
+          if(freq && freq > this.MIN_FREQ && freq < this.MAX_FREQ){
+            const target = this.closestTargetMidi(freq);
+            const cents = Math.max(-50, Math.min(50, this.centsOff(freq, target)));
+            this.updateReadout(freq, target, cents);
+          }else{
+            this.showWaiting();
+          }
+        }else if(this.state.refOsc && !this.state.lastMessageWasRef){
+          this.state.lastMessageWasRef = true;
+          this.els.judgeText.textContent = "基準音再生中";
         }
-      }else if(this.state.refOsc && !this.state.lastMessageWasRef){
-        this.state.lastMessageWasRef = true;
-        this.els.judgeText.textContent = "基準音再生中";
-      }
+      }catch(e){ /* keep the loop alive even if one frame fails */ }
       this.state.raf = requestAnimationFrame(t => this.tick(t));
     },
 
