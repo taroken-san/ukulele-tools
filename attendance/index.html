@@ -717,15 +717,24 @@ function renderContent(){
     const noteOpenNow = noteOpen.has(s.id);
     const pencilBtn = `<button class="note-pencil${s.note?' has':''}${noteOpenNow?' open':''}" data-noteedit="${s.id}" aria-label="生徒メモ">✎</button>`;
     const pending = makeupPending(s);
+    const mkList = makeupsFor(s);
+    const upcomingDone = !suspended ? mkList.filter(m=>m.makeup).sort((a,b)=>a.makeup.localeCompare(b.makeup))[0] : null;
+    let btnLabel;
+    if(pending) btnLabel = `↔ 振替 ${pending}件`;
+    else if(upcomingDone) btnLabel = `↔ 振替 ${fmtDate(upcomingDone.makeup)}`;
+    else btnLabel = `↔ 振替 なし`;
     const tail = suspended
       ? `<span class="leave-badge">休会中</span>`
-      : `<button class="mk-btn ${pending?'has':'none'}" data-mkopen="${s.id}">↔ 振替${pending?` ${pending}件`:' なし'}</button>`;
+      : `<button class="mk-btn ${pending||upcomingDone?'has':'none'}" data-mkopen="${s.id}">${btnLabel}</button>`;
     const idArea = `<span class="stu-no">${idx+1}.</span><span class="stu-name">${escapeHtml(s.name)}</span>${pencilBtn}${tail}`;
-    // 直近の振替予定（未消化のうち最初の1件）を小さく表示
-    const nextPlan = !suspended ? makeupsFor(s).find(m=>!m.makeup) : null;
-    const mkNextBlock = nextPlan
-      ? `<div class="mk-next">次の振替予定：${nextPlan.absent?fmtDate(nextPlan.absent)+'休み分':'（休んだ日 未記入）'}（振替日 未定）</div>`
-      : '';
+    // 直近の振替（未消化があれば優先、なければ済みの最早を表示）
+    const nextPlan = !suspended ? mkList.find(m=>!m.makeup) : null;
+    let mkNextBlock = '';
+    if(nextPlan){
+      mkNextBlock = `<div class="mk-next">次の振替予定：${nextPlan.absent?fmtDate(nextPlan.absent)+'休み分':'（休んだ日 未記入）'}（振替日 未定）</div>`;
+    } else if(upcomingDone){
+      mkNextBlock = `<div class="mk-next">次の振替：${fmtDate(upcomingDone.makeup)}${upcomingDone.absent?'（'+fmtDate(upcomingDone.absent)+'休み分）':''}</div>`;
+    }
     const noteBlock = noteOpenNow
       ? `<div class="note-edit"><textarea data-note="${s.id}" placeholder="特徴・注意事項（例：右耳が難聴。右側で話す）">${escapeHtml(s.note||'')}</textarea></div>`
       : (s.note ? `<div class="note-badge"><span class="warn-ico">⚠</span> ${escapeHtml(s.note)}</div>` : '');
