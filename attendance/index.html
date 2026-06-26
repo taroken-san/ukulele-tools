@@ -75,6 +75,7 @@
   .mk-date2{display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:2px;}
   .mk-date2 label{font-size:13px;color:var(--sub);white-space:nowrap;}
   .mk-date2 input{flex:1;min-width:0;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
+  .mk-sel{padding:7px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
   .mk-undecided{font-size:13px;color:var(--sub);}
   .mk-setdate{margin-left:auto;font-size:13px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--accent);cursor:pointer;}
   .mk-add{width:100%;margin-top:6px;font-size:14px;padding:10px;border:1px dashed var(--line);
@@ -507,6 +508,26 @@ function openMakeup(stuId){
   document.getElementById('dlgMakeup').showModal();
 }
 function curMkStu(){ const c=curClass(); return c ? c.students.find(x=>x.id===mkStuId) : null; }
+function mkDateSelects(idx, iso){
+  const p = iso ? iso.split('-') : null;
+  const sm = p ? +p[1] : 0;
+  const sd = p ? +p[2] : 0;
+  let mOpts = '<option value="">月</option>';
+  for(let i=1;i<=12;i++) mOpts += `<option value="${i}"${i===sm?' selected':''}>${i}月</option>`;
+  let dOpts = '<option value="">日</option>';
+  for(let i=1;i<=31;i++) dOpts += `<option value="${i}"${i===sd?' selected':''}>${i}日</option>`;
+  return `<select data-mkmk-m="${idx}" class="mk-sel">${mOpts}</select><select data-mkmk-d="${idx}" class="mk-sel">${dOpts}</select>`;
+}
+function mkSelectsToISO(body, idx, absentISO){
+  const ms = body.querySelector(`select[data-mkmk-m="${idx}"]`);
+  const ds = body.querySelector(`select[data-mkmk-d="${idx}"]`);
+  if(!ms || !ds) return '';
+  const mv = +ms.value, dv = +ds.value;
+  if(!mv || !dv) return '';
+  let yr = new Date().getFullYear();
+  if(absentISO){ const ap = absentISO.split('-'); if(ap.length===3) yr = +ap[0]; }
+  return `${yr}-${String(mv).padStart(2,'0')}-${String(dv).padStart(2,'0')}`;
+}
 function renderMakeup(){
   const s = curMkStu(); if(!s) return;
   document.getElementById('mkTitle').textContent = (s.name||'生徒') + ' さんの振替';
@@ -526,18 +547,25 @@ function renderMakeup(){
         <button class="mk-del" data-mkdel="${i}" title="この振替を消す">🗑</button>
       </div>
       ${!m.absent?`<div class="mk-abs-edit"><label>休んだ日：</label><input type="date" data-mkabs="${i}" value="${m.absent}"></div>`:''}
-      ${!isDone?`<div class="mk-date2"><label>振替日：</label><input type="date" data-mkmk="${i}"${m.makeup?` value="${m.makeup}"`:''}></div>`:''}
+      ${!isDone?`<div class="mk-date2"><label>振替日：</label>${mkDateSelects(i, m.makeup)}</div>`:''}
     </div>`;
   });
   // 既定の休んだ日＝今表示しているコマの日付
   html += `<button class="mk-add" id="mkAdd">＋ 振替を追加（休んだ日を記録）</button>`;
   const body = document.getElementById('mkBody');
   body.innerHTML = html;
-  body.querySelectorAll('input[data-mkmk]').forEach(inp=>{
-    const prev = inp.value;
-    inp.onchange=()=>{
-      if(!prev && inp.value && !confirm(fmtDate(inp.value)+'に振替しますか？')){ inp.value=''; return; }
-      list[+inp.dataset.mkmk].makeup = inp.value; markDirty(); renderMakeup(); renderContent();
+  body.querySelectorAll('select[data-mkmk-m], select[data-mkmk-d]').forEach(sel=>{
+    sel.onchange=()=>{
+      const idx = sel.dataset.mkmkM != null ? sel.dataset.mkmkM : sel.dataset.mkmkD;
+      const iso = mkSelectsToISO(body, idx, list[+idx].absent);
+      if(!iso) return;
+      if(!list[+idx].makeup && !confirm(fmtDate(iso)+'に振替しますか？')){
+        const ms = body.querySelector(`select[data-mkmk-m="${idx}"]`);
+        const ds = body.querySelector(`select[data-mkmk-d="${idx}"]`);
+        if(ms) ms.value=''; if(ds) ds.value='';
+        return;
+      }
+      list[+idx].makeup = iso; markDirty(); renderMakeup(); renderContent();
     };
   });
   body.querySelectorAll('input[data-mkabs]').forEach(inp=>{
