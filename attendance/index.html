@@ -76,6 +76,19 @@
   .mk-date2 label{font-size:13px;color:var(--sub);white-space:nowrap;}
   .mk-date2 input{flex:1;min-width:0;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
   .mk-sel{padding:7px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
+  .mk-cal{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;}
+  .mk-cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .mk-cal-h button{background:none;border:1px solid var(--line);border-radius:8px;width:34px;height:32px;font-size:16px;color:var(--accent);cursor:pointer;}
+  .mk-cal-h .mk-cal-ttl{font-weight:700;font-size:14px;}
+  .mk-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .mk-cal-grid .mk-cal-dow{text-align:center;font-size:11px;color:var(--sub);padding:4px 0;}
+  .mk-cal-grid .mk-cal-d{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:14px;background:#fafafa;border:none;border-radius:6px;cursor:pointer;color:var(--txt);padding:0;}
+  .mk-cal-grid .mk-cal-d:active{background:var(--accent-soft);}
+  .mk-cal-grid .mk-cal-d.empty{background:transparent;cursor:default;}
+  .mk-cal-grid .mk-cal-d.sun{color:#d9534f;}
+  .mk-cal-grid .mk-cal-d.sat{color:#3a7bd0;}
+  .mk-cal-grid .mk-cal-d.sel{background:var(--accent);color:#fff;font-weight:700;}
+  .mk-cal-grid .mk-cal-d.today{outline:2px solid var(--accent);outline-offset:-2px;}
   .mk-undecided{font-size:13px;color:var(--sub);}
   .mk-setdate{margin-left:auto;font-size:13px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--accent);cursor:pointer;}
   .mk-add{width:100%;margin-top:6px;font-size:14px;padding:10px;border:1px dashed var(--line);
@@ -508,25 +521,44 @@ function openMakeup(stuId){
   document.getElementById('dlgMakeup').showModal();
 }
 function curMkStu(){ const c=curClass(); return c ? c.students.find(x=>x.id===mkStuId) : null; }
-function mkDateSelects(idx, iso){
-  const p = iso ? iso.split('-') : null;
-  const sm = p ? +p[1] : 0;
-  const sd = p ? +p[2] : 0;
-  let mOpts = '<option value="">月</option>';
-  for(let i=1;i<=12;i++) mOpts += `<option value="${i}"${i===sm?' selected':''}>${i}月</option>`;
-  let dOpts = '<option value="">日</option>';
-  for(let i=1;i<=31;i++) dOpts += `<option value="${i}"${i===sd?' selected':''}>${i}日</option>`;
-  return `<select data-mkmk-m="${idx}" class="mk-sel">${mOpts}</select><select data-mkmk-d="${idx}" class="mk-sel">${dOpts}</select>`;
+// 振替日選択用カレンダーの「表示中の年月」をrowごとに保持
+const mkCalView = {}; // {rowIdx: {y, m}}
+function mkCalInit(idx, absentISO){
+  if(mkCalView[idx]) return mkCalView[idx];
+  let y, m;
+  if(absentISO){ const p = absentISO.split('-'); y = +p[0]; m = +p[1]; }
+  else { const d = new Date(); y = d.getFullYear(); m = d.getMonth()+1; }
+  mkCalView[idx] = {y, m};
+  return mkCalView[idx];
 }
-function mkSelectsToISO(body, idx, absentISO){
-  const ms = body.querySelector(`select[data-mkmk-m="${idx}"]`);
-  const ds = body.querySelector(`select[data-mkmk-d="${idx}"]`);
-  if(!ms || !ds) return '';
-  const mv = +ms.value, dv = +ds.value;
-  if(!mv || !dv) return '';
-  let yr = new Date().getFullYear();
-  if(absentISO){ const ap = absentISO.split('-'); if(ap.length===3) yr = +ap[0]; }
-  return `${yr}-${String(mv).padStart(2,'0')}-${String(dv).padStart(2,'0')}`;
+function mkCalendar(idx, selectedISO, absentISO){
+  const v = mkCalInit(idx, absentISO);
+  const first = new Date(v.y, v.m-1, 1);
+  const startDow = first.getDay();
+  const dim = new Date(v.y, v.m, 0).getDate();
+  const today = new Date();
+  const todayISO = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const dows = ['日','月','火','水','木','金','土'];
+  let cells = '';
+  dows.forEach((d,i)=>{ cells += `<div class="mk-cal-dow${i===0?' sun':i===6?' sat':''}">${d}</div>`; });
+  for(let i=0;i<startDow;i++) cells += `<div class="mk-cal-d empty"></div>`;
+  for(let d=1; d<=dim; d++){
+    const iso = `${v.y}-${String(v.m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = (startDow + d - 1) % 7;
+    const cls = ['mk-cal-d'];
+    if(dow===0) cls.push('sun'); if(dow===6) cls.push('sat');
+    if(iso===selectedISO) cls.push('sel');
+    if(iso===todayISO) cls.push('today');
+    cells += `<button type="button" class="${cls.join(' ')}" data-mkpick="${idx}" data-iso="${iso}">${d}</button>`;
+  }
+  return `<div class="mk-cal">
+    <div class="mk-cal-h">
+      <button type="button" data-mkprev="${idx}">‹</button>
+      <span class="mk-cal-ttl">${v.y}年 ${v.m}月</span>
+      <button type="button" data-mknext="${idx}">›</button>
+    </div>
+    <div class="mk-cal-grid">${cells}</div>
+  </div>`;
 }
 function renderMakeup(){
   const s = curMkStu(); if(!s) return;
@@ -547,25 +579,35 @@ function renderMakeup(){
         <button class="mk-del" data-mkdel="${i}" title="この振替を消す">🗑</button>
       </div>
       ${!m.absent?`<div class="mk-abs-edit"><label>休んだ日：</label><input type="date" data-mkabs="${i}" value="${m.absent}"></div>`:''}
-      ${!isDone?`<div class="mk-date2"><label>振替日：</label>${mkDateSelects(i, m.makeup)}</div>`:''}
+      ${!isDone?mkCalendar(i, m.makeup, m.absent):''}
     </div>`;
   });
   // 既定の休んだ日＝今表示しているコマの日付
   html += `<button class="mk-add" id="mkAdd">＋ 振替を追加（休んだ日を記録）</button>`;
   const body = document.getElementById('mkBody');
   body.innerHTML = html;
-  body.querySelectorAll('select[data-mkmk-m], select[data-mkmk-d]').forEach(sel=>{
-    sel.onchange=()=>{
-      const idx = sel.dataset.mkmkM != null ? sel.dataset.mkmkM : sel.dataset.mkmkD;
-      const iso = mkSelectsToISO(body, idx, list[+idx].absent);
-      if(!iso) return;
-      if(!list[+idx].makeup && !confirm(fmtDate(iso)+'に振替しますか？')){
-        const ms = body.querySelector(`select[data-mkmk-m="${idx}"]`);
-        const ds = body.querySelector(`select[data-mkmk-d="${idx}"]`);
-        if(ms) ms.value=''; if(ds) ds.value='';
-        return;
-      }
-      list[+idx].makeup = iso; markDirty(); renderMakeup(); renderContent();
+  body.querySelectorAll('button[data-mkprev]').forEach(b=>{
+    b.onclick=()=>{
+      const idx = b.dataset.mkprev;
+      const v = mkCalView[idx]; if(!v) return;
+      v.m--; if(v.m<1){ v.m=12; v.y--; }
+      renderMakeup();
+    };
+  });
+  body.querySelectorAll('button[data-mknext]').forEach(b=>{
+    b.onclick=()=>{
+      const idx = b.dataset.mknext;
+      const v = mkCalView[idx]; if(!v) return;
+      v.m++; if(v.m>12){ v.m=1; v.y++; }
+      renderMakeup();
+    };
+  });
+  body.querySelectorAll('button[data-mkpick]').forEach(b=>{
+    b.onclick=()=>{
+      const idx = +b.dataset.mkpick;
+      const iso = b.dataset.iso;
+      if(!confirm(fmtDate(iso)+'に振替しますか？')) return;
+      list[idx].makeup = iso; markDirty(); renderMakeup(); renderContent();
     };
   });
   body.querySelectorAll('input[data-mkabs]').forEach(inp=>{
