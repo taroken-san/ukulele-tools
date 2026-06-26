@@ -54,12 +54,32 @@
   .seg button.btn-leave{font-size:14px;}
   .seg button.btn-leave.active{background:var(--makeup);border-color:var(--makeup);color:#fff;}
   .seg button:disabled{opacity:.4;}
-  .mk-chip{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--sub);
-    background:var(--bg);border-radius:20px;padding:2px 6px;}
-  .mk-chip .mk-lbl{font-size:11px;}
-  .mk-chip .mk-val{min-width:14px;text-align:center;font-weight:700;color:var(--txt);font-size:14px;}
-  .mk-chip button{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:#fff;
-    font-size:14px;line-height:1;padding:0;color:var(--txt);}
+  .mk-btn{display:inline-flex;align-items:center;gap:4px;font-size:13px;border-radius:20px;
+    padding:3px 12px;border:none;cursor:pointer;line-height:1.2;}
+  .mk-btn.has{background:#fbe7cf;color:#8a5a00;font-weight:700;}
+  .mk-btn.none{background:var(--bg);color:var(--sub);}
+  .mk-next{font-size:12px;color:var(--sub);margin-top:6px;padding-left:2px;}
+  /* 振替モーダル */
+  .mk-summary{font-size:13px;color:var(--sub);margin-bottom:14px;}
+  .mk-row{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;}
+  .mk-row.done{background:#e6f5ee;border-color:#a9ddc6;}
+  .mk-row.plan{background:#fdf1dd;border-color:#f0cf8e;}
+  .mk-row-top{display:flex;align-items:center;gap:8px;}
+  .mk-tag{font-size:11px;color:#fff;padding:2px 9px;border-radius:8px;font-weight:700;}
+  .mk-tag.done{background:#1d9e75;}
+  .mk-tag.plan{background:#ba7517;}
+  .mk-row-txt{font-size:14px;}
+  .mk-row.done .mk-row-txt{color:#0f6e56;}
+  .mk-row.plan .mk-row-txt{color:#854f0b;}
+  .mk-del{margin-left:auto;background:none;border:none;color:#b0b0b5;font-size:16px;cursor:pointer;padding:0 2px;}
+  .mk-date2{display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:2px;}
+  .mk-date2 label{font-size:13px;color:var(--sub);white-space:nowrap;}
+  .mk-date2 input{flex:1;min-width:0;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
+  .mk-add{width:100%;margin-top:6px;font-size:14px;padding:10px;border:1px dashed var(--line);
+    border-radius:10px;background:#fff;color:var(--sub);cursor:pointer;}
+  .mk-abs-edit{display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:2px;}
+  .mk-abs-edit label{font-size:13px;color:var(--sub);white-space:nowrap;}
+  .mk-abs-edit input{flex:1;min-width:0;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
   .leave-badge{font-size:11px;background:#fbe7cf;color:#8a5a00;border-radius:20px;padding:2px 8px;font-weight:700;}
   .pay-row{display:flex;gap:8px;margin-top:8px;}
   .pay{flex:1;min-width:0;}
@@ -164,7 +184,7 @@
       <li>👆 出席は <b>○ ✕</b> をタップ（もう一度タップで取消）</li>
       <li>💤 長くお休みの生徒は <b>「休」</b> をタップ＝休会中（カードが畳まれます）。戻ったらもう一度「休」で復帰</li>
       <li>💴 月謝・施設費は <b>受領日</b> を入力。消すときは右の <b>「✕」</b>（日付を空に戻す）</li>
-      <li>↩️ <b>振替残</b>：休んで振替にしたら<b>＋</b>、別日に消化したら<b>−</b>（名前の右に残り回数）</li>
+      <li>↩️ <b>振替</b>：名前の右の <b>「↔ 振替」</b> を押すと履歴が開きます。<b>「＋振替を追加」</b>で休んだ日を記録（既定は今のコマ日付）。あとで<b>振替日</b>を入れると「予定」→「済み」に変わります。未消化はカードに件数表示</li>
       <li>📅 タブの日付がずれた月は <b>「実施日（ずれた時に変更）」</b> で直せます（「自動に戻す」で元に戻る）</li>
       <li>📝 <b>「今日の予定・やった内容」</b> には前回決めた予定が入ります。実際の内容に追記・修正を（前回の「次回予定」を<b>初回1回だけコピー</b>。消しても前回側は残り、開いた後の前回修正は自動反映されません）</li>
       <li>📌 名前の右の <b>「✎」</b> で、その生徒のメモ（特徴・注意。例：難聴）を書けます。書くと名前の下にずっと表示されます</li>
@@ -185,6 +205,12 @@
 <dialog id="dlgHistory">
   <div class="dlg-h"><span id="histTitle">履歴</span><button class="btn-ghost" id="btnHistClose">閉じる</button></div>
   <div class="dlg-b" id="histBody"></div>
+</dialog>
+
+<!-- 振替の履歴ダイアログ -->
+<dialog id="dlgMakeup">
+  <div class="dlg-h"><span id="mkTitle">振替</span><button class="btn-ghost" id="btnMkClose">閉じる</button></div>
+  <div class="dlg-b" id="mkBody"></div>
 </dialog>
 
 <!-- 設定ダイアログ -->
@@ -289,9 +315,26 @@ let editClassId = null; // 設定ダイアログ内で編集中のクラス
 function uid(p){ return (p||'') + Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function curClass(){ return store.classes.find(c=>c.id===curClassId) || null; }
-function makeupMap(){ // 振替残はクラス単位（年をまたいで持ち越し）
-  const r=store.records; r[curClassId]=r[curClassId]||{}; r[curClassId]._makeup=r[curClassId]._makeup||{};
-  return r[curClassId]._makeup;
+// 振替の記録は生徒ごとの配列 s.makeups = [{absent, makeup}]（absent=休んだ日 / makeup=振替日。makeup空=予定）
+// 旧データ(クラス単位カウンター _makeup[id])があれば、件数ぶんの「振替予定(日付未定)」に一度だけ移行
+function makeupsFor(s){
+  if(!Array.isArray(s.makeups)){
+    s.makeups = [];
+    const old = store.records[curClassId] && store.records[curClassId]._makeup;
+    const n = old ? (old[s.id]||0) : 0;
+    for(let i=0;i<n;i++) s.makeups.push({absent:'', makeup:''});
+    if(old) delete old[s.id]; // 移行済みは旧カウンターから消す
+  }
+  return s.makeups;
+}
+function makeupPending(s){ return makeupsFor(s).filter(m=>!m.makeup).length; }
+// 日付ISO(YYYY-MM-DD)→「6/8(月)」表示。空なら''
+function fmtDate(iso){
+  if(!iso) return '';
+  const p = iso.split('-'); if(p.length!==3) return iso;
+  const DOW_JA=['日','月','火','水','木','金','土'];
+  const d = new Date(+p[0], +p[1]-1, +p[2]);
+  return `${+p[1]}/${+p[2]}(${DOW_JA[d.getDay()]})`;
 }
 
 /* ====== 永続化 ====== */
@@ -454,6 +497,55 @@ function renderSessionTabs(){
     el.appendChild(b);
   });
 }
+// ====== 振替の履歴ダイアログ ======
+let mkStuId = null;
+function openMakeup(stuId){
+  mkStuId = stuId;
+  renderMakeup();
+  document.getElementById('dlgMakeup').showModal();
+}
+function curMkStu(){ const c=curClass(); return c ? c.students.find(x=>x.id===mkStuId) : null; }
+function renderMakeup(){
+  const s = curMkStu(); if(!s) return;
+  document.getElementById('mkTitle').textContent = (s.name||'生徒') + ' さんの振替';
+  const list = makeupsFor(s);
+  const pending = list.filter(m=>!m.makeup).length;
+  const done = list.length - pending;
+  let html = `<div class="mk-summary">未消化 ${pending}件・済み ${done}件</div>`;
+  if(!list.length){
+    html += `<div class="mk-next" style="margin-bottom:10px;">まだ振替はありません。</div>`;
+  }
+  list.forEach((m,i)=>{
+    const isDone = !!m.makeup;
+    html += `<div class="mk-row ${isDone?'done':'plan'}">
+      <div class="mk-row-top">
+        <span class="mk-tag ${isDone?'done':'plan'}">${isDone?'済み':'予定'}</span>
+        <span class="mk-row-txt">${m.absent?fmtDate(m.absent)+'休み':'休んだ日 未記入'}${isDone?' → '+fmtDate(m.makeup)+'振替':''}</span>
+        <button class="mk-del" data-mkdel="${i}" title="この振替を消す">🗑</button>
+      </div>
+      ${!m.absent?`<div class="mk-abs-edit"><label>休んだ日：</label><input type="date" data-mkabs="${i}" value="${m.absent}"></div>`:''}
+      ${!isDone?`<div class="mk-date2"><label>振替日：</label><input type="date" data-mkmk="${i}" value="${m.makeup}"></div>`:''}
+    </div>`;
+  });
+  // 既定の休んだ日＝今表示しているコマの日付
+  html += `<button class="mk-add" id="mkAdd">＋ 振替を追加（休んだ日を記録）</button>`;
+  const body = document.getElementById('mkBody');
+  body.innerHTML = html;
+  body.querySelectorAll('input[data-mkmk]').forEach(inp=>{
+    inp.onchange=()=>{ list[+inp.dataset.mkmk].makeup = inp.value; markDirty(); renderMakeup(); renderContent(); };
+  });
+  body.querySelectorAll('input[data-mkabs]').forEach(inp=>{
+    inp.onchange=()=>{ list[+inp.dataset.mkabs].absent = inp.value; markDirty(); renderMakeup(); renderContent(); };
+  });
+  body.querySelectorAll('button[data-mkdel]').forEach(b=>{
+    b.onclick=()=>{ list.splice(+b.dataset.mkdel,1); markDirty(); renderMakeup(); renderContent(); };
+  });
+  document.getElementById('mkAdd').onclick=()=>{
+    const sd = sessionDate(curYear, curMonth, curSession);
+    list.push({absent: sd?sd.iso:'', makeup:''});
+    markDirty(); renderMakeup(); renderContent();
+  };
+}
 // 履歴：表示中クラスの全コマを新しい順に一覧
 function renderHistory(){
   const cls = curClass();
@@ -519,7 +611,6 @@ function renderContent(){
   if(!cls){ root.innerHTML = '<div class="muted">クラスがありません。設定から追加してください。</div>'; return; }
   const rec = ensure(curClassId, curYear, curMonth, curSession);
   const facility = (store.records[curClassId][curYear]._facility) || {};
-  const makeup = makeupMap();
   const actives = cls.students.filter(s=>s.active && (s.name||'').trim());
   let html = '';
 
@@ -549,10 +640,16 @@ function renderContent(){
     const leaveBtn = `<button class="btn-leave${suspended?' active':''}" data-leave="${s.id}" title="休会の切替">休</button>`;
     const noteOpenNow = noteOpen.has(s.id);
     const pencilBtn = `<button class="note-pencil${s.note?' has':''}${noteOpenNow?' open':''}" data-noteedit="${s.id}" aria-label="生徒メモ">✎</button>`;
+    const pending = makeupPending(s);
     const tail = suspended
       ? `<span class="leave-badge">休会中</span>`
-      : `<span class="mk-chip"><span class="mk-lbl">振替</span><button data-mk="${s.id}" data-d="-1">−</button><span class="mk-val">${makeup[s.id]||0}</span><button data-mk="${s.id}" data-d="1">＋</button></span>`;
+      : `<button class="mk-btn ${pending?'has':'none'}" data-mkopen="${s.id}">↔ 振替${pending?` ${pending}件`:' なし'}</button>`;
     const idArea = `<span class="stu-no">${idx+1}.</span><span class="stu-name">${escapeHtml(s.name)}</span>${pencilBtn}${tail}`;
+    // 直近の振替予定（未消化のうち最初の1件）を小さく表示
+    const nextPlan = !suspended ? makeupsFor(s).find(m=>!m.makeup) : null;
+    const mkNextBlock = nextPlan
+      ? `<div class="mk-next">次の振替予定：${nextPlan.absent?fmtDate(nextPlan.absent)+'休み分':'（休んだ日 未記入）'}（振替日 未定）</div>`
+      : '';
     const noteBlock = noteOpenNow
       ? `<div class="note-edit"><textarea data-note="${s.id}" placeholder="特徴・注意事項（例：右耳が難聴。右側で話す）">${escapeHtml(s.note||'')}</textarea></div>`
       : (s.note ? `<div class="note-badge"><span class="warn-ico">⚠</span> ${escapeHtml(s.note)}</div>` : '');
@@ -571,7 +668,7 @@ function renderContent(){
       <div class="stu-top">
         <div class="stu-id">${idArea}</div>
         <div class="seg">${segBtns}${leaveBtn}</div>
-      </div>${noteBlock}${payRow}
+      </div>${mkNextBlock}${noteBlock}${payRow}
     </div>`;
   });
   html += `</div>`;
@@ -595,13 +692,8 @@ function renderContent(){
       markDirty(); renderContent();
     };
   });
-  root.querySelectorAll('button[data-mk]').forEach(b=>{
-    b.onclick=()=>{
-      const id=b.dataset.mk, d=+b.dataset.d;
-      const cur = makeup[id]||0;
-      makeup[id] = Math.max(0, cur + d);
-      markDirty(); renderContent();
-    };
+  root.querySelectorAll('button[data-mkopen]').forEach(b=>{
+    b.onclick=()=>openMakeup(b.dataset.mkopen);
   });
   root.querySelectorAll('button[data-leave]').forEach(b=>{
     b.onclick=()=>{
@@ -821,6 +913,7 @@ function init(){
   document.getElementById('btnHelpClose').onclick=()=>document.getElementById('dlgHelp').close();
   document.getElementById('btnHistory').onclick=()=>{ renderHistory(); document.getElementById('dlgHistory').showModal(); };
   document.getElementById('btnHistClose').onclick=()=>document.getElementById('dlgHistory').close();
+  document.getElementById('btnMkClose').onclick=()=>document.getElementById('dlgMakeup').close();
 
   // 設定ダイアログ：クラス切替
   document.getElementById('editClassSel').onchange=e=>{
