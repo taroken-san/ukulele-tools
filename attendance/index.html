@@ -75,6 +75,8 @@
   .mk-date2{display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:2px;}
   .mk-date2 label{font-size:13px;color:var(--sub);white-space:nowrap;}
   .mk-date2 input{flex:1;min-width:0;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
+  .mk-undecided{font-size:13px;color:var(--sub);}
+  .mk-setdate{margin-left:auto;font-size:13px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--accent);cursor:pointer;}
   .mk-add{width:100%;margin-top:6px;font-size:14px;padding:10px;border:1px dashed var(--line);
     border-radius:10px;background:#fff;color:var(--sub);cursor:pointer;}
   .mk-abs-edit{display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:2px;}
@@ -524,7 +526,7 @@ function renderMakeup(){
         <button class="mk-del" data-mkdel="${i}" title="この振替を消す">🗑</button>
       </div>
       ${!m.absent?`<div class="mk-abs-edit"><label>休んだ日：</label><input type="date" data-mkabs="${i}" value="${m.absent}"></div>`:''}
-      ${!isDone?`<div class="mk-date2"><label>振替日：</label><input type="date" data-mkmk="${i}" value="${m.makeup}"></div>`:''}
+      ${!isDone?`<div class="mk-date2"><label>振替日：</label><input type="date" data-mkmk="${i}"${m.makeup?` value="${m.makeup}"`:''}></div>`:''}
     </div>`;
   });
   // 既定の休んだ日＝今表示しているコマの日付
@@ -532,7 +534,11 @@ function renderMakeup(){
   const body = document.getElementById('mkBody');
   body.innerHTML = html;
   body.querySelectorAll('input[data-mkmk]').forEach(inp=>{
-    inp.onchange=()=>{ list[+inp.dataset.mkmk].makeup = inp.value; markDirty(); renderMakeup(); renderContent(); };
+    const prev = inp.value;
+    inp.onchange=()=>{
+      if(!prev && inp.value && !confirm(fmtDate(inp.value)+'に振替しますか？')){ inp.value=''; return; }
+      list[+inp.dataset.mkmk].makeup = inp.value; markDirty(); renderMakeup(); renderContent();
+    };
   });
   body.querySelectorAll('input[data-mkabs]').forEach(inp=>{
     inp.onchange=()=>{ list[+inp.dataset.mkabs].absent = inp.value; markDirty(); renderMakeup(); renderContent(); };
