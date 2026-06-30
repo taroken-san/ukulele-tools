@@ -170,7 +170,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630g</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630h</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -368,15 +368,15 @@
 
       <section class="view" id="settings">
         <div class="panel">
-          <div class="panel-h">保存設定</div>
+          <div class="panel-h">保存・読み込み</div>
           <div class="panel-b">
             <div class="field"><label>GAS WebアプリURL</label><input id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
             <div class="row-actions">
-              <button class="ghost" id="btnSaveSettings">① URLを登録</button>
-              <button class="primary" id="btnSaveRemote">スプレッドシートへ保存 ↑</button>
-              <button class="ghost" id="btnLoadRemote">スプレッドシートから読込 ↓</button>
+              <button class="primary" id="btnLoadRemote">読み込み ↓（開いたら最初に）</button>
+              <button class="primary" id="btnSaveRemote">保存 ↑（編集したら）</button>
+              <button class="ghost" id="btnSaveSettings">① URLを登録（最初の1回だけ）</button>
             </div>
-            <p class="muted">最初に「① URLを登録」を1回。普段は<b>編集→「スプレッドシートへ保存 ↑」</b>。別端末や開き直しのときは先に「読込 ↓」。URL未設定時はこのブラウザ内のローカル保存で動きます。</p>
+            <p class="muted"><b>日常はこれだけ：開いたら「読み込み ↓」→ 編集 → 「保存 ↑」。</b><br>最初の1回だけ「① URLを登録」。スケジュールの追加・修正はClaudeが行い、スプレッドシートにも反映するので、あなたは「読み込み ↓」で受け取れます。URL未設定時はこのブラウザ内のローカル保存で動きます。</p>
             <div class="row-actions" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
               <button class="primary" id="btnBackup">バックアップを保存（ダウンロード）</button>
               <button class="ghost" id="btnRestore">バックアップから復元</button>
@@ -384,10 +384,10 @@
             </div>
             <p class="muted">いつでも今のデータをファイル1個に保存できます。何かあってもこのファイルから戻せます（Google不要）。</p>
             <div class="row-actions" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
-              <button class="primary" id="btnMergeMasters">マスタを最新に更新（予定は消さない）</button>
-              <button class="ghost" id="btnResetSeed" style="border-color:var(--red);color:var(--red)">最新スケジュールを読み込む</button>
+              <button class="ghost" id="btnMergeMasters">マスタを最新に更新</button>
+              <button class="ghost" id="btnResetSeed" style="border-color:var(--red);color:var(--red)">初期化（全部作り直す）</button>
             </div>
-            <p class="muted"><b>マスタを最新に更新</b>：新しい講師・教室・クラス種別を追加し、名前の修正を反映します。入力済みの予定・割当はそのまま残ります。<br><b>最新スケジュールを読み込む</b>：ファイルの基本スケジュール（最新）を読み込み直します。Claudeに更新してもらった内容を反映するときに押します。※このアプリ上で直接手入力した予定・割当は消えるので、変更はファイル側（Claude経由）で行ってください。</p>
+            <p class="muted"><b>メンテナンス（上級・普段は使いません）</b><br><b>マスタを最新に更新</b>：講師・教室・種別の追加や名称修正だけ反映（予定はそのまま）。<br><b>初期化（全部作り直す）</b>：ファイルの初期状態に戻して予定を作り直します。アプリ上で手入力した予定・確定/休講・メモは消えます。データがおかしくなったときのリセット専用です。</p>
           </div>
         </div>
         <div class="settings-grid">
@@ -604,7 +604,7 @@ function bind(){
   $("studentRange").onchange=renderStudentSchedule;$("studentClass").onchange=renderStudentSchedule;$("btnPrintStudent").onclick=()=>window.print();
   $("btnSaveSettings").onclick=()=>{localStorage.setItem(URL_KEY,$("gasUrl").value.trim());toast("設定を保存しました");};
   $("btnLoadRemote").onclick=loadRemote;$("btnSaveRemote").onclick=saveRemote;
-  $("btnResetSeed").onclick=()=>{if(!confirm("ファイルの最新スケジュールを読み込み直します。このアプリ上で直接手入力した予定・割当は消えます（Claude経由でファイルに反映済みの変更は読み込まれます）。生徒数は今読み込まれている値を引き継ぎます。よろしいですか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("最新スケジュールを読み込み、年度予定を作成しました");};
+  $("btnResetSeed").onclick=()=>{if(!confirm("【初期化】ファイルの初期状態に戻し、予定を作り直します。アプリ上で手入力した予定・確定/休講・メモは消えます（生徒数は今の値を引き継ぎます）。データがおかしくなったとき以外は使いません。実行しますか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("初期化しました（予定を作り直しました）");};
   $("btnMergeMasters").onclick=mergeMasters;
   $("btnBackup").onclick=downloadBackup;
   $("btnRestore").onclick=()=>$("restoreFile").click();
