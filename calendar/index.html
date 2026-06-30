@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>教室カレンダー MVP</title>
+<style>
+  :root{
+    --bg:#f4f5f2;--panel:#fff;--line:#dfe2dc;--text:#20231f;--muted:#6c7469;
+    --green:#2f7d5a;--green-soft:#e6f1eb;--blue:#2f6f9f;--purple:#7855a3;--amber:#b46a22;--red:#c84d45;
+    --shadow:0 1px 3px rgba(16,24,16,.08);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;font-size:14px}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer;transition:transform .05s ease,filter .1s ease,box-shadow .1s ease}
+  button:active:not(:disabled){transform:translateY(1px) scale(.98);filter:brightness(.94)}
+  .primary:active:not(:disabled),.tool-btn:active:not(:disabled){box-shadow:inset 0 2px 4px rgba(0,0,0,.18)}
+  button:disabled{opacity:.6;cursor:default}
+  .app{min-height:100vh;display:grid;grid-template-columns:248px 1fr}
+  aside{background:#26352e;color:#fff;padding:18px 14px;position:sticky;top:0;height:100vh}
+  .brand{font-size:18px;font-weight:800;margin:2px 8px 16px}
+  .login{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:10px;margin:0 4px 14px}
+  .login label{display:block;font-size:12px;color:#d7e3db;margin:8px 0 5px}
+  .login input,.login select{width:100%;border:0;border-radius:7px;padding:9px;background:#fff;color:#1c211d}
+  .login button{width:100%;margin-top:9px;border:0;border-radius:7px;padding:9px;background:#fff;color:#26352e;font-weight:800}
+  .login.signedin{padding:8px 10px}
+  .login-compact{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .login-compact .who{font-size:13px;font-weight:800;color:#fff}
+  .login-compact .switch{width:auto;margin:0;border:1px solid rgba(255,255,255,.25);background:transparent;color:#dce7df;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700}
+  nav{display:flex;flex-direction:column;gap:3px}
+  .nav-group{font-size:10px;font-weight:800;letter-spacing:.08em;color:#8aa394;margin:14px 8px 4px;text-transform:none}
+  .nav-group:first-child{margin-top:4px}
+  .nav-btn{border:0;background:transparent;color:#dce7df;text-align:left;border-radius:8px;padding:10px 12px;font-weight:800}
+  .nav-btn.active{background:#fff;color:#26352e}
+  .date-label{font-weight:800;min-width:120px;text-align:center;font-size:15px}
+  .side-note{position:absolute;left:18px;right:18px;bottom:18px;color:#c5d2c9;font-size:12px;line-height:1.6}
+  main{min-width:0}
+  header{background:rgba(244,245,242,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;padding:14px 22px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:14px}
+  .title-row{display:flex;align-items:center;gap:10px}
+  .nav-toggle{display:none;border:1px solid var(--line);background:#fff;border-radius:8px;width:40px;height:40px;font-size:20px;line-height:1;align-items:center;justify-content:center;cursor:pointer}
+  #navBackdrop{display:none}
+  h1{font-size:22px;margin:0}
+  .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .chip,.tool-btn,.primary,.ghost{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 11px;min-height:38px}
+  .primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:800}
+  .ghost{color:var(--text)}
+  .tabs{display:flex;gap:8px;margin-top:12px;overflow:auto}
+  .tab{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:7px 12px;white-space:nowrap}
+  .tab.active{background:var(--green-soft);color:var(--green);border-color:#b9d8c7;font-weight:800}
+  .content{padding:18px 22px 30px}
+  .summary{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px;box-shadow:var(--shadow)}
+  .stat span{color:var(--muted);font-size:12px}.stat b{display:block;font-size:22px;margin-top:2px}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
+  .panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:800}
+  .panel-b{padding:14px}
+  .grid-wrap{overflow:auto}
+  table{width:100%;border-collapse:separate;border-spacing:0;min-width:860px}
+  th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top}
+  th{position:sticky;top:0;background:#f8faf7;z-index:1;padding:9px;white-space:nowrap;text-align:left;font-size:12px;color:#596156}
+  td{height:76px;background:#fff;padding:6px;min-width:112px}
+  .time{width:64px;background:#f8faf7;font-weight:800;color:#596156;text-align:center}
+  .event{border-left:4px solid var(--green);background:#eef7f2;border-radius:7px;padding:6px 7px;margin-bottom:5px;line-height:1.35}
+  .event.music{border-color:var(--blue);background:#edf5fb}.event.english{border-color:var(--green);background:#edf7f1}
+  .event.health{border-color:var(--purple);background:#f5f0fb}.event.rental{border-color:var(--amber);background:#fff3e7}
+  .event.conflict{border-color:var(--red);background:#fff0ef}
+  .event .title{font-weight:800}.event small{display:block;color:#5e665b}
+  .list{display:flex;flex-direction:column;gap:10px}.item,.warn{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff}
+  .warn{border-left:4px solid var(--red);background:#fff7f6}
+  .view{display:none}.view.active{display:block}
+  .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  label{font-size:12px;color:var(--muted);font-weight:800}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field input,.field select,.field textarea{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff;width:100%}
+  textarea{min-height:72px;resize:vertical}
+  .month{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .day{min-height:116px;background:#fff;padding:8px}.day b{display:block;margin-bottom:6px}
+  .student-sheet{background:#fff;color:#111;padding:10px;border-radius:8px;border:1px solid var(--line)}
+  .student-sheet.compact{padding:6px}
+  .student-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:8px}
+  .student-title h2{font-size:20px;margin:0}.student-title p{margin:2px 0 0;color:#4f574d}
+  .student-calendars{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .student-month{border:1px solid #cfd5cc;border-radius:6px;background:#fff;overflow:hidden}
+  .student-month h3{margin:0;padding:6px 8px;background:#f8faf7;border-bottom:1px solid #cfd5cc;font-size:13px;text-align:center}
+  .student-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line)}
+  .student-wday,.student-day{background:#fff;padding:3px;min-height:44px;position:relative;text-align:center}
+  .student-wday{min-height:auto;background:#f8faf7;font-size:10px;font-weight:800;color:var(--muted)}
+  .student-wday.sun,.student-day.sun{color:#c84d45}.student-wday.sat,.student-day.sat{color:#2f6f9f}
+  .student-day b{font-size:10px;font-weight:700}
+  .lesson-mark{width:26px;height:26px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;margin:2px auto 0;font-size:11px;font-weight:800}
+  .student-list{font-size:12px;margin-top:8px;border-top:1px solid #dfe2dc;padding-top:6px;line-height:1.6}
+  .range-year .student-calendars{gap:5px}.range-year .student-month h3{font-size:11px;padding:4px}
+  .range-year .student-wday,.range-year .student-day{min-height:25px;padding:1px}.range-year .student-day b{font-size:8px}.range-year .lesson-mark{width:14px;height:14px;font-size:0;margin-top:1px}
+  .range-half .student-wday,.range-half .student-day{min-height:36px}
+  .settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
+  .mini-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .mini-row{border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .mini-row.off{opacity:.55;background:#f6f6f4}
+  .mini-row b{display:block}.mini-row small{color:var(--muted)}
+  .mini-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .mini-actions button{padding:5px 7px;min-height:auto;font-size:12px}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .hidden{display:none!important}.muted{color:var(--muted)}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(10px);background:#20231f;color:#fff;padding:13px 22px;border-radius:12px;font-weight:800;font-size:15px;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:.2s;z-index:20}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media(max-width:900px){
+    .app{display:block}.layout,.summary,.form-grid,.student-calendars,.settings-grid{grid-template-columns:1fr}
+    aside{position:fixed;top:0;left:0;bottom:0;height:auto;width:280px;max-width:84vw;z-index:60;overflow-y:auto;transform:translateX(-100%);transition:transform .25s ease}
+    body.nav-open aside{transform:translateX(0)}
+    .side-note{display:block;position:static;margin-top:18px}
+    nav{display:flex;flex-direction:column}
+    .nav-toggle{display:inline-flex}
+    #navBackdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55;opacity:0;pointer-events:none;transition:opacity .25s}
+    body.nav-open #navBackdrop{opacity:1;pointer-events:auto}
+    .top{align-items:flex-start;flex-direction:column}header{padding:12px}.content{padding:12px}
+  }
+  @media print{
+    @page{size:A4 portrait;margin:8mm}
+    aside,header,.summary,.view:not(#student),#student .toolbar{display:none!important}
+    .app{display:block}.content{padding:0}.panel{border:0;box-shadow:none}.panel-h{display:none}
+    #student{display:block!important}.student-calendars{grid-template-columns:repeat(3,1fr)}
+    .student-sheet{border:0;padding:0}.student-title h2{font-size:18px}.student-title p{font-size:11px}
+    body{background:#fff}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="navBackdrop"></div>
+  <aside>
+    <div class="brand">教室カレンダー</div>
+    <div class="login" id="loginBox">
+      <div id="loginForm">
+        <label>利用者</label>
+        <select id="loginUser"></select>
+        <label>PIN</label>
+        <input id="loginPin" inputmode="numeric" placeholder="0000">
+        <button id="btnLogin">ログイン</button>
+      </div>
+      <div id="loginCompact" class="login-compact hidden">
+        <span class="who" id="loginStatus">未ログイン</span>
+        <button class="switch" id="btnSwitchUser">切替</button>
+      </div>
+    </div>
+    <nav>
+      <div class="nav-group">日々の確認</div>
+      <button class="nav-btn active" data-view="rooms">教室使用表</button>
+      <button class="nav-btn manager-only" data-view="teachers">講師スケジュール</button>
+      <button class="nav-btn" data-view="month">講師カレンダー</button>
+      <div class="nav-group">入力</div>
+      <button class="nav-btn" data-view="input">予定入力</button>
+      <button class="nav-btn" data-view="availability">空き教室検索</button>
+      <div class="nav-group">マスタ・配布</div>
+      <button class="nav-btn admin-only" data-view="recurring">基本スケジュール</button>
+      <button class="nav-btn" data-view="student">生徒向け予定</button>
+      <div class="nav-group">管理</div>
+      <button class="nav-btn admin-only" data-view="settings">設定</button>
+      <button class="nav-btn" data-view="share">共有用まとめ</button>
+    </nav>
+    <div class="side-note">MVP版 <b>build 0630b</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+  </aside>
+
+  <main>
+    <header>
+      <div class="top">
+        <div class="title-row"><button class="nav-toggle" id="navToggle" aria-label="メニュー">☰</button><h1 id="title">教室使用表</h1></div>
+        <div class="toolbar">
+          <button class="tool-btn" id="prevDay">‹</button>
+          <span class="date-label" id="dateLabel"></span>
+          <button class="tool-btn" id="nextDay">›</button>
+          <input class="chip" id="currentDate" type="date" title="日付を選ぶ">
+          <select class="chip" id="roomFilter"></select>
+          <select class="chip" id="categoryFilter"></select>
+          <button class="primary" id="btnQuickAdd">＋ 予定追加</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-cat="all">全て</button>
+        <button class="tab" data-cat="music">音楽</button>
+        <button class="tab" data-cat="english">英会話</button>
+        <button class="tab" data-cat="health">健康</button>
+        <button class="tab" data-cat="rental">レンタル</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <section class="summary">
+        <div class="stat"><span>この日の予定</span><b id="statEvents">0</b></div>
+        <div class="stat"><span>空き教室</span><b id="statRooms">0</b></div>
+        <div class="stat"><span>未確定</span><b id="statTentative">0</b></div>
+        <div class="stat"><span>重複警告</span><b id="statConflicts" style="color:var(--red)">0</b></div>
+      </section>
+
+      <section class="view active" id="rooms">
+        <div class="layout">
+          <div class="panel">
+            <div class="panel-h">
+              <span id="roomsPanelTitle">教室別タイムライン</span>
+              <div class="tabs" style="margin:0">
+                <button class="tab active" id="roomsDayTab">日</button>
+                <button class="tab" id="roomsMonthTab">月</button>
+              </div>
+            </div>
+            <div id="roomsDayWrap" class="grid-wrap"><table><thead id="roomHead"></thead><tbody id="roomRows"></tbody></table></div>
+            <div id="roomsMonthWrap" class="panel-b hidden">
+              <p class="muted" id="roomsMonthHint" style="margin:0 0 10px">右上の「全教室」で教室を選ぶと、その教室の月予定が出ます。</p>
+              <div class="month" id="roomMonthGrid"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h">確認が必要</div>
+            <div class="panel-b list" id="conflictList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="teachers">
+        <div class="panel">
+          <div class="panel-h"><span>講師別タイムライン</span><span class="muted">管理者用</span></div>
+          <div class="grid-wrap"><table><thead id="teacherHead"></thead><tbody id="teacherRows"></tbody></table></div>
+        </div>
+      </section>
+
+      <section class="view" id="input">
+        <div class="layout">
+          <div class="panel">
+            <div class="panel-h"><span id="formTitle">予定入力</span><button class="ghost" id="btnClearForm">新規</button></div>
+            <div class="panel-b">
+              <input type="hidden" id="eventId">
+              <div class="form-grid">
+                <div class="field"><label>日付</label><input type="date" id="eventDate"></div>
+                <div class="field"><label>教室</label><select id="eventRoom"></select></div>
+                <div class="field"><label>開始</label><input type="time" id="eventStart" step="600"></div>
+                <div class="field"><label>終了</label><input type="time" id="eventEnd" step="600"></div>
+                <div class="field"><label>講師</label><select id="eventTeacher"></select></div>
+                <div class="field"><label>メインカテゴリ</label><select id="eventCategory"></select></div>
+                <div class="field"><label>クラス種別</label><select id="eventClassType"></select></div>
+                <div class="field"><label>状態</label><select id="eventStatus"></select></div>
+                <div class="field"><label>クラス名</label><input id="eventClassName" placeholder="1・3週月曜10時クラス"></div>
+                <div class="field"><label>メモ</label><input id="eventMemo" placeholder="管理者だけ確認"></div>
+              </div>
+              <div class="row-actions">
+                <button class="primary" id="btnSaveEvent">保存</button>
+                <button class="ghost" id="btnDeleteEvent">削除</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h">入力時チェック</div>
+            <div class="panel-b list" id="formCheck"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="availability">
+        <div class="layout">
+          <div class="panel">
+            <div class="panel-h">空き教室検索</div>
+            <div class="panel-b">
+              <div class="form-grid">
+                <div class="field"><label>日付</label><input type="date" id="availDate"></div>
+                <div class="field"><label>開始</label><input type="time" id="availStart" step="600"></div>
+                <div class="field"><label>終了</label><input type="time" id="availEnd" step="600"></div>
+                <div class="field"><label>カテゴリ</label><select id="availCategory"></select></div>
+              </div>
+              <div class="row-actions">
+                <button class="primary" id="btnFindAvailability">検索</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h">空き候補</div>
+            <div class="panel-b list" id="availabilityResult"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="month">
+        <div class="panel">
+          <div class="panel-h">
+            <span id="monthTitle">講師カレンダー</span>
+            <select class="chip" id="monthTeacher"></select>
+          </div>
+          <div class="panel-b"><div class="month" id="monthGrid"></div></div>
+        </div>
+      </section>
+
+      <section class="view" id="student">
+        <div class="panel">
+          <div class="panel-h">
+            <span>生徒向け予定</span>
+            <div class="toolbar">
+              <select class="chip" id="studentRange"><option value="quarter">四半期</option><option value="half">半年</option><option value="year">年間</option></select>
+              <select class="chip" id="studentClass"></select>
+              <button class="ghost" id="btnPrintStudent">印刷</button>
+            </div>
+          </div>
+          <div class="panel-b">
+            <div id="studentSchedule"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="recurring">
+        <div id="recurringLayout" class="layout">
+          <div class="panel" id="recurringFormPanel">
+            <div class="panel-h">基本スケジュール</div>
+            <div class="panel-b">
+              <input type="hidden" id="recurringId">
+              <div class="form-grid">
+                <div class="field"><label>クラス名</label><input id="recurringName" placeholder="1・3週月曜10時クラス"></div>
+                <div class="field"><label>開催パターン</label><select id="recurringPattern"></select></div>
+                <div class="field"><label>曜日</label><select id="recurringWeekday"></select></div>
+                <div class="field"><label>教室</label><select id="recurringRoom"></select></div>
+                <div class="field"><label>講師</label><select id="recurringTeacher"></select></div>
+                <div class="field"><label>クラス種別</label><select id="recurringClassType"></select></div>
+                <div class="field"><label>開始</label><input type="time" id="recurringStart" step="600"></div>
+                <div class="field"><label>終了</label><input type="time" id="recurringEnd" step="600"></div>
+              </div>
+              <div class="row-actions">
+                <button class="primary" id="btnSaveRecurring">基本スケジュール保存</button>
+                <button class="ghost" id="btnGenerateMonth">表示月の予定を作成</button>
+                <button class="ghost" id="btnGenerateYear">年度予定を作成</button>
+                <button class="ghost" id="btnRebuildEvents">予定を作り直す</button>
+                <button class="ghost" id="btnDeleteRecurring">削除</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel" id="recurringListPanel">
+            <div class="panel-h">
+              <span>登録済み</span>
+              <div class="toolbar">
+                <select class="chip" id="recurringRoomFilter"></select>
+                <label style="display:flex;align-items:center;gap:5px;font-weight:700"><input type="checkbox" id="recurringOnlyEmpty" style="width:auto">未割当のみ</label>
+                <button class="chip" id="btnRecurringViewList" onclick="setRecurringView('list')" style="font-weight:700">リスト</button>
+                <button class="chip" id="btnRecurringViewGrid" onclick="setRecurringView('grid')">グリッド</button>
+              </div>
+            </div>
+            <div class="panel-b list" id="recurringList"></div>
+          </div>
+        </div>
+        <!-- グリッドビュー：全幅表示 -->
+        <div id="recurringGridPanel" style="display:none;padding:0 16px 16px">
+          <div id="recurringRoomTabs" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 0 4px"></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:4px 0 12px;flex-wrap:wrap">
+            <button class="chip" id="btnGrid13" onclick="setGridWeek('13')" style="font-weight:700">第1・3週</button>
+            <button class="chip" id="btnGrid24" onclick="setGridWeek('24')">第2・4週</button>
+            <button class="chip" id="btnGridAll" onclick="setGridWeek('all')">全パターン</button>
+            <button class="ghost" onclick="setRecurringView('list')" style="margin-left:auto">← リストに戻る</button>
+          </div>
+          <div id="recurringWeekGrid" style="overflow-x:auto"></div>
+        </div>
+      </section>
+
+      <section class="view" id="settings">
+        <div class="panel">
+          <div class="panel-h">保存設定</div>
+          <div class="panel-b">
+            <div class="field"><label>GAS WebアプリURL</label><input id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
+            <div class="row-actions">
+              <button class="ghost" id="btnSaveSettings">① URLを登録</button>
+              <button class="primary" id="btnSaveRemote">スプレッドシートへ保存 ↑</button>
+              <button class="ghost" id="btnLoadRemote">スプレッドシートから読込 ↓</button>
+            </div>
+            <p class="muted">最初に「① URLを登録」を1回。普段は<b>編集→「スプレッドシートへ保存 ↑」</b>。別端末や開き直しのときは先に「読込 ↓」。URL未設定時はこのブラウザ内のローカル保存で動きます。</p>
+            <div class="row-actions" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+              <button class="primary" id="btnBackup">バックアップを保存（ダウンロード）</button>
+              <button class="ghost" id="btnRestore">バックアップから復元</button>
+              <input type="file" id="restoreFile" accept="application/json,.json" style="display:none">
+            </div>
+            <p class="muted">いつでも今のデータをファイル1個に保存できます。何かあってもこのファイルから戻せます（Google不要）。</p>
+            <div class="row-actions" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+              <button class="primary" id="btnMergeMasters">マスタを最新に更新（予定は消さない）</button>
+              <button class="ghost" id="btnResetSeed" style="border-color:var(--red);color:var(--red)">最新スケジュールを読み込む</button>
+            </div>
+            <p class="muted"><b>マスタを最新に更新</b>：新しい講師・教室・クラス種別を追加し、名前の修正を反映します。入力済みの予定・割当はそのまま残ります。<br><b>最新スケジュールを読み込む</b>：ファイルの基本スケジュール（最新）を読み込み直します。Claudeに更新してもらった内容を反映するときに押します。※このアプリ上で直接手入力した予定・割当は消えるので、変更はファイル側（Claude経由）で行ってください。</p>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <div class="panel">
+            <div class="panel-h">講師マスタ</div>
+            <div class="panel-b">
+              <input type="hidden" id="masterTeacherId">
+              <div class="field"><label>名前</label><input id="masterTeacherName" placeholder="講師名"></div>
+              <div class="field"><label>PIN（変更時のみ）</label><input id="masterTeacherPin" inputmode="numeric" maxlength="4" placeholder="4桁"></div>
+              <div class="field"><label>ロール</label><select id="masterTeacherRole"><option value="teacher">teacher</option><option value="scheduler">scheduler</option><option value="admin">admin</option></select></div>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="masterTeacherActive" checked> 有効</label>
+              <div class="row-actions">
+                <button class="primary" id="btnSaveTeacherMaster">保存</button>
+                <button class="ghost" id="btnNewTeacherMaster">新規</button>
+              </div>
+              <div class="mini-list" id="teacherMasterList"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h">教室マスタ</div>
+            <div class="panel-b">
+              <input type="hidden" id="masterRoomId">
+              <div class="field"><label>教室名</label><input id="masterRoomName" placeholder="教室名"></div>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="masterRoomActive" checked> 有効</label>
+              <div class="row-actions">
+                <button class="primary" id="btnSaveRoomMaster">保存</button>
+                <button class="ghost" id="btnNewRoomMaster">新規</button>
+              </div>
+              <div class="mini-list" id="roomMasterList"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h">クラス種別マスタ</div>
+            <div class="panel-b">
+              <input type="hidden" id="masterClassTypeId">
+              <div class="field"><label>種別名</label><input id="masterClassTypeName" placeholder="種別名"></div>
+              <div class="field"><label>カテゴリ</label><select id="masterClassTypeCategory"></select></div>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="masterClassTypeActive" checked> 有効</label>
+              <div class="row-actions">
+                <button class="primary" id="btnSaveClassTypeMaster">保存</button>
+                <button class="ghost" id="btnNewClassTypeMaster">新規</button>
+              </div>
+              <div class="mini-list" id="classTypeMasterList"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="share">
+        <div class="panel">
+          <div class="panel-h"><span>共有用まとめ</span><button class="primary" id="btnCopyShare">コピー</button></div>
+          <div class="panel-b">
+            <textarea id="shareText" style="min-height:520px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5"></textarea>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const STORE_KEY="classroom-calendar-mvp-v7";
+const URL_KEY="classroom-calendar-gas-url";
+const ADMIN_PIN="1125";
+const SCHED_PIN="7015";
+const TEACHER_PINS=["8459", "7549", "7144", "1796", "5941", "2130", "3497", "1973", "6788", "6726", "4890", "4304", "1430", "4273", "6673", "8565", "1950", "6418", "4313", "5907", "9328", "8130"];
+const timeRows=["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00"];
+const weekdays=["日","月","火","水","木","金","土"];
+const statuses={tentative:"仮",confirmed:"確定",cancelled:"休講",makeup:"振替"};
+const PATTERNS={
+  first_third:{weeks:[1,3],label:"第1・第3",short:"1・3週"},
+  second_fourth:{weeks:[2,4],label:"第2・第4",short:"2・4週"},
+  weekly:{weeks:[1,2,3,4,5],label:"毎週",short:"毎週"},
+  first_second_third:{weeks:[1,2,3],label:"第1・2・3",short:"1・2・3週"},
+  second_third_fourth:{weeks:[2,3,4],label:"第2・3・4",short:"2・3・4週"},
+  first_second_third_fourth:{weeks:[1,2,3,4],label:"第1〜4",short:"1〜4週"}
+};
+function patternLabel(p){return (PATTERNS[p]||PATTERNS.first_third).label;}
+function patternShort(p){return (PATTERNS[p]||PATTERNS.first_third).short;}
+function patternWeeks(p){return (PATTERNS[p]||PATTERNS.first_third).weeks;}
+let currentUser=null;
+let currentView="rooms";
+let roomsMode="day";
+function isMonthlyView(){return currentView==="month"||currentView==="student"||(currentView==="rooms"&&roomsMode==="month");}
+let selectedCategory="all";
+let state=loadLocal()||seedData();
+
+function seedData(){
+  const teachers=[{id:"admin",name:"管理者",pin:ADMIN_PIN,role:"admin",active:true},{id:"sched",name:"スケジュール管理",pin:SCHED_PIN,role:"scheduler",active:true},
+    ..."吉田,健太郎,芳美,白川,嶋根,恵子,麗香,大木,庄太,泉,みき,朋子,じゅん,あつこ,千尋,亜希子,南,英子,森,外山,河田,山崎".split(",").map((name,i)=>({id:"t"+(i+1),name,pin:TEACHER_PINS[i],role:"teacher",active:true}))];
+  const rooms=["横浜","上大岡","町田","町田木曽","平塚","茅ヶ崎","阪東橋","青葉台(大成)","青葉台(白猫屋)","長津田","藤沢","東戸塚","永山"].map((name,i)=>({id:"r"+(i+1),name,area:name,rentable:i===0,active:true}));
+  const categories=[{id:"music",name:"音楽"},{id:"english",name:"英会話"},{id:"health",name:"健康"},{id:"rental",name:"レンタル"}];
+  const classTypes=[
+    ["ukulele","music","ウクレレ"],["sanshin","music","三線"],["recorder","music","リコーダー"],["piano","music","ピアノ"],["flamenco_guitar","music","フラメンコギター"],
+    ["daily_english","english","日常英会話"],["omotenashi_english","english","おもてなし英会話"],["picturebook_english","english","英語で絵本"],["song_english","english","英語の歌"],["cinema_english","english","英語でシネマ"],
+    ["yoga","health","ヨガ"],["reading","health","朗読"],["flamenco","health","フラメンコ"],["hula","health","フラダンス"],["space_rental","rental","スペース貸出"]
+  ].map(([id,categoryId,name])=>({id,categoryId,name,active:true}));
+  const recurringClasses=makeRecurringSeeds();
+  const events=[];
+  return {teachers,rooms,categories,classTypes,recurringClasses,events,updatedAt:new Date().toISOString()};
+}
+function ev(date,start,end,roomId,teacherId,classTypeId,className,status){const categoryMap={ukulele:"music",sanshin:"music",recorder:"music",piano:"music",flamenco_guitar:"music",daily_english:"english",omotenashi_english:"english",picturebook_english:"english",song_english:"english",cinema_english:"english",yoga:"health",reading:"health",flamenco:"health",hula:"health",space_rental:"rental"};return {id:uid(),date,start,end,roomId,teacherId,classTypeId,categoryId:categoryMap[classTypeId]||"music",className,status,memo:"",updatedAt:new Date().toISOString()};}
+function stuKey(r){return [r.roomId,r.weekPattern,r.weekday,r.start,r.classTypeId].join("|");}
+function makeRecurringSeeds(){
+  const typeMap={ウクレレ:"ukulele",三線:"sanshin",リコーダー:"recorder",ピアノ:"piano",フラメンコギター:"flamenco_guitar",日常英会話:"daily_english",おもてなし英会話:"omotenashi_english",英語で絵本:"picturebook_english",英語の歌:"song_english",英語でシネマ:"cinema_english",ヨガ:"yoga",朗読:"reading",フラメンコ:"flamenco",フラダンス:"hula"};
+  const categoryMap={ukulele:"music",sanshin:"music",recorder:"music",piano:"music",flamenco_guitar:"music",daily_english:"english",omotenashi_english:"english",picturebook_english:"english",song_english:"english",cinema_english:"english",yoga:"health",reading:"health",flamenco:"health",hula:"health"};
+  const rows=[
+    ["r1","first_third",1,"10:00","11:00","日常英会話","",0],["r1","first_third",1,"11:20","12:20","おもてなし英会話","",0],["r1","first_third",1,"13:30","14:40","英語の歌","",0],["r1","first_third",2,"10:00","11:10","ウクレレ","",0],["r1","first_third",2,"11:30","12:40","英語の歌","",0],["r1","first_third",2,"13:00","14:10","三線","",0],["r1","first_third",2,"14:30","15:30","ウクレレ","",0],["r1","first_third",3,"09:00","10:00","ヨガ","月4回1名、月2回3名",0],["r1","first_third",3,"13:30","14:30","日常英会話","",0],["r1","first_third",3,"15:00","16:00","日常英会話","",0],["r1","first_third",4,"10:00","11:00","フラダンス","",0],["r1","first_third",4,"11:20","12:20","日常英会話","",0],["r1","first_third",4,"13:30","14:30","おもてなし英会話","",0],["r1","first_third",4,"15:00","16:00","英語で絵本","",0],["r1","first_third",5,"10:00","11:10","ウクレレ","",0],["r1","first_third",5,"11:30","12:40","ウクレレ","",0],["r1","first_third",5,"13:30","14:40","朗読","",0],["r1","first_third",5,"15:00","16:10","朗読","",0],["r1","first_third",6,"10:00","11:00","ウクレレ","",0],["r1","first_third",6,"11:20","12:20","ウクレレ","",0],["r1","first_third",6,"12:45","13:55","ウクレレ","",0],["r1","second_fourth",1,"10:00","11:10","ウクレレ","",0],["r1","second_fourth",1,"11:30","12:40","ウクレレ","",0],["r1","second_fourth",1,"13:30","14:40","ウクレレ","",0],["r1","second_fourth",1,"13:30","14:30","ウクレレ","にこにこハウス",0],["r1","second_third_fourth",1,"15:00","16:00","フラダンス","",0],["r1","second_fourth",2,"09:50","10:50","ウクレレ","",0],["r1","second_fourth",2,"11:00","12:10","リコーダー","",0],["r1","second_fourth",2,"12:30","13:30","ピアノ","",0],["r1","second_fourth",3,"10:20","11:30","ウクレレ","",0],["r1","second_fourth",3,"11:45","12:55","ウクレレ","",0],["r1","second_fourth",3,"13:20","14:20","ウクレレ","",0],["r1","second_fourth",4,"10:00","11:10","ウクレレ","",0],["r1","second_fourth",4,"11:30","12:40","三線","",0],["r1","second_fourth",4,"13:20","14:30","ウクレレ","",0],["r1","second_fourth",5,"10:00","11:10","三線","",0],["r1","second_fourth",5,"11:30","12:40","ウクレレ","",0],["r1","second_fourth",5,"13:30","14:40","ウクレレ","",0],["r1","second_fourth",5,"15:00","16:10","ウクレレ","",0],["r1","second_fourth",6,"11:20","12:20","日常英会話","",0],["r1","second_fourth",6,"13:00","14:10","フラメンコ","",0],["r1","second_fourth",6,"14:30","15:40","フラメンコ","",0],["r1","second_fourth",0,"11:00","12:00","フラメンコギター","",0],
+    ["r2","first_third",5,"10:00","11:10","ウクレレ","",0],["r2","second_fourth",2,"10:00","11:10","ウクレレ","",0],["r2","second_fourth",2,"11:30","12:40","ウクレレ","",0],["r2","second_fourth",6,"10:00","11:10","ウクレレ","",0],["r2","second_fourth",6,"11:30","12:40","ウクレレ","",0],
+    ["r3","first_third",1,"10:00","11:10","ウクレレ","",0],["r3","first_third",1,"11:30","12:40","ウクレレ","",0],["r3","first_third",1,"13:30","14:40","朗読","",0],["r3","first_third",1,"15:00","16:10","朗読","",0],["r3","first_third",1,"18:30","19:40","日常英会話","",0],["r3","first_third",2,"10:00","11:10","ウクレレ","",0],["r3","first_third",2,"11:30","12:40","ウクレレ","",0],["r3","first_third",2,"15:00","16:10","おもてなし英会話","",0],["r3","first_third",2,"16:30","17:40","日常英会話","",0],["r3","first_third",2,"18:00","19:10","日常英会話","",0],["r3","first_third",3,"10:00","11:10","おもてなし英会話","",0],["r3","first_third",3,"11:30","12:40","日常英会話","",0],["r3","first_third",3,"13:30","14:40","英語の歌","",0],["r3","first_third",4,"10:00","11:10","英語で絵本","",0],["r3","first_third",4,"11:00","12:00","ウクレレ","町田森野（フラ仲間）",0],["r3","first_third",4,"11:30","12:30","日常英会話","",0],["r3","first_third",4,"13:30","14:30","日常英会話","",0],["r3","first_third",5,"10:00","11:10","日常英会話","",0],["r3","first_third",5,"11:30","12:40","英語の歌","",0],["r3","first_third",5,"13:30","14:40","日常英会話","",0],["r3","first_third",5,"15:00","16:10","日常英会話","",0],["r3","first_third",6,"10:00","11:10","ウクレレ","",0],["r3","first_third",6,"11:30","12:40","ウクレレ","",0],["r3","first_third",0,"10:00","11:10","ウクレレ","",0],["r3","first_third",0,"11:30","12:40","ウクレレ","",0],["r3","first_third",0,"13:20","14:30","ウクレレ","",0],["r3","second_fourth",1,"11:30","12:40","ウクレレ","",0],["r3","second_fourth",1,"13:30","14:40","三線","",0],["r3","second_fourth",2,"10:00","11:10","ウクレレ","",0],["r3","second_fourth",2,"11:30","12:40","ウクレレ","",0],["r3","second_fourth",2,"13:30","14:40","ウクレレ","",0],["r3","second_fourth",2,"15:00","16:10","ウクレレ","",0],["r3","second_fourth",3,"10:00","11:10","ウクレレ","",0],["r3","second_fourth",3,"13:30","14:40","ウクレレ","",0],["r3","second_fourth",3,"15:00","16:10","ウクレレ","",0],["r3","second_fourth",4,"10:00","11:10","ウクレレ","",0],["r3","second_fourth",4,"13:30","14:40","三線","",0],["r3","second_fourth",4,"15:00","16:10","ウクレレ","",0],["r3","second_fourth",5,"10:00","11:10","三線","",0],["r3","second_fourth",5,"11:30","12:40","三線","",0],["r3","second_fourth",5,"13:30","14:40","ウクレレ","",0],["r3","second_fourth",5,"15:00","16:10","ウクレレ","",0],["r3","second_fourth",5,"16:30","17:40","ウクレレ","追い込み",0],["r3","second_fourth",0,"10:30","11:40","ウクレレ","",0],["r3","second_fourth",0,"12:00","12:45","ウクレレ","個人",0],
+    ["r4","first_third",3,"10:00","11:00","ウクレレ","",0],["r4","first_third",3,"11:30","12:30","ウクレレ","",0],["r4","second_fourth",3,"10:00","11:00","ウクレレ","",0],["r4","second_fourth",3,"11:30","12:30","ウクレレ","",0],
+    ["r5","first_third",2,"10:30","11:30","ウクレレ","",0],["r5","first_third",2,"11:15","12:00","ウクレレ","追い込み",0],["r5","first_third",3,"10:30","11:30","ウクレレ","",0],["r5","first_third",5,"10:00","11:00","ウクレレ","",0],["r5","first_third",5,"11:20","12:20","三線","",0],["r5","second_fourth",3,"11:45","12:45","三線","",0],["r5","first_second_third",4,"10:50","12:00","日常英会話","",0],["r5","first_second_third",4,"13:20","14:30","日常英会話","",0],
+    ["r6","first_third",4,"10:00","11:10","ウクレレ","",0],["r6","first_third",4,"11:30","12:40","ウクレレ","",0],
+    ["r7","first_third",2,"13:00","14:10","英語の歌","",0],["r7","first_third",2,"14:30","15:40","英語で絵本","",0],["r7","first_third",2,"16:30","17:40","日常英会話","",0],["r7","first_third",3,"10:00","11:10","ウクレレ","",0],["r7","first_third",3,"11:30","12:40","ウクレレ","",0],["r7","second_fourth",2,"10:30","11:40","朗読","",0],["r7","second_fourth",2,"13:00","14:10","日常英会話","",0],["r7","second_fourth",4,"13:00","14:10","ウクレレ","",0],["r7","second_fourth",4,"10:00","11:00","ウクレレ","",0],
+    ["r8","first_third",3,"10:00","11:00","ウクレレ","",0],["r8","first_third",3,"11:30","12:30","ウクレレ","",0],["r8","second_fourth",2,"13:00","14:00","ウクレレ","",0],
+    ["r10","second_fourth",3,"11:30","12:30","ウクレレ","",0],["r10","second_fourth",3,"13:00","14:00","ウクレレ","",0],
+    ["r11","first_third",4,"10:00","11:00","ウクレレ","",0],["r11","second_fourth",4,"10:00","11:00","ウクレレ","",0],
+    ["r12","first_third",5,"10:00","11:10","ウクレレ","",0],
+    ["r13","second_fourth",3,"11:30","12:30","日常英会話","",0]
+  ];
+  const SEED_TEACHERS=["t13","t13","t15","t2","t15","t2","t22","t14","t11","t11","t17","t10","t10","t10","t5","t5","t14","t14","t2","t2","t2","t5","t5","t2","t2","t17","t2","t8","t8","t2","t2","t2","t2","t2","t2","t2","t5","t2","t2","t16","t18","t18","t9","t1","t1","t1","t1","t1","t4","t4","t14","t14","t11","t4","t4","t10","t10","t10","t10","t10","t10","t12","t7","t12","t12","t10","t10","t12","t12","t4","t4","t1","t1","t1","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t1","t1","t1","t1","t1","t4","t4","t4","t4","t6","t6","t6","t6","t6","t6","t11","t11","t5","t5","t14","t14","t14","t5","t5","t14","t14","t19","t19","t1","t1","t1","t1","t1","t21","t21","t7","t10"];
+  return rows.map((r,i)=>{const [roomId,weekPattern,weekday,start,end,typeName,note,students]=r;const classTypeId=typeMap[typeName];return {id:"rc"+(i+1),className:suggestClassNameFrom(weekPattern,weekday,start),weekPattern,weekday,roomId,teacherId:SEED_TEACHERS[i]||inferSeedTeacher(roomId,classTypeId),classTypeId,categoryId:categoryMap[classTypeId],start,end,active:true,note,students:students||0};});
+}
+function inferSeedTeacher(roomId,classTypeId){
+  const roomTeachers={
+    r1:["t14","t13","t11","t16","t2","t15","t17","t8","t5","t9","t10","t18"],
+    r2:["t1"],r3:["t14","t11","t1","t12","t10","t4","t3","t7"],r4:["t4"],
+    r5:["t11","t6"],r6:[],r7:["t14","t5"],r8:["t1"],r9:["t1"],r10:["t1"],
+    r11:[],r12:["t7"],r13:["t10"]
+  };
+  const teacherTypes={
+    t1:["ukulele"],t2:["ukulele","sanshin"],t3:["ukulele","sanshin"],t4:["ukulele"],
+    t5:["ukulele"],t6:["ukulele","sanshin"],t7:["ukulele"],t8:["recorder","piano"],
+    t9:["flamenco_guitar"],t10:["daily_english","omotenashi_english","song_english","picturebook_english"],
+    t11:["daily_english"],t12:["daily_english","picturebook_english"],t13:["daily_english","omotenashi_english"],
+    t14:["daily_english","song_english","picturebook_english","reading","yoga"],
+    t15:["song_english"],t16:["daily_english"],t17:["hula"],t18:["flamenco"]
+  };
+  const candidates=(roomTeachers[roomId]||[]).filter(id=>(teacherTypes[id]||[]).includes(classTypeId));
+  return candidates.length===1?candidates[0]:"";
+}
+function uid(){return "id_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);}
+function $(id){return document.getElementById(id);}
+function saveLocal(){state.updatedAt=new Date().toISOString();const raw=JSON.stringify(state);localStorage.setItem(STORE_KEY,raw);if(raw.length>3500000)toast("保存データがかなり大きくなっています。古い年度の整理を検討してください");}
+function loadLocal(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"null")}catch(e){return null}}
+function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");clearTimeout(window._toastT);window._toastT=setTimeout(()=>$("toast").classList.remove("show"),2600)}
+function byId(list,id){return list.find(x=>x.id===id)||{}}
+function classType(id){return byId(state.classTypes,id)}
+function categoryForEvent(e){return e.categoryId||classType(e.classTypeId).categoryId||"music"}
+function isAdmin(){return currentUser&&currentUser.role==="admin"}
+function isManager(){return currentUser&&(currentUser.role==="admin"||currentUser.role==="scheduler")}
+function canSeeDetail(e){return isManager()||e.teacherId===currentUser?.id}
+function minutes(t){const [h,m]=t.split(":").map(Number);return h*60+m}
+function overlaps(a,b){return a.date===b.date&&a.status!=="cancelled"&&b.status!=="cancelled"&&minutes(a.start)<minutes(b.end)&&minutes(b.start)<minutes(a.end)}
+function conflictsFor(events=state.events){const by={};events.forEach(e=>{(by[e.date]=by[e.date]||[]).push(e);});const out=[];Object.values(by).forEach(list=>{for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const a=list[i],b=list[j];if(!overlaps(a,b))continue;if(a.roomId===b.roomId)out.push({type:"room",a,b});if(a.teacherId&&b.teacherId&&a.teacherId===b.teacherId)out.push({type:"teacher",a,b});}});return out}
+function filteredEvents(date=$("currentDate").value){return state.events.filter(e=>e.date===date&&e.status!=="cancelled").filter(e=>selectedCategory==="all"||categoryForEvent(e)===selectedCategory).filter(e=>!$("roomFilter").value||e.roomId===$("roomFilter").value)}
+function eventLabel(e){if(!canSeeDetail(e))return "使用中";const ct=classType(e.classTypeId).name||"";const teacher=byId(state.teachers,e.teacherId).name||"";return `${ct} ${teacher}`.trim();}
+function eventSub(e){if(!canSeeDetail(e))return `${e.start}-${e.end}`;return `${e.className||""} / ${statuses[e.status]||e.status}`;}
+
+function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function init(){
+  const today=ymd(new Date());
+  $("currentDate").value=today;
+  $("eventDate").value=today;$("eventStart").value="10:00";$("eventEnd").value="11:10";$("recurringStart").value="10:00";$("recurringEnd").value="11:10";
+  $("availDate").value=today;$("availStart").value="10:00";$("availEnd").value="11:10";
+  $("gasUrl").value=localStorage.getItem(URL_KEY)||"";
+  fillSelectors();bind();loginAs(state.teachers[0]);render();
+}
+function fillSelectors(){
+  const selected={loginUser:$("loginUser")?.value,roomFilter:$("roomFilter")?.value,eventRoom:$("eventRoom")?.value,eventTeacher:$("eventTeacher")?.value,eventCategory:$("eventCategory")?.value,eventClassType:$("eventClassType")?.value,eventStatus:$("eventStatus")?.value,studentClass:$("studentClass")?.value,recurringRoom:$("recurringRoom")?.value,recurringTeacher:$("recurringTeacher")?.value,recurringClassType:$("recurringClassType")?.value,availCategory:$("availCategory")?.value};
+  $("loginUser").innerHTML=state.teachers.filter(t=>t.active).map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
+  const roomOpts=state.rooms.filter(r=>r.active).map(r=>`<option value="${r.id}">${r.name}</option>`).join("");
+  $("roomFilter").innerHTML=`<option value="">全教室</option>${roomOpts}`;$("eventRoom").innerHTML=roomOpts;$("recurringRoom").innerHTML=roomOpts;
+  const teacherOpts=state.teachers.filter(t=>t.role==="teacher"&&t.active).map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
+  $("eventTeacher").innerHTML=teacherOpts;$("recurringTeacher").innerHTML=`<option value="">未設定</option>${teacherOpts}`;
+  $("eventCategory").innerHTML=state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+  $("availCategory").innerHTML=`<option value="">指定なし</option>`+state.categories.filter(c=>c.id!=="rental").map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+  $("masterClassTypeCategory").innerHTML=state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+  $("categoryFilter").innerHTML=`<option value="all">全カテゴリ</option>${state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("")}`;
+  $("eventStatus").innerHTML=Object.keys(statuses).map(k=>`<option value="${k}">${statuses[k]}</option>`).join("");
+  $("studentClass").innerHTML=state.recurringClasses.filter(r=>r.active!==false).map(r=>`<option value="${r.id}">${r.className}</option>`).join("")||`<option value="">基本スケジュール未登録</option>`;
+  $("recurringWeekday").innerHTML=weekdays.map((w,i)=>`<option value="${i}">${w}曜</option>`).join("");
+  if($("recurringPattern")){const pv=$("recurringPattern").value;$("recurringPattern").innerHTML=Object.keys(PATTERNS).map(k=>`<option value="${k}">${PATTERNS[k].label}</option>`).join("");if(pv)$("recurringPattern").value=pv;}
+  if(selected.eventCategory&&[...$("eventCategory").options].some(o=>o.value===selected.eventCategory))$("eventCategory").value=selected.eventCategory;
+  fillClassTypeSelectors();
+  Object.entries(selected).forEach(([id,val])=>{if(val&&$(id)&&[...$(id).options||[]].some(o=>o.value===val))$(id).value=val;});
+}
+function fillClassTypeSelectors(){
+  const current=$("eventClassType")?.value;
+  const cat=$("eventCategory").value||"music";
+  $("eventClassType").innerHTML=state.classTypes.filter(t=>t.categoryId===cat&&t.active!==false).map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
+  if(current&&[...$("eventClassType").options].some(o=>o.value===current))$("eventClassType").value=current;
+  $("recurringClassType").innerHTML=state.classTypes.filter(t=>t.active!==false).map(t=>`<option value="${t.id}">${byId(state.categories,t.categoryId).name} / ${t.name}</option>`).join("");
+}
+function bind(){
+  $("btnLogin").onclick=()=>{const u=byId(state.teachers,$("loginUser").value);if(($("loginPin").value||"")!==u.pin)return toast("PINが違います");loginAs(u);};
+  document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{showView(b.dataset.view);document.body.classList.remove("nav-open");});
+  $("navToggle").onclick=()=>document.body.classList.toggle("nav-open");
+  $("navBackdrop").onclick=()=>document.body.classList.remove("nav-open");
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");selectedCategory=b.dataset.cat;render();});
+  $("categoryFilter").onchange=()=>{selectedCategory=$("categoryFilter").value;renderTabs();render();};
+  $("roomFilter").onchange=render;$("currentDate").onchange=()=>{$("eventDate").value=$("currentDate").value;render();};
+  $("prevDay").onclick=()=>shiftPeriod(-1);$("nextDay").onclick=()=>shiftPeriod(1);$("btnQuickAdd").onclick=()=>{clearForm();showView("input");};
+  $("btnSwitchUser").onclick=()=>{$("loginForm").classList.remove("hidden");$("loginCompact").classList.add("hidden");$("loginBox").classList.remove("signedin");};
+  $("roomsDayTab").onclick=()=>{roomsMode="day";render();};$("roomsMonthTab").onclick=()=>{roomsMode="month";render();};
+  $("monthTeacher").onchange=()=>renderMonth();
+  $("recurringRoomFilter").onchange=renderRecurring;$("recurringOnlyEmpty").onchange=renderRecurring;
+  $("eventCategory").onchange=fillClassTypeSelectors;["eventDate","eventRoom","eventTeacher","eventStart","eventEnd","eventClassType","eventStatus"].forEach(id=>$(id).onchange=renderFormCheck);
+  $("btnSaveEvent").onclick=saveEvent;$("btnDeleteEvent").onclick=deleteEvent;$("btnClearForm").onclick=clearForm;
+  $("btnFindAvailability").onclick=renderAvailability;
+  $("btnSaveRecurring").onclick=saveRecurring;$("btnGenerateMonth").onclick=generateMonthEvents;$("btnGenerateYear").onclick=generateYearEvents;$("btnRebuildEvents").onclick=rebuildEvents;$("btnDeleteRecurring").onclick=deleteRecurring;
+  $("studentRange").onchange=renderStudentSchedule;$("studentClass").onchange=renderStudentSchedule;$("btnPrintStudent").onclick=()=>window.print();
+  $("btnSaveSettings").onclick=()=>{localStorage.setItem(URL_KEY,$("gasUrl").value.trim());toast("設定を保存しました");};
+  $("btnLoadRemote").onclick=loadRemote;$("btnSaveRemote").onclick=saveRemote;
+  $("btnResetSeed").onclick=()=>{if(!confirm("ファイルの最新スケジュールを読み込み直します。このアプリ上で直接手入力した予定・割当は消えます（Claude経由でファイルに反映済みの変更は読み込まれます）。生徒数は今読み込まれている値を引き継ぎます。よろしいですか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("最新スケジュールを読み込み、年度予定を作成しました");};
+  $("btnMergeMasters").onclick=mergeMasters;
+  $("btnBackup").onclick=downloadBackup;
+  $("btnRestore").onclick=()=>$("restoreFile").click();
+  $("restoreFile").onchange=restoreBackup;
+  $("btnCopyShare").onclick=copyShareText;
+  $("btnSaveTeacherMaster").onclick=saveTeacherMaster;$("btnNewTeacherMaster").onclick=clearTeacherMaster;
+  $("btnSaveRoomMaster").onclick=saveRoomMaster;$("btnNewRoomMaster").onclick=clearRoomMaster;
+  $("btnSaveClassTypeMaster").onclick=saveClassTypeMaster;$("btnNewClassTypeMaster").onclick=clearClassTypeMaster;
+}
+function loginAs(u){currentUser=u;$("loginUser").value=u.id;$("loginPin").value="";$("loginStatus").textContent=`${u.name}でログイン中`;$("loginForm").classList.add("hidden");$("loginCompact").classList.remove("hidden");$("loginBox").classList.add("signedin");document.querySelectorAll(".manager-only").forEach(el=>el.classList.toggle("hidden",!isManager()));document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!isAdmin()));if(!isManager()&&currentView==="teachers")showView("rooms");if(!isAdmin()&&["recurring","settings"].includes(currentView))showView("rooms");render();}
+function showView(v){currentView=v;document.querySelectorAll(".nav-btn,.view").forEach(el=>el.classList.remove("active"));document.querySelector(`.nav-btn[data-view="${v}"]`)?.classList.add("active");$(v).classList.add("active");$("title").textContent={rooms:"教室使用表",teachers:"講師スケジュール",input:"予定入力",availability:"空き教室検索",month:"講師カレンダー",student:"生徒向け予定",recurring:"基本スケジュール",settings:"設定",share:"共有用まとめ"}[v];render();}
+function shiftPeriod(n){const d=new Date($("currentDate").value+"T00:00:00");if(isMonthlyView())d.setMonth(d.getMonth()+n);else d.setDate(d.getDate()+n);$("currentDate").value=ymd(d);$("eventDate").value=$("currentDate").value;render();}
+function renderDateLabel(){const d=new Date($("currentDate").value+"T00:00:00");$("dateLabel").textContent=isMonthlyView()?`${d.getFullYear()}年${d.getMonth()+1}月`:`${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;}
+function render(){fillSelectors();renderTabs();renderDateLabel();renderStats();renderRooms();renderTeachers();renderConflicts();renderMonth();renderStudentSchedule();renderRecurring();renderFormCheck();renderAvailability();renderMasters();renderShareText();saveLocal();}
+function renderTabs(){document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.cat===selectedCategory));$("categoryFilter").value=selectedCategory;}
+function renderStats(){const evs=filteredEvents();const used=new Set(evs.map(e=>e.roomId));const conf=conflictsFor(state.events.filter(e=>e.date===$("currentDate").value));$("statEvents").textContent=evs.length;$("statRooms").textContent=Math.max(0,state.rooms.filter(r=>r.active).length-used.size);$("statTentative").textContent=evs.filter(e=>e.status==="tentative").length;$("statConflicts").textContent=conf.length;}
+function renderRooms(){
+  const monthMode=roomsMode==="month";
+  $("roomsDayWrap").classList.toggle("hidden",monthMode);
+  $("roomsMonthWrap").classList.toggle("hidden",!monthMode);
+  $("roomsDayTab").classList.toggle("active",!monthMode);
+  $("roomsMonthTab").classList.toggle("active",monthMode);
+  if(monthMode){renderRoomMonth();return;}
+  $("roomsPanelTitle").textContent="教室別タイムライン";
+  const rooms=state.rooms.filter(r=>r.active).filter(r=>!$("roomFilter").value||r.id===$("roomFilter").value);
+  $("roomHead").innerHTML=`<tr><th class="time">時間</th>${rooms.map(r=>`<th>${r.name}</th>`).join("")}</tr>`;
+  const confIds=new Set(conflictsFor().flatMap(c=>[c.a.id,c.b.id]));
+  $("roomRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${rooms.map(r=>`<td>${eventsInSlot(r.id,t,"room").map(e=>eventCard(e,confIds)).join("")}</td>`).join("")}</tr>`).join("");
+}
+function renderRoomMonth(){
+  const roomId=$("roomFilter").value;
+  const room=byId(state.rooms,roomId);
+  $("roomsPanelTitle").textContent=room.id?`${room.name} の月予定`:"教室を選んでください";
+  $("roomsMonthHint").classList.toggle("hidden",!!room.id);
+  if(!room.id){$("roomMonthGrid").innerHTML="";return;}
+  const base=new Date($("currentDate").value+"T00:00:00");const y=base.getFullYear(),m=base.getMonth();
+  const first=new Date(y,m,1);const offset=first.getDay();const days=new Date(y,m+1,0).getDate();
+  let html=weekdays.map(w=>`<div class="day" style="min-height:34px;background:#f8faf7"><b>${w}</b></div>`).join("");
+  for(let i=0;i<offset+days;i++){const d=i-offset+1;if(d<1){html+=`<div class="day"></div>`;continue}
+    const date=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const evs=state.events.filter(e=>e.roomId===roomId&&e.date===date&&e.status!=="cancelled"&&(selectedCategory==="all"||categoryForEvent(e)===selectedCategory)).sort((a,b)=>minutes(a.start)-minutes(b.start));
+    html+=`<div class="day" onclick="pickDate('${date}')"><b>${d}</b>${evs.map(e=>`<div class="event ${categoryForEvent(e)}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${canSeeDetail(e)?classType(e.classTypeId).name:"使用中"}</small></div>`).join("")}</div>`;
+  }
+  $("roomMonthGrid").innerHTML=html;
+}
+function renderTeachers(){
+  const teachers=state.teachers.filter(t=>t.role==="teacher"&&t.active);
+  $("teacherHead").innerHTML=`<tr><th class="time">時間</th>${teachers.map(t=>`<th>${t.name.replace("先生","")}</th>`).join("")}</tr>`;
+  const confIds=new Set(conflictsFor().flatMap(c=>[c.a.id,c.b.id]));
+  $("teacherRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${teachers.map(x=>`<td>${eventsInSlot(x.id,t,"teacher").map(e=>eventCard(e,confIds)).join("")}</td>`).join("")}</tr>`).join("");
+}
+function eventsInSlot(id,t,mode){const s=minutes(t),e=s+30;return filteredEvents().filter(x=>(mode==="room"?x.roomId===id:x.teacherId===id)&&minutes(x.start)<e&&s<minutes(x.end));}
+function eventCard(e,confIds){const cls=`event ${categoryForEvent(e)} ${confIds.has(e.id)?"conflict":""}`;return `<div class="${cls}" onclick="editEvent('${e.id}')"><div class="title">${eventLabel(e)}</div><small>${e.start}-${e.end}</small><small>${eventSub(e)}</small></div>`;}
+function renderConflicts(){
+  const all=conflictsFor().filter(c=>selectedCategory==="all"||categoryForEvent(c.a)===selectedCategory||categoryForEvent(c.b)===selectedCategory);
+  all.sort((x,y)=>String(x.a.date+x.a.start).localeCompare(String(y.a.date+y.a.start)));
+  const fmt=d=>{const dt=new Date(d+"T00:00:00");return `${dt.getMonth()+1}/${dt.getDate()}(${weekdays[dt.getDay()]})`;};
+  $("conflictList").innerHTML=all.length?all.map(c=>{
+    const who=c.type==="room"?byId(state.rooms,c.a.roomId).name:byId(state.teachers,c.a.teacherId).name;
+    return `<div class="warn" style="cursor:pointer" onclick="pickDate('${c.a.date}')"><b>${fmt(c.a.date)} ${c.type==="room"?"教室":"講師"}重複：${who}</b><br>${classType(c.a.classTypeId).name}（${c.a.start}-${c.a.end}）<br>${classType(c.b.classTypeId).name}（${c.b.start}-${c.b.end}）</div>`;
+  }).join(""):`<div class="item">重複はありません。</div>`;
+}
+function renderAvailability(){
+  if(!$("availabilityResult"))return;
+  const probe={date:$("availDate").value,start:$("availStart").value,end:$("availEnd").value,status:"tentative"};
+  if(!probe.date||!probe.start||!probe.end||minutes(probe.start)>=minutes(probe.end)){$("availabilityResult").innerHTML=`<div class="item">日付と時間を指定してください。</div>`;return;}
+  const busy=state.events.filter(e=>e.status!=="cancelled"&&overlaps(probe,e)).map(e=>e.roomId);
+  const busySet=new Set(busy);
+  const free=state.rooms.filter(r=>r.active&& !busySet.has(r.id));
+  const used=state.rooms.filter(r=>r.active&& busySet.has(r.id));
+  $("availabilityResult").innerHTML=`${free.length?free.map(r=>`<div class="item"><b>${r.name}</b><br>${probe.start}-${probe.end} 空き</div>`).join(""):`<div class="warn">空き教室がありません。</div>`}${used.length?`<div class="item"><b>使用中</b><br>${used.map(r=>r.name).join(" / ")}</div>`:""}`;
+}
+function renderMonth(){
+  // 講師選択肢（非managerは自分に固定）
+  const teachers=state.teachers.filter(t=>t.role==="teacher"&&t.active);
+  const prev=$("monthTeacher").value;
+  $("monthTeacher").innerHTML=teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join("")||`<option value="">講師未登録</option>`;
+  if(!isManager()&&currentUser){$("monthTeacher").value=currentUser.id;$("monthTeacher").disabled=true;}
+  else{$("monthTeacher").disabled=false;if(prev&&[...$("monthTeacher").options].some(o=>o.value===prev))$("monthTeacher").value=prev;}
+  const teacherId=$("monthTeacher").value;
+  const teacher=byId(state.teachers,teacherId);
+  $("monthTitle").textContent=teacher.id?`${teacher.name} の月予定`:"講師カレンダー";
+  const base=new Date($("currentDate").value+"T00:00:00");const y=base.getFullYear(),m=base.getMonth();const first=new Date(y,m,1);const offset=first.getDay();const days=new Date(y,m+1,0).getDate();
+  let html=weekdays.map(w=>`<div class="day" style="min-height:34px;background:#f8faf7"><b>${w}</b></div>`).join("");
+  for(let i=0;i<offset+days;i++){const d=i-offset+1;if(d<1){html+=`<div class="day"></div>`;continue}const date=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;const evs=state.events.filter(e=>e.teacherId===teacherId&&e.date===date&&e.status!=="cancelled").sort((a,b)=>minutes(a.start)-minutes(b.start));html+=`<div class="day" onclick="pickDate('${date}')"><b>${d}</b>${evs.map(e=>`<div class="event ${categoryForEvent(e)}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${byId(state.rooms,e.roomId).name} ${classType(e.classTypeId).name}</small></div>`).join("")}</div>`;}
+  $("monthGrid").innerHTML=html;
+}
+function renderStudentSchedule(){
+  if(!$("studentSchedule"))return;
+  const recurringId=$("studentClass").value;
+  const recurring=byId(state.recurringClasses,recurringId);
+  if(!recurring.id){$("studentSchedule").innerHTML=`<div class="item">基本スケジュールを登録すると、生徒向け予定表を作れます。</div>`;return;}
+  const range=$("studentRange").value;
+  const months=range==="year"?12:range==="half"?6:3;
+  const base=range==="year"?schoolYearStart($("currentDate").value):new Date($("currentDate").value+"T00:00:00");
+  const lessonEvents=state.events.filter(e=>e.sourceRecurringClassId===recurringId&&e.status!=="cancelled"&&categoryForEvent(e)!=="rental").sort((a,b)=>String(a.date+a.start).localeCompare(String(b.date+b.start)));
+  const teacher=byId(state.teachers,recurring.teacherId).name||"講師未設定";
+  const room=byId(state.rooms,recurring.roomId).name||"";
+  const classTypeName=classType(recurring.classTypeId).name||"";
+  let html="";
+  for(let i=0;i<months;i++){
+    const d0=new Date(base.getFullYear(),base.getMonth()+i,1);
+    const y=d0.getFullYear(),m=d0.getMonth();
+    const evs=lessonEvents.filter(e=>{
+      const d=new Date(e.date+"T00:00:00");
+      return d.getFullYear()===y&&d.getMonth()===m;
+    });
+    const first=new Date(y,m,1);
+    const offset=first.getDay();
+    const days=new Date(y,m+1,0).getDate();
+    let cells=weekdays.map((w,idx)=>`<div class="student-wday ${idx===0?"sun":idx===6?"sat":""}">${w}</div>`).join("");
+    for(let c=0;c<offset+days;c++){
+      const day=c-offset+1;
+      if(day<1){cells+=`<div class="student-day"></div>`;continue;}
+      const date=`${y}-${String(m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      const dow=new Date(date+"T00:00:00").getDay();
+      const dayEvents=evs.filter(e=>e.date===date);
+      cells+=`<div class="student-day ${dow===0?"sun":dow===6?"sat":""}"><b>${day}</b>${dayEvents.length?`<div class="lesson-mark">${day}</div>`:""}</div>`;
+    }
+    html+=`<div class="student-month"><h3>${y}年${m+1}月</h3><div class="student-grid">${cells}</div></div>`;
+  }
+  const list=range==="year"?"":`<div class="student-list"><b>レッスン日</b> ${lessonEvents.filter(e=>inRange(e.date,base,months)).map(e=>`${Number(e.date.slice(5,7))}/${Number(e.date.slice(8,10))}`).join("・")||"未作成"}</div>`;
+  $("studentSchedule").innerHTML=`<div class="student-sheet range-${range}"><div class="student-title"><div><h2>${recurring.className}</h2><p>${classTypeName} / ${teacher} / ${room}</p></div><p>${recurring.start}-${recurring.end}</p></div><div class="student-calendars">${html}</div>${list}</div>`;
+}
+function schoolYearStart(dateStr){const d=new Date(dateStr+"T00:00:00");const y=d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;return new Date(y,3,1);}
+function inRange(dateStr,start,months){const d=new Date(dateStr+"T00:00:00");const end=new Date(start.getFullYear(),start.getMonth()+months,1);return d>=start&&d<end;}
+function renderShareText(){
+  if(!$("shareText"))return;
+  $("shareText").value=`# 教室カレンダーWebアプリ 仕様まとめ
+
+## 背景
+
+講師予定はGoodNotesの年間カレンダーにレッスン日・出勤日に丸をつけて管理している。
+音楽・英会話・健康系クラスで教室を共有しており、付け合わせが大変で、教室バッティングや確認漏れが起きやすい。
+
+Googleカレンダーで部屋のバッティング防止を考えていたが、講師ごとの予定把握やプライベートカレンダーとの混在が分かりづらいため、専用Webアプリ化する方針。
+
+## 利用者
+
+- 管理者
+- スケジュール管理者
+- 講師15人程度
+- 生徒向けには配布用予定表を出力
+- 生徒はログインなし。管理者または講師が印刷して配布する
+
+## 教室
+
+- 横浜
+- 上大岡
+- 町田
+- 町田木曽
+- 平塚
+- 茅ヶ崎
+- 阪東橋
+- 青葉台(大成)
+- 青葉台(白猫屋)
+- 長津田
+- 藤沢
+- 東戸塚
+- 永山
+
+青葉台のみ2つある。横浜はレンタルスペースとして貸し出すことがある。将来的に他教室もレンタル可能になる可能性あり。画面上に「貸出可」などの表記は不要。
+
+## カテゴリ
+
+メインカテゴリ: 音楽 / 英会話 / 健康 / レンタル
+
+例外カテゴリ: レンタル
+
+クラス種別: ウクレレ / 三線 / リコーダー / ピアノ / 日常英会話 / おもてなし英会話 / 英語で絵本 / 英語の歌 / 英語でシネマ / ヨガ / 朗読 / フラメンコギター / フラメンコ / フラダンス / スペース貸出
+
+## 講師とクラス
+
+同じ講師が複数ジャンルを担当することがあるため、講師にジャンルを固定しない。
+予定ごとに「講師」「カテゴリ」「クラス種別」「クラス名」を持たせる。
+
+## クラス名
+
+レベル分けはあまりしていないため、ウクレレ初級のような表現は基本にしない。
+
+実際の呼び方:
+
+- 1・3週月曜10時クラス
+- 2・4週水曜13時半クラス
+- ウクレレ新クラス
+- 英会話 火曜11時クラス
+
+クラス名は自由入力。基本スケジュールから自動候補を出してもよいが、変更可能にする。
+
+## 予定単位
+
+- 日単位ではなく時間単位
+- 予約単位は10分刻み
+- NG時間の入力は今のところ不要
+
+## 基本スケジュール
+
+現状の基本スケジュールはPDFで管理されている。
+形式は「拠点ごと」「第1・第3週 / 第2・第4週」「曜日」「時間帯」「クラス種別」の表。
+クラスは基本的に月2回。
+
+基本スケジュールとして持ちたい項目:
+
+- クラス名
+- メインカテゴリ
+- クラス種別
+- 講師
+- 教室
+- 開催パターン
+- 曜日
+- 基本開始時刻
+- 基本終了時刻
+
+この基本スケジュールから、月次予定または年間予定を生成できるようにしたい。
+休講・振替・時間変更は、生成後の実予定側で修正する。
+
+## 実予定データ
+
+予定ごとに持つ項目:
+
+- 日付
+- 開始時刻
+- 終了時刻
+- 教室
+- 講師
+- メインカテゴリ
+- クラス種別
+- クラス名
+- 状態: 仮 / 確定 / 休講 / 振替
+- メモ
+- 基本スケジュール由来ID
+
+生徒名は不要。
+
+## 重複チェック
+
+- 同じ教室・同じ時間の重複
+- 同じ講師・同じ時間の重複
+
+時間帯の重なり判定:
+
+A.start < B.end && B.start < A.end
+
+休講予定は重複チェック対象外。
+
+## 権限
+
+ログイン方式: 講師選択 + PIN
+
+管理者:
+
+- 全予定を閲覧
+- 全予定を作成・編集・削除
+- 基本スケジュール管理
+- 講師、教室、クラス種別マスタ管理
+
+スケジュール管理者:
+
+- 全講師の予定を閲覧・作成・編集・休講・振替
+- 教室使用表と講師スケジュール表を見られる
+- GAS/保存設定、マスタ管理、基本スケジュール管理は触らせない
+
+講師:
+
+- 自分の予定を作成・編集
+- 他講師の予定詳細は見られなくてよい
+- 他講師の予定は、必要なら「使用中」程度の表示でよい
+
+## 管理者向け画面
+
+教室使用表:
+
+- 横: 教室
+- 縦: 時間
+- 予定ブロックに講師名、クラス種別、クラス名、状態
+- 重複は赤表示
+- カテゴリ絞り込み
+- 教室絞り込み
+
+講師スケジュール:
+
+- 横: 講師
+- 縦: 時間
+- 講師重複を赤表示
+
+予定入力:
+
+- 日付
+- 教室
+- 開始時刻
+- 終了時刻
+- 講師
+- メインカテゴリ
+- クラス種別
+- クラス名
+- 状態
+- メモ
+
+入力時に教室重複・講師重複を表示。
+
+基本スケジュール管理:
+
+- クラス名
+- 第1・第3 / 第2・第4
+- 曜日
+- 教室
+- 講師
+- クラス種別
+- 開始時刻
+- 終了時刻
+
+表示月の予定を自動生成できる。
+
+## 生徒向け予定表
+
+生徒さんに配布できる予定表が欲しい。
+
+要件:
+
+- 四半期単位、または年間予定
+- 生徒向けなので、できるだけシンプルで分かりやすい
+- A4 1枚に収まる必要がある
+- 視覚でパッと分かる必要がある
+- リスト形式では分かりづらい
+- カレンダーが表示され、その日付枠に予定が記載される形がよい
+- 管理者用の詳細、重複警告、メモ、講師都合などは不要
+- レンタル予定は除外
+- 表示する情報は最小限: 日付、曜日、時間、クラス種別、クラス名
+
+課題:
+
+- 四半期なら3ヶ月分をA4 1枚に収める必要がある
+- 年間なら12ヶ月分をA4 1枚に収める必要があり、かなり情報量を絞る必要がある
+- 生徒向け予定表は、通常の管理画面とは別デザインにした方がよい
+
+## フェーズ分け
+
+Phase 1:
+
+- 教室予約
+- 講師予定
+- 重複チェック
+- 基本スケジュール生成
+- 生徒向けA4予定表
+- 講師/スケジュール管理者/代表の3層権限
+- 講師向け空き教室検索
+
+Phase 2:
+
+- レンタル公開カレンダー
+- 仮予約フォーム
+- 支払いステータス
+- 決済リンク
+- 公開フォームのスパム/個人情報対策
+
+## 実装方針
+
+まずは既存の出席表アプリと同じく、HTML + Google Apps Script + GoogleスプレッドシートでMVPを作る。
+
+## 相談したいこと
+
+特に相談したいのは、生徒向け予定表のデザイン。
+
+条件:
+
+- A4 1枚
+- 四半期または年間
+- カレンダー形式
+- 生徒さんが直感的に分かる
+- 情報量は最小限
+- 管理画面とは別デザインでよい
+`;
+}
+async function copyShareText(){
+  renderShareText();
+  const text=$("shareText").value;
+  try{
+    await navigator.clipboard.writeText(text);
+    toast("共有用まとめをコピーしました");
+  }catch(e){
+    $("shareText").focus();
+    $("shareText").select();
+    document.execCommand("copy");
+    toast("共有用まとめをコピーしました");
+  }
+}
+function renderRecurring(){
+  // フィルタ用 教室セレクタ
+  const rf=$("recurringRoomFilter");const prevRf=rf.value;
+  rf.innerHTML=`<option value="">全教室</option>`+state.rooms.filter(r=>r.active).map(r=>`<option value="${r.id}">${r.name}</option>`).join("");
+  if(prevRf&&[...rf.options].some(o=>o.value===prevRf))rf.value=prevRf;
+  const onlyEmpty=$("recurringOnlyEmpty").checked;
+  const teacherOptions=tid=>state.teachers.filter(t=>t.role==="teacher"&&t.active).map(t=>`<option value="${t.id}"${t.id===tid?" selected":""}>${t.name}</option>`).join("");
+  let list=state.recurringClasses;
+  if(rf.value)list=list.filter(r=>r.roomId===rf.value);
+  if(onlyEmpty)list=list.filter(r=>!r.teacherId);
+  if(!list.length){$("recurringList").innerHTML=`<div class="item">該当する基本スケジュールがありません。</div>`;return;}
+  $("recurringList").innerHTML=list.map(r=>`<div class="mini-row${r.teacherId?"":" off"}">
+    <div style="flex:1;cursor:pointer" onclick="editRecurring('${r.id}')">
+      <b>${r.className}</b>
+      <small>${patternLabel(r.weekPattern)} ${weekdays[r.weekday]}曜 ${r.start}-${r.end} / ${byId(state.rooms,r.roomId).name} / ${classType(r.classTypeId).name}</small>
+      ${r.note?`<small>${r.note}</small>`:""}
+    </div>
+    <select class="chip" style="min-width:96px" onchange="assignRecurringTeacher('${r.id}',this.value)">
+      <option value=""${r.teacherId?"":" selected"}>未割当</option>
+      ${teacherOptions(r.teacherId)}
+    </select>
+  </div>`).join("");
+}
+let recurringViewMode="list";
+let gridWeekMode="13";
+function setRecurringView(mode){
+  recurringViewMode=mode;
+  $("btnRecurringViewList").style.fontWeight=mode==="list"?"700":"400";
+  $("btnRecurringViewGrid").style.fontWeight=mode==="grid"?"700":"400";
+  $("recurringLayout").style.display=mode==="list"?"":"none";
+  $("recurringGridPanel").style.display=mode==="grid"?"":"none";
+  if(mode==="grid"){
+    // 教室フィルタ（リスト側の選択を引き継ぐ）
+    gridRoomId=$("recurringRoomFilter").value||"";
+    renderGridRoomTabs();
+    renderRecurringWeekGrid();
+  }
+}
+window.setRecurringView=setRecurringView;
+let gridRoomId="";
+function renderGridRoomTabs(){
+  const tabs=[{id:"",name:"全教室"},...state.rooms.map(r=>({id:r.id,name:r.name}))];
+  $("recurringRoomTabs").innerHTML=tabs.map(t=>{
+    const on=t.id===gridRoomId;
+    return `<button class="chip" onclick="setGridRoom('${t.id}')" style="font-weight:${on?"700":"400"};${on?"background:#1f3d2b;color:#fff;border-color:#1f3d2b":""}">${t.name}</button>`;
+  }).join("");
+}
+function setGridRoom(id){
+  gridRoomId=id;
+  $("recurringRoomFilter").value=id; // リスト側と同期
+  renderGridRoomTabs();
+  renderRecurringWeekGrid();
+}
+window.setGridRoom=setGridRoom;
+function setGridWeek(mode){
+  gridWeekMode=mode;
+  document.querySelectorAll('[id^="btnGrid"]').forEach(btn=>{
+    btn.style.fontWeight=btn.id==="btnGrid"+mode?"700":"400";
+  });
+  renderRecurringWeekGrid();
+}
+window.setGridWeek=setGridWeek;
+function renderRecurringWeekGrid(){
+  const roomId=gridRoomId;
+  let list=state.recurringClasses.filter(r=>r.active!==false);
+  if(roomId)list=list.filter(r=>r.roomId===roomId);
+
+  // パターンフィルタ
+  const PATTERN_13=["first_third","weekly","first_second_third","first_second_third_fourth"];
+  const PATTERN_24=["second_fourth","weekly","second_third_fourth","first_second_third_fourth"];
+  if(gridWeekMode==="13")list=list.filter(r=>PATTERN_13.includes(r.weekPattern));
+  else if(gridWeekMode==="24")list=list.filter(r=>PATTERN_24.includes(r.weekPattern));
+
+  // カテゴリ色
+  const catColor={music:"#dbeafe",english:"#dcfce7",health:"#ede9fe",rental:"#fef9c3"};
+  const catBorder={music:"#3b82f6",english:"#22c55e",health:"#a855f7",rental:"#eab308"};
+  const catText={music:"#1e3a5f",english:"#14532d",health:"#4a044e",rental:"#713f12"};
+
+  // 時間軸：8:00〜21:00
+  const START_MIN=8*60, END_MIN=21*60;
+  const PX_PER_MIN=1.4;
+
+  // 曜日列：月(1)〜土(6) + 日(0)
+  const cols=[1,2,3,4,5,6,0];
+  const colLabel=["月","火","水","木","金","土","日"];
+
+  // 各セル（曜日）のクラスをグループ化
+  const cells={}; // key=weekday
+  cols.forEach(d=>{cells[d]=[];});
+  list.forEach(r=>{
+    const wd=Number(r.weekday);
+    if(cells[wd]!==undefined)cells[wd].push(r);
+  });
+
+  // 重複検出（同曜日・同教室or同講師・時間重複）
+  const overlapIds=new Set();
+  list.forEach((a,i)=>{
+    list.slice(i+1).forEach(b=>{
+      if(a.weekday!==b.weekday)return;
+      const aS=minutes(a.start),aE=minutes(a.end),bS=minutes(b.start),bE=minutes(b.end);
+      if(aS>=bE||bS>=aE)return;
+      if(a.roomId&&a.roomId===b.roomId){overlapIds.add(a.id);overlapIds.add(b.id);}
+      if(a.teacherId&&a.teacherId===b.teacherId){overlapIds.add(a.id);overlapIds.add(b.id);}
+    });
+  });
+
+  const totalH=(END_MIN-START_MIN)*PX_PER_MIN;
+  const timeAxis=[];
+  for(let m=START_MIN;m<=END_MIN;m+=60){
+    const top=(m-START_MIN)*PX_PER_MIN;
+    timeAxis.push(`<div style="position:absolute;top:${top}px;left:0;right:0;border-top:1px solid #e5e7eb;line-height:0"><span style="position:absolute;top:-8px;left:2px;font-size:10px;color:#9ca3af">${String(m/60).padStart(2,"0")}:00</span></div>`);
+  }
+
+  const colW=110;
+  const timeW=36;
+
+  let colsHtml=cols.map((wd,ci)=>{
+    const recs=cells[wd];
+    const blocks=recs.map(r=>{
+      const s=minutes(r.start),e=minutes(r.end);
+      const top=(s-START_MIN)*PX_PER_MIN;
+      const h=Math.max((e-s)*PX_PER_MIN,20);
+      const ct=classType(r.classTypeId);
+      const catId=r.categoryId||ct.categoryId;
+      const bg=overlapIds.has(r.id)?"#fee2e2":(catColor[catId]||"#f3f4f6");
+      const border=overlapIds.has(r.id)?"#ef4444":(catBorder[catId]||"#9ca3af");
+      const col=overlapIds.has(r.id)?"#7f1d1d":(catText[catId]||"#111");
+      const tname=byId(state.teachers,r.teacherId).name||"未割当";
+      const rname=byId(state.rooms,r.roomId).name||"";
+      return `<div onclick="editRecurring('${r.id}')" title="${r.className}／${rname}／${tname}" style="position:absolute;top:${top}px;left:2px;right:2px;height:${h}px;background:${bg};border-left:3px solid ${border};border-radius:3px;padding:1px 3px;box-sizing:border-box;cursor:pointer;overflow:hidden;color:${col};font-size:10px;line-height:1.2">
+        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.start} ${ct.name||""}</b>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${tname}</span>
+        ${(isManager()&&r.students)?`<span style="font-size:9px;background:rgba(0,0,0,0.12);border-radius:8px;padding:0 4px">👥${r.students}</span>`:""}
+        ${overlapIds.has(r.id)?`<span style="color:#ef4444;font-weight:700">⚠重複</span>`:""}
+      </div>`;
+    }).join("");
+    return `<div style="position:relative;width:${colW}px;min-width:${colW}px;border-left:1px solid #e5e7eb">
+      <div style="text-align:center;font-weight:700;padding:4px 0;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:13px">${colLabel[ci]}</div>
+      <div style="position:relative;height:${totalH}px">${blocks}</div>
+    </div>`;
+  }).join("");
+
+  $("recurringWeekGrid").innerHTML=`
+    <div style="display:flex;min-width:${timeW+colW*7+4}px">
+      <div style="width:${timeW}px;min-width:${timeW}px;flex-shrink:0">
+        <div style="height:28px;border-bottom:1px solid #e5e7eb"></div>
+        <div style="position:relative;height:${totalH}px">${timeAxis.join("")}</div>
+      </div>
+      ${colsHtml}
+    </div>
+    <div style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;font-size:11px">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#dbeafe;border-left:3px solid #3b82f6;display:inline-block;border-radius:2px"></span>音楽</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#dcfce7;border-left:3px solid #22c55e;display:inline-block;border-radius:2px"></span>英会話</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#ede9fe;border-left:3px solid #a855f7;display:inline-block;border-radius:2px"></span>健康</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#fee2e2;border-left:3px solid #ef4444;display:inline-block;border-radius:2px"></span>重複あり</span>
+    </div>`;
+}
+window.renderRecurringWeekGrid=renderRecurringWeekGrid;
+function downloadBackup(){
+  const d=new Date();const stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}_${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}`;
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`教室カレンダー_backup_${stamp}.json`;a.click();URL.revokeObjectURL(a.href);
+  toast("バックアップを保存しました");
+}
+function restoreBackup(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(!data||!Array.isArray(data.teachers)||!Array.isArray(data.events))throw new Error("形式が違います");
+      if(!confirm("このバックアップで現在のデータを置き換えます。よろしいですか？"))return;
+      state=data;saveLocal();render();toast("バックアップから復元しました");
+    }catch(err){toast("復元に失敗："+err.message);}
+    finally{e.target.value="";}
+  };
+  reader.readAsText(file);
+}
+function mergeMasters(){
+  const s=seedData();
+  let added=0,renamed=0;
+  // 追加（idが無いものを足す）＋ 名前・ロールの同期（種別/教室/カテゴリも名前同期）
+  const sync=(cur,seed,fields)=>{const map=new Map(cur.map(x=>[x.id,x]));seed.forEach(x=>{const ex=map.get(x.id);if(!ex){cur.push(x);added++;}else{fields.forEach(f=>{if(x[f]!==undefined&&ex[f]!==x[f]){ex[f]=x[f];if(f==="name")renamed++;}});}});};
+  sync(state.teachers,s.teachers,["name","role"]);
+  sync(state.rooms,s.rooms,["name","area"]);
+  sync(state.classTypes,s.classTypes,["name","categoryId"]);
+  sync(state.categories,s.categories,["name"]);
+  saveLocal();render();
+  toast(`マスタを更新：追加${added}件・名称修正${renamed}件（予定はそのまま）`);
+}
+function assignRecurringTeacher(id,teacherId){const r=byId(state.recurringClasses,id);if(!r.id)return;r.teacherId=teacherId;r.categoryId=r.categoryId||classType(r.classTypeId).categoryId;saveLocal();renderRecurring();toast(teacherId?`${byId(state.teachers,teacherId).name} を割当`:"未割当に戻しました");}
+window.assignRecurringTeacher=assignRecurringTeacher;
+function renderMasters(){
+  if(!$("teacherMasterList"))return;
+  $("teacherMasterList").innerHTML=state.teachers.map(t=>`<div class="mini-row ${t.active===false?"off":""}"><div><b>${t.name}</b><small>${t.role||"teacher"} / ${t.active===false?"無効":"有効"}</small></div><div class="mini-actions"><button class="ghost" onclick="editTeacherMaster('${t.id}')">編集</button><button class="ghost" onclick="toggleTeacherMaster('${t.id}')">${t.active===false?"有効化":"無効化"}</button></div></div>`).join("");
+  $("roomMasterList").innerHTML=state.rooms.map(r=>`<div class="mini-row ${r.active===false?"off":""}"><div><b>${r.name}</b><small>${r.active===false?"無効":"有効"}</small></div><div class="mini-actions"><button class="ghost" onclick="editRoomMaster('${r.id}')">編集</button><button class="ghost" onclick="toggleRoomMaster('${r.id}')">${r.active===false?"有効化":"無効化"}</button></div></div>`).join("");
+  $("classTypeMasterList").innerHTML=state.classTypes.map(ct=>`<div class="mini-row ${ct.active===false?"off":""}"><div><b>${ct.name}</b><small>${byId(state.categories,ct.categoryId).name||ct.categoryId} / ${ct.active===false?"無効":"有効"}</small></div><div class="mini-actions"><button class="ghost" onclick="editClassTypeMaster('${ct.id}')">編集</button><button class="ghost" onclick="toggleClassTypeMaster('${ct.id}')">${ct.active===false?"有効化":"無効化"}</button></div></div>`).join("");
+}
+function clearTeacherMaster(){$("masterTeacherId").value="";$("masterTeacherName").value="";$("masterTeacherPin").value="";$("masterTeacherRole").value="teacher";$("masterTeacherActive").checked=true;}
+function focusMaster(inputId){const el=$(inputId);el.scrollIntoView({block:"center",behavior:"smooth"});el.focus();el.select&&el.select();}
+function editTeacherMaster(id){const t=byId(state.teachers,id);$("masterTeacherId").value=t.id;$("masterTeacherName").value=t.name||"";$("masterTeacherPin").value="";$("masterTeacherRole").value=t.role||"teacher";$("masterTeacherActive").checked=t.active!==false;focusMaster("masterTeacherName");}
+function saveTeacherMaster(){const name=$("masterTeacherName").value.trim();if(!name)return toast("講師名を入力してください");const id=$("masterTeacherId").value||("t_"+Date.now());const pin=$("masterTeacherPin").value.trim();if(!$("masterTeacherId").value&&!/^\d{4}$/.test(pin))return toast("新規追加時は4桁PINが必要です");if(pin&&!/^\d{4}$/.test(pin))return toast("PINは4桁の数字にしてください");const i=state.teachers.findIndex(t=>t.id===id);const current=i>=0?state.teachers[i]:{id,pin:""};const next={...current,id,name,role:$("masterTeacherRole").value,active:$("masterTeacherActive").checked};if(pin)next.pin=pin;if(i>=0)state.teachers[i]=next;else state.teachers.push(next);clearTeacherMaster();saveLocal();render();toast("講師マスタを保存しました");}
+function toggleTeacherMaster(id){const t=byId(state.teachers,id);if(t.id==="admin"&&t.active!==false)return toast("管理者は無効化できません");t.active=t.active===false;saveLocal();render();}
+function clearRoomMaster(){$("masterRoomId").value="";$("masterRoomName").value="";$("masterRoomActive").checked=true;}
+function editRoomMaster(id){const r=byId(state.rooms,id);$("masterRoomId").value=r.id;$("masterRoomName").value=r.name||"";$("masterRoomActive").checked=r.active!==false;focusMaster("masterRoomName");}
+function saveRoomMaster(){const name=$("masterRoomName").value.trim();if(!name)return toast("教室名を入力してください");const id=$("masterRoomId").value||("r_"+Date.now());const i=state.rooms.findIndex(r=>r.id===id);const next={...(i>=0?state.rooms[i]:{}),id,name,area:name,active:$("masterRoomActive").checked};if(i>=0)state.rooms[i]=next;else state.rooms.push(next);clearRoomMaster();saveLocal();render();toast("教室マスタを保存しました");}
+function toggleRoomMaster(id){const r=byId(state.rooms,id);r.active=r.active===false;saveLocal();render();}
+function clearClassTypeMaster(){$("masterClassTypeId").value="";$("masterClassTypeName").value="";$("masterClassTypeCategory").value="music";$("masterClassTypeActive").checked=true;}
+function editClassTypeMaster(id){const ct=byId(state.classTypes,id);$("masterClassTypeId").value=ct.id;$("masterClassTypeName").value=ct.name||"";$("masterClassTypeCategory").value=ct.categoryId||"music";$("masterClassTypeActive").checked=ct.active!==false;focusMaster("masterClassTypeName");}
+function saveClassTypeMaster(){const name=$("masterClassTypeName").value.trim();if(!name)return toast("種別名を入力してください");const id=$("masterClassTypeId").value||("ct_"+Date.now());const i=state.classTypes.findIndex(ct=>ct.id===id);const next={...(i>=0?state.classTypes[i]:{}),id,name,categoryId:$("masterClassTypeCategory").value,active:$("masterClassTypeActive").checked};if(i>=0)state.classTypes[i]=next;else state.classTypes.push(next);clearClassTypeMaster();saveLocal();render();toast("クラス種別マスタを保存しました");}
+function toggleClassTypeMaster(id){const ct=byId(state.classTypes,id);ct.active=ct.active===false;saveLocal();render();}
+function renderFormCheck(){
+  const e=formEvent();const others=state.events.filter(x=>x.id!==e.id&&x.date===e.date);const room=others.filter(x=>overlaps(e,x)&&x.roomId===e.roomId);const teacher=others.filter(x=>overlaps(e,x)&&x.teacherId===e.teacherId);
+  $("formCheck").innerHTML=`<div class="${room.length?"warn":"item"}"><b>${room.length?"教室重複あり":"教室OK"}</b><br>${room.length?room.map(eventLabel).join(" / "):"同じ教室の重複はありません。"}</div><div class="${teacher.length?"warn":"item"}"><b>${teacher.length?"講師重複あり":"講師OK"}</b><br>${teacher.length?teacher.map(eventLabel).join(" / "):"同じ講師の重複はありません。"}</div>`;
+}
+function formEvent(){return {id:$("eventId").value||uid(),date:$("eventDate").value,start:$("eventStart").value,end:$("eventEnd").value,roomId:$("eventRoom").value,teacherId:$("eventTeacher").value,categoryId:$("eventCategory").value,classTypeId:$("eventClassType").value,status:$("eventStatus").value,className:$("eventClassName").value,memo:$("eventMemo").value};}
+function clearForm(){$("eventId").value="";$("formTitle").textContent="予定入力";$("eventDate").value=$("currentDate").value;$("eventStart").value="10:00";$("eventEnd").value="11:10";$("eventStatus").value="tentative";$("eventClassName").value="";$("eventMemo").value="";if(!isManager())$("eventTeacher").value=currentUser.id;renderFormCheck();}
+function editEvent(id){const e=byId(state.events,id);if(!canSeeDetail(e)){toast("他講師の予定詳細は表示しません");return}showView("input");$("eventId").value=e.id;$("formTitle").textContent="予定編集";$("eventDate").value=e.date;$("eventRoom").value=e.roomId;$("eventStart").value=e.start;$("eventEnd").value=e.end;$("eventTeacher").value=e.teacherId;$("eventCategory").value=categoryForEvent(e);fillClassTypeSelectors();$("eventClassType").value=e.classTypeId;$("eventStatus").value=e.status;$("eventClassName").value=e.className||"";$("eventMemo").value=e.memo||"";renderFormCheck();}
+function saveEvent(){const e=formEvent();if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ保存できます");if(minutes(e.start)>=minutes(e.end))return toast("終了時刻を開始より後にしてください");const i=state.events.findIndex(x=>x.id===e.id);e.updatedAt=new Date().toISOString();if(i>=0)state.events[i]=e;else state.events.push(e);saveLocal();render();toast("予定を保存しました");}
+function deleteEvent(){const id=$("eventId").value;if(!id)return;const e=byId(state.events,id);if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ削除できます");state.events=state.events.filter(x=>x.id!==id);clearForm();saveLocal();render();toast("削除しました");}
+function saveRecurring(){const id=$("recurringId").value||uid();const classTypeId=$("recurringClassType").value;const r={id,className:$("recurringName").value||suggestClassName(),weekPattern:$("recurringPattern").value,weekday:Number($("recurringWeekday").value),roomId:$("recurringRoom").value,teacherId:$("recurringTeacher").value,classTypeId,categoryId:classType(classTypeId).categoryId,start:$("recurringStart").value,end:$("recurringEnd").value,active:true};const i=state.recurringClasses.findIndex(x=>x.id===id);if(i>=0)state.recurringClasses[i]=r;else state.recurringClasses.push(r);saveLocal();render();toast("基本スケジュールを保存しました");}
+function editRecurring(id){const r=byId(state.recurringClasses,id);$("recurringId").value=r.id;$("recurringName").value=r.className;$("recurringPattern").value=r.weekPattern;$("recurringWeekday").value=r.weekday;$("recurringRoom").value=r.roomId;$("recurringTeacher").value=r.teacherId;$("recurringClassType").value=r.classTypeId;$("recurringStart").value=r.start;$("recurringEnd").value=r.end;if(recurringViewMode==="grid")setRecurringView("list");$("recurringFormPanel").scrollIntoView({behavior:"smooth"});}
+function deleteRecurring(){const id=$("recurringId").value;if(!id)return toast("削除する基本スケジュールを選んでください");if(!confirm("この基本スケジュールを削除しますか？生成済み予定は残ります。"))return;state.recurringClasses=state.recurringClasses.filter(r=>r.id!==id);$("recurringId").value="";$("recurringName").value="";saveLocal();render();toast("基本スケジュールを削除しました");}
+function timeLabel(time){const [h,m]=time.split(":");if(m==="00")return `${Number(h)}時`;if(m==="30")return `${Number(h)}時半`;return `${Number(h)}時${m}`;}
+function suggestClassNameFrom(pattern,weekday,start){return `${patternShort(pattern)}${weekdays[weekday]}曜${timeLabel(start)}クラス`;}
+function suggestClassName(){return suggestClassNameFrom($("recurringPattern").value,Number($("recurringWeekday").value),$("recurringStart").value);}
+function generateMonthEvents(){const base=new Date($("currentDate").value+"T00:00:00");generateEventsForRange(base,1);}
+function generateYearEvents(){generateEventsForRange(schoolYearStart($("currentDate").value),12);}
+function rebuildEvents(){
+  if(!confirm("基本スケジュールから予定を作り直します。\n・仮の自動予定 → 最新に置き換え\n・確定/休講/振替・メモ付き・手動追加 → そのまま残す\nよろしいですか？"))return;
+  const before=state.events.length;
+  const kept=state.events.filter(e=>e.status!=="tentative"||e.memo||!e.sourceRecurringClassId);
+  const removed=before-kept.length;
+  state.events=kept;
+  generateEventsForRange(schoolYearStart($("currentDate").value),12);
+  toast(`予定を作り直しました（仮${removed}件を更新・手入力は保持）`);
+}
+function generateEventsForRange(base,months){let count=0;for(let i=0;i<months;i++){const d=new Date(base.getFullYear(),base.getMonth()+i,1);state.recurringClasses.filter(r=>r.active!==false).forEach(r=>datesForPattern(d.getFullYear(),d.getMonth(),r.weekday,r.weekPattern).forEach(date=>{const exists=state.events.some(e=>e.sourceRecurringClassId===r.id&&e.date===date);if(exists)return;state.events.push({id:uid(),date,start:r.start,end:r.end,roomId:r.roomId,teacherId:r.teacherId,categoryId:r.categoryId||classType(r.classTypeId).categoryId,classTypeId:r.classTypeId,status:"tentative",className:r.className,memo:"",sourceRecurringClassId:r.id,updatedAt:new Date().toISOString()});count++;}));}saveLocal();render();toast(`${count}件作成しました`);}
+function datesForPattern(y,m,weekday,pattern){const target=patternWeeks(pattern);const out=[];for(let d=1;d<=31;d++){const dt=new Date(y,m,d);if(dt.getMonth()!==m)break;if(dt.getDay()===Number(weekday)){const nth=Math.floor((d-1)/7)+1;if(target.includes(nth))out.push(ymd(dt));}}return out;}
+function pickDate(date){$("currentDate").value=date;$("eventDate").value=date;showView("rooms");}
+function busyBtn(btn,label){const orig=btn.textContent;btn.dataset.orig=orig;btn.disabled=true;btn.textContent=label;return()=>{btn.disabled=false;btn.textContent=btn.dataset.orig||orig;};}
+async function loadRemote(){const url=$("gasUrl").value.trim();if(!url)return toast("GAS URLを設定してください");const done=busyBtn($("btnLoadRemote"),"読込中…");try{const res=await fetch(url);const data=await res.json();if(!data.ok)throw new Error(data.error||"load failed");state=data.data||seedData();saveLocal();render();toast("✓ 読み込みました");}catch(e){toast("読み込みに失敗しました: "+e.message);}finally{done();}}
+async function saveRemote(){const url=$("gasUrl").value.trim();if(!url)return toast("GAS URLを設定してください");const done=busyBtn($("btnSaveRemote"),"保存中…");try{const res=await fetch(url,{method:"POST",body:JSON.stringify({action:"save",data:state})});const data=await res.json();if(!data.ok)throw new Error(data.error||"save failed");toast("✓ スプレッドシートに保存しました");}catch(e){toast("保存に失敗しました: "+e.message);}finally{done();}}
+window.editEvent=editEvent;window.editRecurring=editRecurring;window.pickDate=pickDate;
+window.editTeacherMaster=editTeacherMaster;window.toggleTeacherMaster=toggleTeacherMaster;
+window.editRoomMaster=editRoomMaster;window.toggleRoomMaster=toggleRoomMaster;
+window.editClassTypeMaster=editClassTypeMaster;window.toggleClassTypeMaster=toggleClassTypeMaster;
+init();
+</script>
+</body>
+</html>
