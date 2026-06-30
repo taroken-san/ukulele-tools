@@ -160,7 +160,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630b</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630c</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -496,9 +496,10 @@ function makeRecurringSeeds(){
     ["r10","second_fourth",3,"11:30","12:30","ウクレレ","",0],["r10","second_fourth",3,"13:00","14:00","ウクレレ","",0],
     ["r11","first_third",4,"10:00","11:00","ウクレレ","",0],["r11","second_fourth",4,"10:00","11:00","ウクレレ","",0],
     ["r12","first_third",5,"10:00","11:10","ウクレレ","",0],
-    ["r13","second_fourth",3,"11:30","12:30","日常英会話","",0]
+    ["r13","second_fourth",3,"11:30","12:30","日常英会話","",0],
+    ["r1","first_third",0,"10:00","11:00","ウクレレ","",0]
   ];
-  const SEED_TEACHERS=["t13","t13","t15","t2","t15","t2","t22","t14","t11","t11","t17","t10","t10","t10","t5","t5","t14","t14","t2","t2","t2","t5","t5","t2","t2","t17","t2","t8","t8","t2","t2","t2","t2","t2","t2","t2","t5","t2","t2","t16","t18","t18","t9","t1","t1","t1","t1","t1","t4","t4","t14","t14","t11","t4","t4","t10","t10","t10","t10","t10","t10","t12","t7","t12","t12","t10","t10","t12","t12","t4","t4","t1","t1","t1","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t3","t1","t1","t1","t1","t1","t4","t4","t4","t4","t6","t6","t6","t6","t6","t6","t11","t11","t5","t5","t14","t14","t14","t5","t5","t14","t14","t19","t19","t1","t1","t1","t1","t1","t21","t21","t7","t10"];
+  const SEED_TEACHERS=["t13", "t13", "t15", "t2", "t15", "t2", "t22", "t14", "t11", "t11", "t17", "t10", "t10", "t10", "t5", "t5", "t14", "t14", "t2", "t2", "t2", "t5", "t5", "t2", "t2", "t17", "t2", "t8", "t8", "t2", "t2", "t2", "t2", "t2", "t2", "t2", "t5", "t2", "t2", "t16", "t18", "t18", "t9", "t1", "t1", "t1", "t1", "t1", "t4", "t4", "t14", "t14", "t11", "t4", "t4", "t10", "t10", "t10", "t10", "t10", "t10", "t12", "t7", "t12", "t12", "t10", "t10", "t12", "t12", "t4", "t4", "t1", "t1", "t1", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t3", "t1", "t1", "t1", "t1", "t1", "t4", "t4", "t4", "t4", "t6", "t6", "t6", "t6", "t6", "t6", "t11", "t11", "t5", "t5", "t14", "t14", "t14", "t5", "t5", "t14", "t14", "t19", "t19", "t1", "t1", "t1", "t1", "t1", "t21", "t21", "t7", "t10", "t22"];
   return rows.map((r,i)=>{const [roomId,weekPattern,weekday,start,end,typeName,note,students]=r;const classTypeId=typeMap[typeName];return {id:"rc"+(i+1),className:suggestClassNameFrom(weekPattern,weekday,start),weekPattern,weekday,roomId,teacherId:SEED_TEACHERS[i]||inferSeedTeacher(roomId,classTypeId),classTypeId,categoryId:categoryMap[classTypeId],start,end,active:true,note,students:students||0};});
 }
 function inferSeedTeacher(roomId,classTypeId){
