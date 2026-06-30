@@ -170,7 +170,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630h</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630i</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -304,6 +304,8 @@
             <span>生徒向け予定</span>
             <div class="toolbar">
               <select class="chip" id="studentRange"><option value="quarter">四半期</option><option value="half">半年</option><option value="year">年間</option></select>
+              <select class="chip" id="studentRoomFilter"></select>
+              <select class="chip" id="studentTypeFilter"></select>
               <select class="chip" id="studentClass"></select>
               <button class="ghost" id="btnPrintStudent">印刷</button>
             </div>
@@ -559,7 +561,7 @@ function init(){
   fillSelectors();bind();loginAs(state.teachers[0]);render();
 }
 function fillSelectors(){
-  const selected={loginUser:$("loginUser")?.value,roomFilter:$("roomFilter")?.value,eventRoom:$("eventRoom")?.value,eventTeacher:$("eventTeacher")?.value,eventCategory:$("eventCategory")?.value,eventClassType:$("eventClassType")?.value,eventStatus:$("eventStatus")?.value,studentClass:$("studentClass")?.value,recurringRoom:$("recurringRoom")?.value,recurringTeacher:$("recurringTeacher")?.value,recurringClassType:$("recurringClassType")?.value,availCategory:$("availCategory")?.value};
+  const selected={loginUser:$("loginUser")?.value,roomFilter:$("roomFilter")?.value,eventRoom:$("eventRoom")?.value,eventTeacher:$("eventTeacher")?.value,eventCategory:$("eventCategory")?.value,eventClassType:$("eventClassType")?.value,eventStatus:$("eventStatus")?.value,studentClass:$("studentClass")?.value,studentRoomFilter:$("studentRoomFilter")?.value,studentTypeFilter:$("studentTypeFilter")?.value,recurringRoom:$("recurringRoom")?.value,recurringTeacher:$("recurringTeacher")?.value,recurringClassType:$("recurringClassType")?.value,availCategory:$("availCategory")?.value};
   $("loginUser").innerHTML=state.teachers.filter(t=>t.active).map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
   const roomOpts=state.rooms.filter(r=>r.active).map(r=>`<option value="${r.id}">${r.name}</option>`).join("");
   $("roomFilter").innerHTML=`<option value="">全教室</option>${roomOpts}`;$("eventRoom").innerHTML=roomOpts;$("recurringRoom").innerHTML=roomOpts;
@@ -570,13 +572,28 @@ function fillSelectors(){
   $("masterClassTypeCategory").innerHTML=state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
   $("categoryFilter").innerHTML=`<option value="all">全カテゴリ</option>${state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("")}`;
   $("eventStatus").innerHTML=Object.keys(statuses).map(k=>`<option value="${k}">${statuses[k]}</option>`).join("");
-  $("studentClass").innerHTML=state.recurringClasses.filter(r=>r.active!==false).map(r=>`<option value="${r.id}">${r.className}</option>`).join("")||`<option value="">基本スケジュール未登録</option>`;
+  $("studentRoomFilter").innerHTML=`<option value="">全教室</option>${roomOpts}`;
+  $("studentTypeFilter").innerHTML=`<option value="">全種別</option>`+state.classTypes.filter(ct=>ct.active!==false&&ct.categoryId!=="rental").map(ct=>`<option value="${ct.id}">${ct.name}</option>`).join("");
+  fillStudentClassOptions();
   $("recurringWeekday").innerHTML=weekdays.map((w,i)=>`<option value="${i}">${w}曜</option>`).join("");
   if($("recurringPattern")){const pv=$("recurringPattern").value;$("recurringPattern").innerHTML=Object.keys(PATTERNS).map(k=>`<option value="${k}">${PATTERNS[k].label}</option>`).join("");if(pv)$("recurringPattern").value=pv;}
   if(selected.eventCategory&&[...$("eventCategory").options].some(o=>o.value===selected.eventCategory))$("eventCategory").value=selected.eventCategory;
   fillClassTypeSelectors();
   Object.entries(selected).forEach(([id,val])=>{if(val&&$(id)&&[...$(id).options||[]].some(o=>o.value===val))$(id).value=val;});
 }
+function fillStudentClassOptions(){
+  if(!$("studentClass"))return;
+  const rf=$("studentRoomFilter")?.value||"", tf=$("studentTypeFilter")?.value||"";
+  const order={}; state.rooms.forEach((r,i)=>order[r.id]=i);
+  let list=state.recurringClasses.filter(r=>r.active!==false);
+  if(rf)list=list.filter(r=>r.roomId===rf);
+  if(tf)list=list.filter(r=>r.classTypeId===tf);
+  list.sort((a,b)=>(order[a.roomId]-order[b.roomId])||(a.weekday-b.weekday)||String(a.start).localeCompare(String(b.start)));
+  const cur=$("studentClass").value;
+  $("studentClass").innerHTML=list.map(r=>{const rn=byId(state.rooms,r.roomId).name||"";const tn=classType(r.classTypeId).name||"";const te=byId(state.teachers,r.teacherId).name||"未";return `<option value="${r.id}">${rn}／${weekdays[r.weekday]}${r.start}／${tn}・${te}</option>`;}).join("")||`<option value="">該当クラスなし</option>`;
+  if(cur&&[...$("studentClass").options].some(o=>o.value===cur))$("studentClass").value=cur;
+}
+window.fillStudentClassOptions=fillStudentClassOptions;
 function fillClassTypeSelectors(){
   const current=$("eventClassType")?.value;
   const cat=$("eventCategory").value||"music";
@@ -601,7 +618,7 @@ function bind(){
   $("btnSaveEvent").onclick=saveEvent;$("btnDeleteEvent").onclick=deleteEvent;$("btnClearForm").onclick=clearForm;
   $("btnFindAvailability").onclick=renderAvailability;
   $("btnSaveRecurring").onclick=saveRecurring;$("btnGenerateMonth").onclick=generateMonthEvents;$("btnGenerateYear").onclick=generateYearEvents;$("btnRebuildEvents").onclick=rebuildEvents;$("btnDeleteRecurring").onclick=deleteRecurring;
-  $("studentRange").onchange=renderStudentSchedule;$("studentClass").onchange=renderStudentSchedule;$("btnPrintStudent").onclick=()=>window.print();
+  $("studentRange").onchange=renderStudentSchedule;$("studentClass").onchange=renderStudentSchedule;$("studentRoomFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("studentTypeFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("btnPrintStudent").onclick=()=>window.print();
   $("btnSaveSettings").onclick=()=>{localStorage.setItem(URL_KEY,$("gasUrl").value.trim());toast("設定を保存しました");};
   $("btnLoadRemote").onclick=loadRemote;$("btnSaveRemote").onclick=saveRemote;
   $("btnResetSeed").onclick=()=>{if(!confirm("【初期化】ファイルの初期状態に戻し、予定を作り直します。アプリ上で手入力した予定・確定/休講・メモは消えます（生徒数は今の値を引き継ぎます）。データがおかしくなったとき以外は使いません。実行しますか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("初期化しました（予定を作り直しました）");};
