@@ -91,6 +91,15 @@
   .student-wday.sun,.student-day.sun{color:#c84d45}.student-wday.sat,.student-day.sat{color:#2f6f9f}
   .student-day b{font-size:10px;font-weight:700}
   .lesson-mark{width:26px;height:26px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;margin:2px auto 0;font-size:11px;font-weight:800}
+  .lesson-mark.makeup{background:#ef8a3c}
+  .makeup-picker{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:12px;max-height:210px;overflow:auto;background:#fafbf9}
+  .makeup-picker .mp-room{font-size:11px;font-weight:800;color:var(--muted);margin:7px 0 3px}
+  .makeup-picker label{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;margin:0 5px 5px 0;font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:var(--text)}
+  .makeup-picker input{width:auto;margin:0}
+  .mk-legend{display:flex;gap:16px;font-size:11px;margin:2px 0 10px;flex-wrap:wrap}
+  .mk-legend span{display:inline-flex;align-items:center;gap:5px}
+  .mk-dot{width:13px;height:13px;border-radius:50%;display:inline-block}
+  .student-makeup-list{font-size:12px;margin-top:6px;border-top:1px dashed #dfe2dc;padding-top:6px;line-height:1.7}
   .student-list{font-size:12px;margin-top:8px;border-top:1px solid #dfe2dc;padding-top:6px;line-height:1.6}
   .range-year .student-calendars{gap:5px}.range-year .student-month h3{font-size:11px;padding:4px}
   .range-year .student-wday,.range-year .student-day{min-height:25px;padding:1px}.range-year .student-day b{font-size:8px}.range-year .lesson-mark{width:14px;height:14px;font-size:0;margin-top:1px}
@@ -122,6 +131,7 @@
     aside,header,.summary,.view:not(#student),#student .toolbar{display:none!important}
     .app{display:block}.content{padding:0}.panel{border:0;box-shadow:none}.panel-h{display:none}
     #student{display:block!important}.student-calendars{grid-template-columns:repeat(3,1fr)}
+    .makeup-picker{display:none!important}
     .student-sheet{border:0;padding:0}.student-title h2{font-size:18px}.student-title p{font-size:11px}
     body{background:#fff}
   }
@@ -160,7 +170,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630e</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630g</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -299,6 +309,7 @@
             </div>
           </div>
           <div class="panel-b">
+            <div id="studentMakeupPicker" class="makeup-picker"></div>
             <div id="studentSchedule"></div>
           </div>
         </div>
@@ -681,15 +692,40 @@ function renderMonth(){
   for(let i=0;i<offset+days;i++){const d=i-offset+1;if(d<1){html+=`<div class="day"></div>`;continue}const date=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;const evs=state.events.filter(e=>e.teacherId===teacherId&&e.date===date&&e.status!=="cancelled").sort((a,b)=>minutes(a.start)-minutes(b.start));html+=`<div class="day" onclick="pickDate('${date}')"><b>${d}</b>${evs.map(e=>`<div class="event ${categoryForEvent(e)}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${byId(state.rooms,e.roomId).name} ${classType(e.classTypeId).name}</small></div>`).join("")}</div>`;}
   $("monthGrid").innerHTML=html;
 }
+let studentMakeupIds=null, studentMakeupForId=null;
+function studentMakeupCandidates(primary){
+  const order={}; state.rooms.forEach((r,i)=>order[r.id]=i);
+  return state.recurringClasses.filter(r=>r.active!==false&&r.classTypeId===primary.classTypeId&&r.id!==primary.id)
+    .sort((a,b)=>(order[a.roomId]-order[b.roomId])||(a.weekday-b.weekday)||String(a.start).localeCompare(String(b.start)));
+}
+function renderStudentMakeupPicker(primary){
+  const cands=studentMakeupCandidates(primary);
+  if(studentMakeupForId!==primary.id){studentMakeupIds=new Set();studentMakeupForId=primary.id;}
+  if(!cands.length){$("studentMakeupPicker").innerHTML=`<div class="muted" style="font-size:12px">同じ種別の他クラスがありません。</div>`;return;}
+  const byRoom={}; cands.forEach(c=>{(byRoom[c.roomId]=byRoom[c.roomId]||[]).push(c);});
+  let h=`<div style="font-size:12px;font-weight:800;margin-bottom:2px">振替候補にするクラス（${classType(primary.classTypeId).name}）</div>`;
+  Object.keys(byRoom).forEach(rid=>{
+    h+=`<div class="mp-room">${byId(state.rooms,rid).name}</div>`+byRoom[rid].map(c=>{
+      const on=studentMakeupIds.has(c.id);
+      return `<label><input type="checkbox" ${on?"checked":""} onchange="toggleStudentMakeup('${c.id}',this.checked)">${weekdays[c.weekday]} ${c.start} ${byId(state.teachers,c.teacherId).name||"未"}</label>`;
+    }).join("");
+  });
+  $("studentMakeupPicker").innerHTML=h;
+}
+function toggleStudentMakeup(id,on){if(!studentMakeupIds)studentMakeupIds=new Set();if(on)studentMakeupIds.add(id);else studentMakeupIds.delete(id);renderStudentSchedule();}
+window.toggleStudentMakeup=toggleStudentMakeup;
 function renderStudentSchedule(){
   if(!$("studentSchedule"))return;
   const recurringId=$("studentClass").value;
   const recurring=byId(state.recurringClasses,recurringId);
-  if(!recurring.id){$("studentSchedule").innerHTML=`<div class="item">基本スケジュールを登録すると、生徒向け予定表を作れます。</div>`;return;}
+  if(!recurring.id){$("studentSchedule").innerHTML=`<div class="item">基本スケジュールを登録すると、生徒向け予定表を作れます。</div>`;if($("studentMakeupPicker"))$("studentMakeupPicker").innerHTML="";return;}
+  renderStudentMakeupPicker(recurring);
+  const mkIds=studentMakeupIds||new Set();
   const range=$("studentRange").value;
   const months=range==="year"?12:range==="half"?6:3;
   const base=range==="year"?schoolYearStart($("currentDate").value):new Date($("currentDate").value+"T00:00:00");
   const lessonEvents=state.events.filter(e=>e.sourceRecurringClassId===recurringId&&e.status!=="cancelled"&&categoryForEvent(e)!=="rental").sort((a,b)=>String(a.date+a.start).localeCompare(String(b.date+b.start)));
+  const makeupEvents=state.events.filter(e=>mkIds.has(e.sourceRecurringClassId)&&e.status!=="cancelled"&&categoryForEvent(e)!=="rental").sort((a,b)=>String(a.date+a.start).localeCompare(String(b.date+b.start)));
   const teacher=byId(state.teachers,recurring.teacherId).name||"講師未設定";
   const room=byId(state.rooms,recurring.roomId).name||"";
   const classTypeName=classType(recurring.classTypeId).name||"";
@@ -697,26 +733,31 @@ function renderStudentSchedule(){
   for(let i=0;i<months;i++){
     const d0=new Date(base.getFullYear(),base.getMonth()+i,1);
     const y=d0.getFullYear(),m=d0.getMonth();
-    const evs=lessonEvents.filter(e=>{
-      const d=new Date(e.date+"T00:00:00");
-      return d.getFullYear()===y&&d.getMonth()===m;
-    });
-    const first=new Date(y,m,1);
-    const offset=first.getDay();
-    const days=new Date(y,m+1,0).getDate();
+    const evs=lessonEvents.filter(e=>{const d=new Date(e.date+"T00:00:00");return d.getFullYear()===y&&d.getMonth()===m;});
+    const mkevs=makeupEvents.filter(e=>{const d=new Date(e.date+"T00:00:00");return d.getFullYear()===y&&d.getMonth()===m;});
+    const first=new Date(y,m,1);const offset=first.getDay();const days=new Date(y,m+1,0).getDate();
     let cells=weekdays.map((w,idx)=>`<div class="student-wday ${idx===0?"sun":idx===6?"sat":""}">${w}</div>`).join("");
     for(let c=0;c<offset+days;c++){
       const day=c-offset+1;
       if(day<1){cells+=`<div class="student-day"></div>`;continue;}
       const date=`${y}-${String(m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
       const dow=new Date(date+"T00:00:00").getDay();
-      const dayEvents=evs.filter(e=>e.date===date);
-      cells+=`<div class="student-day ${dow===0?"sun":dow===6?"sat":""}"><b>${day}</b>${dayEvents.length?`<div class="lesson-mark">${day}</div>`:""}</div>`;
+      const isP=evs.some(e=>e.date===date);
+      const isM=!isP&&mkevs.some(e=>e.date===date);
+      const mark=isP?`<div class="lesson-mark">${day}</div>`:isM?`<div class="lesson-mark makeup">${day}</div>`:"";
+      cells+=`<div class="student-day ${dow===0?"sun":dow===6?"sat":""}"><b>${day}</b>${mark}</div>`;
     }
     html+=`<div class="student-month"><h3>${y}年${m+1}月</h3><div class="student-grid">${cells}</div></div>`;
   }
+  const legend=`<div class="mk-legend"><span><i class="mk-dot" style="background:var(--green)"></i>レッスン日</span>${mkIds.size?`<span><i class="mk-dot" style="background:#ef8a3c"></i>振替候補日</span>`:""}</div>`;
   const list=range==="year"?"":`<div class="student-list"><b>レッスン日</b> ${lessonEvents.filter(e=>inRange(e.date,base,months)).map(e=>`${Number(e.date.slice(5,7))}/${Number(e.date.slice(8,10))}`).join("・")||"未作成"}</div>`;
-  $("studentSchedule").innerHTML=`<div class="student-sheet range-${range}"><div class="student-title"><div><h2>${recurring.className}</h2><p>${classTypeName} / ${teacher} / ${room}</p></div><p>${recurring.start}-${recurring.end}</p></div><div class="student-calendars">${html}</div>${list}</div>`;
+  let mkList="";
+  if(mkIds.size){
+    const inr=makeupEvents.filter(e=>inRange(e.date,base,months));
+    const txt=inr.map(e=>{const r=byId(state.rooms,e.roomId).name||"";const wd=weekdays[new Date(e.date+"T00:00:00").getDay()];return `${Number(e.date.slice(5,7))}/${Number(e.date.slice(8,10))}(${wd}) ${r} ${e.start}`;}).join(" ・ ")||"なし";
+    mkList=`<div class="student-makeup-list"><b style="color:#b45f0f">振替候補日</b> ${txt}</div>`;
+  }
+  $("studentSchedule").innerHTML=`<div class="student-sheet range-${range}"><div class="student-title"><div><h2>${recurring.className}</h2><p>${classTypeName} / ${teacher} / ${room}</p></div><p>${recurring.start}-${recurring.end}</p></div>${legend}<div class="student-calendars">${html}</div>${list}${mkList}</div>`;
 }
 function schoolYearStart(dateStr){const d=new Date(dateStr+"T00:00:00");const y=d.getMonth()>=3?d.getFullYear():d.getFullYear()-1;return new Date(y,3,1);}
 function inRange(dateStr,start,months){const d=new Date(dateStr+"T00:00:00");const end=new Date(start.getFullYear(),start.getMonth()+months,1);return d>=start&&d<end;}
