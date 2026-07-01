@@ -121,6 +121,12 @@
     border:1px solid var(--accent);border-radius:30px;padding:14px 22px;font-size:15px;font-weight:700;
     box-shadow:0 6px 20px rgba(0,0,0,.45);}
   .fab.stop{background:var(--bad);border-color:var(--bad);}
+  .loopbar{height:12px;background:#222a33;border-radius:99px;overflow:hidden;border:1px solid var(--line);}
+  .loopbar>div{height:100%;width:0%;background:var(--accent);transition:width 40ms linear;}
+  .loopbig{width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:17px;font-weight:700;border:1px solid var(--line);background:var(--panel2);color:var(--txt);cursor:pointer;margin:0 auto;}
+  .loopbig.rec{background:#a32d2d;border-color:#e65d52;color:#fff;}
+  .loopbig.od{background:#8a5a12;border-color:var(--warn);color:#fff;}
   @media (max-width:760px){
     header{align-items:flex-start;flex-direction:column;}
     main{padding:12px;}
@@ -141,6 +147,7 @@
   <nav class="tabs">
     <button id="tabTuner" class="on" type="button">チューナー</button>
     <button id="tabMetro" type="button">メトロノーム</button>
+    <button id="tabLooper" type="button">ルーパー</button>
   </nav>
 
   <section class="tool" id="view-tuner">
@@ -388,7 +395,72 @@
     </div>
   </section>
 
+  <section class="tool" id="view-looper" hidden>
+    <div class="panel meter-panel">
+      <div class="status">
+        <div class="status-text" id="loopStatus">「録音」を押すと最初のループを録音します。イヤホン推奨。</div>
+      </div>
+
+      <div class="readout">
+        <div class="bpm" id="loopMain" style="font-size:44px;">空</div>
+        <div class="bpm-sub" id="loopInfo">レイヤー 0 ・ ループ未設定</div>
+      </div>
+
+      <div class="loopbig" id="loopBig">● 録音</div>
+
+      <div class="loopbar"><div id="loopProgress"></div></div>
+
+      <div class="row" style="justify-content:center;gap:10px;">
+        <button id="loopPlayBtn" disabled>再生 / 停止</button>
+        <button id="loopUndoBtn" disabled>アンドゥ</button>
+        <button id="loopClearBtn" disabled>クリア</button>
+      </div>
+    </div>
+
+    <aside class="panel settings">
+      <div class="field">
+        <label>ループ長</label>
+        <div class="seg" id="loopModeSeg" style="grid-template-columns:repeat(2,1fr);">
+          <button data-v="sync" class="on" type="button">メトロ同期</button>
+          <button data-v="free" type="button">自由</button>
+        </div>
+      </div>
+
+      <div class="field" id="loopBarsField">
+        <label>小節数（同期時）</label>
+        <div class="segN" id="loopBarsSeg" style="grid-template-columns:repeat(4,1fr);">
+          <button data-v="1" type="button">1</button>
+          <button data-v="2" type="button">2</button>
+          <button data-v="4" class="on" type="button">4</button>
+          <button data-v="8" type="button">8</button>
+        </div>
+        <div class="bpm-sub" id="loopTempoInfo" style="min-height:0;">メトロノームのBPM・拍子を使用</div>
+      </div>
+
+      <div class="field">
+        <label class="row" style="justify-content:space-between;color:var(--txt);">
+          <span>録音中もクリック（同期時）</span>
+          <input type="checkbox" id="loopClick" checked>
+        </label>
+        <label class="row" style="justify-content:space-between;color:var(--txt);">
+          <span>入力モニター（イヤホン時のみ）</span>
+          <input type="checkbox" id="loopMonitor">
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="loopVol">再生音量</label>
+        <input id="loopVol" type="range" min="0" max="1" value="0.9" step="0.05">
+      </div>
+    </aside>
+
+    <div class="panel" style="grid-column:1/-1;padding:14px;">
+      <div class="footer" style="padding:0;">スピーカー再生だと前の録音をマイクが拾って重なります。イヤホン推奨。マイク許可が必要（LINE等アプリ内ブラウザ不可、Safari/Chromeで開いてください）。</div>
+    </div>
+  </section>
+
   <button id="metroFab" class="fab" type="button" hidden>▶ スタート</button>
+  <button id="loopFab" class="fab" type="button" hidden>● 録音</button>
 
   <div class="footer">
     マイク許可が必要です。静かな場所で単音を少し長めに鳴らすと安定します。マイクは https または localhost で開いた場合に使えます。
@@ -1408,31 +1480,378 @@ PracticeTools.metronome = {
   }
 };
 
+PracticeTools.looper = {
+  MAX_SECONDS:60,
+  state:{
+    audio:null, stream:null, source:null, processor:null, silentGain:null,
+    sampleRate:44100,
+    mode:"sync", bars:4,
+    loopLen:0, loopDefined:false,
+    layers:[], currentLayer:null,
+    recordBuf:null, recordPos:0,
+    playPos:0, playing:false, recording:false, syncFirstActive:false,
+    volume:0.9, monitor:false, clickWhileRec:true,
+    clickTimer:0, clickNext:0, clickBeat:0,
+    raf:0
+  },
+  els:{
+    status:document.getElementById("loopStatus"),
+    main:document.getElementById("loopMain"),
+    info:document.getElementById("loopInfo"),
+    big:document.getElementById("loopBig"),
+    progress:document.getElementById("loopProgress"),
+    playBtn:document.getElementById("loopPlayBtn"),
+    undoBtn:document.getElementById("loopUndoBtn"),
+    clearBtn:document.getElementById("loopClearBtn"),
+    fab:document.getElementById("loopFab"),
+    modeSeg:document.getElementById("loopModeSeg"),
+    barsField:document.getElementById("loopBarsField"),
+    barsSeg:document.getElementById("loopBarsSeg"),
+    click:document.getElementById("loopClick"),
+    monitor:document.getElementById("loopMonitor"),
+    vol:document.getElementById("loopVol"),
+    tempoInfo:document.getElementById("loopTempoInfo")
+  },
+
+  bpm(){ return PracticeTools.metronome.state.bpm; },
+  beatsPerBar(){ return PracticeTools.metronome.state.beatsPerBar; },
+
+  init(){
+    const els = this.els;
+    els.big.addEventListener("click", () => this.onRec());
+    els.fab.addEventListener("click", () => this.onRec());
+    els.playBtn.addEventListener("click", () => this.togglePlay());
+    els.undoBtn.addEventListener("click", () => this.undo());
+    els.clearBtn.addEventListener("click", () => this.clear());
+    els.modeSeg.addEventListener("click", e => {
+      const b = e.target.closest("button[data-v]");
+      if(!b || this.state.recording || this.state.loopDefined) return;
+      this.state.mode = b.dataset.v;
+      els.modeSeg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+      els.barsField.style.display = this.state.mode === "sync" ? "" : "none";
+      this.updateUI();
+    });
+    els.barsSeg.addEventListener("click", e => {
+      const b = e.target.closest("button[data-v]");
+      if(!b || this.state.recording || this.state.loopDefined) return;
+      this.state.bars = Number(b.dataset.v);
+      els.barsSeg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+      this.updateUI();
+    });
+    els.click.addEventListener("change", () => this.state.clickWhileRec = els.click.checked);
+    els.monitor.addEventListener("change", () => this.state.monitor = els.monitor.checked);
+    els.vol.addEventListener("input", () => this.state.volume = Number(els.vol.value));
+    this.updateUI();
+  },
+
+  async ensureGraph(needMic){
+    const st = this.state;
+    st.audio = st.audio || new (window.AudioContext || window.webkitAudioContext)();
+    const resumeP = st.audio.state === "suspended" ? st.audio.resume() : Promise.resolve();
+    if(needMic && !st.stream){
+      st.stream = await navigator.mediaDevices.getUserMedia({
+        audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}
+      });
+    }
+    await resumeP;
+    if(st.audio.state === "suspended"){ try{ await st.audio.resume(); }catch(e){} }
+    st.sampleRate = st.audio.sampleRate;
+    if(!st.processor){
+      st.processor = st.audio.createScriptProcessor(2048, 1, 1);
+      st.processor.onaudioprocess = e => this.process(e);
+      if(needMic && st.stream){
+        st.source = st.audio.createMediaStreamSource(st.stream);
+        st.source.connect(st.processor);
+      }
+      st.processor.connect(st.audio.destination);
+    }else if(needMic && st.stream && !st.source){
+      st.source = st.audio.createMediaStreamSource(st.stream);
+      st.source.connect(st.processor);
+    }
+    return st.audio;
+  },
+
+  process(e){
+    const st = this.state;
+    const input = e.inputBuffer.getChannelData(0);
+    const output = e.outputBuffer.getChannelData(0);
+    const n = output.length;
+    for(let i=0;i<n;i++){
+      let out = 0;
+      if(st.recording && !st.loopDefined){
+        if(st.recordPos < st.recordBuf.length){ st.recordBuf[st.recordPos] = input[i]; st.recordPos++; }
+      }
+      if(st.loopDefined && (st.playing || st.recording)){
+        for(let L=0;L<st.layers.length;L++) out += st.layers[L][st.playPos];
+        if(st.recording && st.currentLayer) st.currentLayer[st.playPos] += input[i];
+        if(st.monitor) out += input[i];
+        output[i] = out * st.volume;
+        st.playPos++;
+        if(st.playPos >= st.loopLen){
+          st.playPos = 0;
+          if(st.syncFirstActive){
+            st.layers.push(st.currentLayer);
+            st.currentLayer = null;
+            st.recording = false;
+            st.syncFirstActive = false;
+            st._commit = true;
+          }
+        }
+      }else{
+        output[i] = st.monitor ? input[i] : 0;
+      }
+    }
+  },
+
+  onRec(){
+    const st = this.state;
+    if(!st.loopDefined && !st.recording){
+      if(st.mode === "sync") this.startSyncFirst();
+      else this.startFreeFirst();
+    }else if(st.mode === "free" && st.recording && !st.loopDefined){
+      this.finishFreeFirst();
+    }else if(st.loopDefined && !st.recording){
+      this.startOverdub();
+    }else if(st.loopDefined && st.recording){
+      this.stopOverdub();
+    }
+  },
+
+  async startSyncFirst(){
+    try{
+      await this.ensureGraph(true);
+    }catch(err){ this.micError(err); return; }
+    const st = this.state;
+    st.loopLen = Math.round(st.bars * this.beatsPerBar() * (60 / this.bpm()) * st.sampleRate);
+    st.currentLayer = new Float32Array(st.loopLen);
+    st.playPos = 0;
+    st.loopDefined = true;
+    st.playing = true;
+    st.recording = true;
+    st.syncFirstActive = true;
+    this.startClicks();
+    this.draw();
+    this.updateUI();
+  },
+
+  async startFreeFirst(){
+    try{
+      await this.ensureGraph(true);
+    }catch(err){ this.micError(err); return; }
+    const st = this.state;
+    st.recordBuf = new Float32Array(Math.floor(this.MAX_SECONDS * st.sampleRate));
+    st.recordPos = 0;
+    st.loopDefined = false;
+    st.recording = true;
+    st.playing = false;
+    this.draw();
+    this.updateUI();
+  },
+
+  finishFreeFirst(){
+    const st = this.state;
+    if(st.recordPos < st.sampleRate * 0.2){ this.state.recording = false; this.updateUI(); return; }
+    st.loopLen = st.recordPos;
+    st.layers = [st.recordBuf.slice(0, st.loopLen)];
+    st.recordBuf = null;
+    st.loopDefined = true;
+    st.recording = false;
+    st.playing = true;
+    st.playPos = 0;
+    this.updateUI();
+  },
+
+  startOverdub(){
+    const st = this.state;
+    st.currentLayer = new Float32Array(st.loopLen);
+    st.recording = true;
+    st.playing = true;
+    this.startClicks();
+    this.updateUI();
+  },
+
+  stopOverdub(){
+    const st = this.state;
+    this.stopClicks();
+    if(st.currentLayer) st.layers.push(st.currentLayer);
+    st.currentLayer = null;
+    st.recording = false;
+    this.updateUI();
+  },
+
+  togglePlay(){
+    const st = this.state;
+    if(!st.loopDefined || st.recording) return;
+    st.playing = !st.playing;
+    if(!st.playing) st.playPos = 0;
+    this.updateUI();
+  },
+
+  undo(){
+    const st = this.state;
+    if(st.recording){
+      this.stopClicks();
+      st.currentLayer = null;
+      st.recording = false;
+      st.syncFirstActive = false;
+    }else if(st.layers.length){
+      st.layers.pop();
+    }
+    if(!st.layers.length){ this.clear(); return; }
+    this.updateUI();
+  },
+
+  clear(){
+    const st = this.state;
+    this.stopClicks();
+    st.layers = [];
+    st.currentLayer = null;
+    st.recordBuf = null;
+    st.loopDefined = false;
+    st.playing = false;
+    st.recording = false;
+    st.syncFirstActive = false;
+    st.playPos = 0;
+    st.loopLen = 0;
+    this.els.progress.style.width = "0%";
+    this.updateUI();
+  },
+
+  stopAll(){
+    const st = this.state;
+    this.stopClicks();
+    st.playing = false;
+    st.recording = false;
+    st.syncFirstActive = false;
+    cancelAnimationFrame(st.raf);
+    if(st.stream){ st.stream.getTracks().forEach(t => t.stop()); st.stream = null; st.source = null; }
+    if(st.processor){ try{ st.processor.disconnect(); }catch(e){} st.processor = null; }
+    this.updateUI();
+  },
+
+  startClicks(){
+    const st = this.state;
+    if(!st.audio || !(st.clickWhileRec && st.mode === "sync")) return;
+    st.clickNext = st.audio.currentTime + 0.06;
+    st.clickBeat = 0;
+    this.clickSchedule();
+  },
+
+  clickSchedule(){
+    const st = this.state;
+    if(!st.recording){ return; }
+    while(st.clickNext < st.audio.currentTime + 0.12){
+      this.clickAt(st.clickNext, st.clickBeat % this.beatsPerBar() === 0);
+      st.clickBeat++;
+      st.clickNext += 60 / this.bpm();
+    }
+    st.clickTimer = window.setTimeout(() => this.clickSchedule(), 25);
+  },
+
+  clickAt(t, accent){
+    const st = this.state;
+    const o = st.audio.createOscillator();
+    const g = st.audio.createGain();
+    o.type = "square";
+    o.frequency.value = accent ? 2000 : 1100;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.28, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    o.connect(g).connect(st.audio.destination);
+    o.start(t);
+    o.stop(t + 0.05);
+  },
+
+  stopClicks(){ clearTimeout(this.state.clickTimer); },
+
+  draw(){
+    const st = this.state;
+    if(st.loopDefined && st.loopLen){
+      this.els.progress.style.width = Math.min(100, (st.playPos / st.loopLen) * 100) + "%";
+    }else if(st.recording && !st.loopDefined){
+      const secs = st.recordPos / st.sampleRate;
+      this.els.main.textContent = `録音 ${secs.toFixed(1)}s`;
+    }
+    if(st._commit){ st._commit = false; this.updateUI(); }
+    if(st.playing || st.recording){
+      st.raf = requestAnimationFrame(() => this.draw());
+    }
+  },
+
+  updateUI(){
+    const st = this.state;
+    const els = this.els;
+    const secs = st.loopLen ? (st.loopLen / st.sampleRate).toFixed(1) : "0.0";
+    els.info.textContent = st.loopDefined
+      ? `レイヤー ${st.layers.length} ・ ループ ${secs}秒`
+      : "レイヤー 0 ・ ループ未設定";
+    let mainText = "空", bigText = "● 録音", bigClass = "loopbig";
+    if(st.recording && !st.loopDefined){ mainText = "録音中"; bigText = "■ 停止して確定"; bigClass = "loopbig rec"; }
+    else if(st.syncFirstActive){ mainText = "録音中"; bigText = "録音中…"; bigClass = "loopbig rec"; }
+    else if(st.recording && st.loopDefined){ mainText = "重ね録り"; bigText = "■ 重ね録り停止"; bigClass = "loopbig od"; }
+    else if(st.loopDefined && st.playing){ mainText = "再生中"; bigText = "● 重ね録り"; }
+    else if(st.loopDefined && !st.playing){ mainText = "停止中"; bigText = "● 重ね録り"; }
+    els.main.textContent = mainText;
+    els.big.textContent = bigText;
+    els.big.className = bigClass;
+    els.fab.textContent = bigText;
+    els.fab.className = "fab" + (bigClass.includes("rec") || bigClass.includes("od") ? " stop" : "");
+    els.playBtn.disabled = !st.loopDefined || st.recording;
+    els.playBtn.textContent = st.playing ? "停止" : "再生";
+    els.undoBtn.disabled = !(st.layers.length || st.recording);
+    els.clearBtn.disabled = !st.loopDefined && !st.recording;
+    els.modeSeg.querySelectorAll("button").forEach(b => b.disabled = st.recording || st.loopDefined);
+    els.barsSeg.querySelectorAll("button").forEach(b => b.disabled = st.recording || st.loopDefined);
+    els.tempoInfo.textContent = `${this.bpm()} BPM ・ ${this.beatsPerBar()}拍子（メトロノームの設定）`;
+    els.status.textContent = st.loopDefined
+      ? "「重ね録り」で音を重ねられます。アンドゥで直前の層を取り消し。"
+      : (st.mode === "sync"
+          ? "「録音」でクリックに合わせて指定小節ぶん録音します。イヤホン推奨。"
+          : "「録音」で始め、もう一度押すとその長さがループになります。イヤホン推奨。");
+  },
+
+  micError(err){
+    const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
+    this.els.status.innerHTML = denied
+      ? '<span class="error">マイクが許可されていません。LINE等アプリ内ブラウザではなくSafari/Chromeで開き、マイクを「許可」してください。</span>'
+      : `<span class="error">マイクを開始できませんでした: ${err.message}</span>`;
+  }
+};
+
 function showTab(which){
-  const isTuner = which === "tuner";
-  document.getElementById("view-tuner").hidden = !isTuner;
-  document.getElementById("view-metro").hidden = isTuner;
-  document.getElementById("tabTuner").classList.toggle("on", isTuner);
-  document.getElementById("tabMetro").classList.toggle("on", !isTuner);
-  document.getElementById("phaseLabel").textContent = isTuner ? "チューナー" : "メトロノーム";
-  document.getElementById("metroFab").hidden = isTuner;
-  if(isTuner){
+  document.getElementById("view-tuner").hidden = which !== "tuner";
+  document.getElementById("view-metro").hidden = which !== "metro";
+  document.getElementById("view-looper").hidden = which !== "looper";
+  document.getElementById("tabTuner").classList.toggle("on", which === "tuner");
+  document.getElementById("tabMetro").classList.toggle("on", which === "metro");
+  document.getElementById("tabLooper").classList.toggle("on", which === "looper");
+  document.getElementById("phaseLabel").textContent = which === "tuner" ? "チューナー" : which === "metro" ? "メトロノーム" : "ルーパー";
+  document.getElementById("metroFab").hidden = which !== "metro";
+  document.getElementById("loopFab").hidden = which !== "looper";
+  if(which !== "metro"){
     if(PracticeTools.metronome.state.running) PracticeTools.metronome.stop();
     if(PracticeTools.metronome.state.poly.running) PracticeTools.metronome.stopPoly();
-  }else{
+  }
+  if(which !== "tuner"){
     if(PracticeTools.tuner.state.running) PracticeTools.tuner.stopMic();
     PracticeTools.tuner.stopReference();
+  }
+  if(which !== "looper"){
+    PracticeTools.looper.stopAll();
   }
 }
 document.getElementById("tabTuner").addEventListener("click", () => showTab("tuner"));
 document.getElementById("tabMetro").addEventListener("click", () => showTab("metro"));
+document.getElementById("tabLooper").addEventListener("click", () => showTab("looper"));
 window.addEventListener("pagehide", () => {
   PracticeTools.metronome.stop();
   PracticeTools.metronome.stopPoly();
+  PracticeTools.looper.stopAll();
 });
 
 PracticeTools.tuner.init();
 PracticeTools.metronome.init();
+PracticeTools.looper.init();
 </script>
 </body>
 </html>
