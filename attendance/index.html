@@ -719,9 +719,11 @@ function renderContent(){
     const pending = makeupPending(s);
     const mkList = makeupsFor(s);
     const upcomingDone = !suspended ? mkList.filter(m=>m.makeup).sort((a,b)=>a.makeup.localeCompare(b.makeup))[0] : null;
+    const doneCount = mkList.filter(m=>m.makeup).length;
     let btnLabel;
-    if(pending) btnLabel = `↔ 振替 ${pending}件`;
-    else if(upcomingDone) btnLabel = `↔ 振替 ${fmtDate(upcomingDone.makeup)}`;
+    if(pending && doneCount) btnLabel = `↔ 振替 未${pending}・済${doneCount}`;
+    else if(pending) btnLabel = `↔ 振替 ${pending}件`;
+    else if(upcomingDone) btnLabel = `↔ 振替 ${fmtDate(upcomingDone.makeup)}・${doneCount}件`;
     else btnLabel = `↔ 振替 なし`;
     const tail = suspended
       ? `<span class="leave-badge">休会中</span>`
