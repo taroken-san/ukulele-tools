@@ -386,7 +386,7 @@ async function fetchAll(){
   if(!res.ok) throw new Error('HTTP '+res.status);
   return await res.json();
 }
-async function pushAll(){
+async function pushAll(signal){
   const url = effectiveUrl();
   if(!url) throw new Error('中央URL未設定');
   if(!store.teacherId) throw new Error('講師が未選択');
@@ -395,6 +395,7 @@ async function pushAll(){
     method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'}, // CORSプリフライト回避
     body: JSON.stringify(payload),
+    signal,
   });
   if(!res.ok) throw new Error('HTTP '+res.status);
   return await res.json();
@@ -840,15 +841,36 @@ function toast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),1800);
 }
+let saving = false;
 async function doSave(){
+  if(saving) return;
   saveLocal();
   if(!effectiveUrl() || !store.teacherId){ toast('ローカル保存のみ（講師未選択）'); dirty=false; updateStatus('ローカル保存済'); return; }
-  const btn=document.getElementById('btnSave'); btn.disabled=true; updateStatus('保存中…');
+  saving = true;
+  const btn=document.getElementById('btnSave');
+  const orig = btn.textContent;
+  btn.disabled=true;
+  const t0 = Date.now();
+  let tick = setInterval(()=>{
+    const s = Math.floor((Date.now()-t0)/1000);
+    btn.textContent = '保存中 '+s+'秒';
+    updateStatus('保存中… '+s+'秒');
+  }, 500);
+  btn.textContent = '保存中…';
+  updateStatus('保存中…');
+  const ctrl = new AbortController();
+  const to = setTimeout(()=>ctrl.abort(), 30000);
   try{
-    await pushAll();
+    await pushAll(ctrl.signal);
     dirty=false; updateStatus('保存済 ✓'); toast('スプレッドシートに保存しました');
-  }catch(e){ updateStatus('保存失敗：'+e.message); toast('保存に失敗しました'); }
-  finally{ btn.disabled=false; }
+  }catch(e){
+    const aborted = e.name === 'AbortError';
+    updateStatus(aborted?'保存タイムアウト':'保存失敗：'+e.message);
+    toast(aborted?'保存が30秒で応答せず。「再読込」で反映確認を':'保存失敗。もう一度「保存」を押してください');
+  }finally{
+    clearTimeout(to); clearInterval(tick);
+    btn.disabled=false; btn.textContent=orig; saving=false;
+  }
 }
 async function doReload(){
   if(!effectiveUrl()){ toast('中央URL未設定'); return; }
