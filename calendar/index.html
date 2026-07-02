@@ -173,7 +173,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630n</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630p</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -561,6 +561,7 @@ function init(){
   $("availDate").value=today;$("availStart").value="10:00";$("availEnd").value="11:10";
   $("gasUrl").value=localStorage.getItem(URL_KEY)||"";
   fillSelectors();bind();loginAs(state.teachers[0]);render();
+  if($("gasUrl").value.trim())loadRemote(true);
 }
 function fillSelectors(){
   const selected={loginUser:$("loginUser")?.value,roomFilter:$("roomFilter")?.value,eventRoom:$("eventRoom")?.value,eventTeacher:$("eventTeacher")?.value,eventCategory:$("eventCategory")?.value,eventClassType:$("eventClassType")?.value,eventStatus:$("eventStatus")?.value,studentClass:$("studentClass")?.value,studentRoomFilter:$("studentRoomFilter")?.value,studentTypeFilter:$("studentTypeFilter")?.value,recurringRoom:$("recurringRoom")?.value,recurringTeacher:$("recurringTeacher")?.value,recurringClassType:$("recurringClassType")?.value,availCategory:$("availCategory")?.value};
@@ -622,7 +623,7 @@ function bind(){
   $("btnSaveRecurring").onclick=saveRecurring;$("btnGenerateMonth").onclick=generateMonthEvents;$("btnGenerateYear").onclick=generateYearEvents;$("btnRebuildEvents").onclick=rebuildEvents;$("btnDeleteRecurring").onclick=deleteRecurring;
   $("studentRange").onchange=renderStudentSchedule;$("studentClass").onchange=renderStudentSchedule;$("studentRoomFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("studentTypeFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("btnPrintStudent").onclick=()=>window.print();
   $("btnSaveSettings").onclick=()=>{localStorage.setItem(URL_KEY,$("gasUrl").value.trim());toast("設定を保存しました");};
-  $("btnLoadRemote").onclick=loadRemote;$("btnSaveRemote").onclick=saveRemote;
+  $("btnLoadRemote").onclick=()=>loadRemote();$("btnSaveRemote").onclick=saveRemote;
   $("btnResetSeed").onclick=()=>{if(!confirm("【初期化】ファイルの初期状態に戻し、予定を作り直します。アプリ上で手入力した予定・確定/休講・メモは消えます（生徒数は今の値を引き継ぎます）。データがおかしくなったとき以外は使いません。実行しますか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("初期化しました（予定を作り直しました）");};
   $("btnMergeMasters").onclick=mergeMasters;
   $("btnBackup").onclick=downloadBackup;
@@ -1341,7 +1342,7 @@ function generateEventsForRange(base,months){let count=0;for(let i=0;i<months;i+
 function datesForPattern(y,m,weekday,pattern){const target=patternWeeks(pattern);const out=[];for(let d=1;d<=31;d++){const dt=new Date(y,m,d);if(dt.getMonth()!==m)break;if(dt.getDay()===Number(weekday)){const nth=Math.floor((d-1)/7)+1;if(target.includes(nth))out.push(ymd(dt));}}return out;}
 function pickDate(date){$("currentDate").value=date;$("eventDate").value=date;showView("rooms");}
 function busyBtn(btn,label){const orig=btn.textContent;btn.dataset.orig=orig;btn.disabled=true;btn.textContent=label;return()=>{btn.disabled=false;btn.textContent=btn.dataset.orig||orig;};}
-async function loadRemote(){const url=$("gasUrl").value.trim();if(!url)return toast("GAS URLを設定してください");const done=busyBtn($("btnLoadRemote"),"読込中…");try{const res=await fetch(url);const data=await res.json();if(!data.ok)throw new Error(data.error||"load failed");state=data.data||seedData();saveLocal();render();toast("✓ 読み込みました");}catch(e){toast("読み込みに失敗しました: "+e.message);}finally{done();}}
+async function loadRemote(auto){const url=$("gasUrl").value.trim();if(!url)return auto?undefined:toast("GAS URLを設定してください");const done=auto?null:busyBtn($("btnLoadRemote"),"読込中…");if(auto)toast("最新データを読み込み中…");try{const res=await fetch(url);const data=await res.json();if(!data.ok)throw new Error(data.error||"load failed");state=data.data||seedData();saveLocal();render();toast(auto?"✓ 最新データを読み込みました":"✓ 読み込みました");}catch(e){toast((auto?"自動読み込みに失敗しました: ":"読み込みに失敗しました: ")+e.message);}finally{if(done)done();}}
 async function saveRemote(){const url=$("gasUrl").value.trim();if(!url)return toast("GAS URLを設定してください");const done=busyBtn($("btnSaveRemote"),"保存中…");try{const res=await fetch(url,{method:"POST",body:JSON.stringify({action:"save",data:state})});const data=await res.json();if(!data.ok)throw new Error(data.error||"save failed");toast("✓ スプレッドシートに保存しました");}catch(e){toast("保存に失敗しました: "+e.message);}finally{done();}}
 window.editEvent=editEvent;window.editRecurring=editRecurring;window.pickDate=pickDate;
 window.editTeacherMaster=editTeacherMaster;window.toggleTeacherMaster=toggleTeacherMaster;
