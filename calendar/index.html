@@ -173,7 +173,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630l</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630m</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -216,7 +216,7 @@
                 <button class="tab" id="roomsMonthTab">月</button>
               </div>
             </div>
-            <div id="roomsDayWrap" class="grid-wrap"><table><thead id="roomHead"></thead><tbody id="roomRows"></tbody></table></div>
+            <div id="roomsDayWrap" class="grid-wrap"><div id="roomTimeline"></div></div>
             <div id="roomsMonthWrap" class="panel-b hidden">
               <p class="muted" id="roomsMonthHint" style="margin:0 0 10px">右上の「全教室」で教室を選ぶと、その教室の月予定が出ます。</p>
               <div class="month" id="roomMonthGrid"></div>
@@ -232,7 +232,7 @@
       <section class="view" id="teachers">
         <div class="panel">
           <div class="panel-h"><span>講師別タイムライン</span><span class="muted">管理者用</span></div>
-          <div class="grid-wrap"><table><thead id="teacherHead"></thead><tbody id="teacherRows"></tbody></table></div>
+          <div class="grid-wrap"><div id="teacherTimeline"></div></div>
         </div>
       </section>
 
@@ -649,10 +649,8 @@ function renderRooms(){
   if(monthMode){renderRoomMonth();return;}
   $("roomsPanelTitle").textContent="教室別タイムライン";
   const rooms=state.rooms.filter(r=>r.active).filter(r=>!$("roomFilter").value||r.id===$("roomFilter").value);
-  $("roomHead").innerHTML=`<tr><th class="time">時間</th>${rooms.map(r=>`<th>${r.name}</th>`).join("")}</tr>`;
   const confIds=new Set(conflictsFor().flatMap(c=>[c.a.id,c.b.id]));
-  const roomSeen=new Set();
-  $("roomRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${rooms.map(r=>`<td>${eventsInSlot(r.id,t,"room").map(e=>eventCard(e,confIds,roomSeen)).join("")}</td>`).join("")}</tr>`).join("");
+  renderEventTimelineGrid("roomTimeline",rooms,"room",confIds);
 }
 function renderRoomMonth(){
   const roomId=$("roomFilter").value;
@@ -672,19 +670,71 @@ function renderRoomMonth(){
 }
 function renderTeachers(){
   const teachers=state.teachers.filter(t=>t.role==="teacher"&&t.active);
-  $("teacherHead").innerHTML=`<tr><th class="time">時間</th>${teachers.map(t=>`<th>${t.name.replace("先生","")}</th>`).join("")}</tr>`;
   const confIds=new Set(conflictsFor().flatMap(c=>[c.a.id,c.b.id]));
-  const teacherSeen=new Set();
-  $("teacherRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${teachers.map(x=>`<td>${eventsInSlot(x.id,t,"teacher").map(e=>eventCard(e,confIds,teacherSeen)).join("")}</td>`).join("")}</tr>`).join("");
+  renderEventTimelineGrid("teacherTimeline",teachers,"teacher",confIds);
 }
-function eventsInSlot(id,t,mode){const s=minutes(t),e=s+30;return filteredEvents().filter(x=>(mode==="room"?x.roomId===id:x.teacherId===id)&&minutes(x.start)<e&&s<minutes(x.end));}
-function eventCard(e,confIds,seen){
-  const cls=`event ${categoryForEvent(e)} ${confIds.has(e.id)?"conflict":""}`;
-  if(seen){
-    if(seen.has(e.id))return `<div class="${cls} event-cont" onclick="editEvent('${e.id}')" title="${eventLabel(e)} ${e.start}-${e.end}"></div>`;
-    seen.add(e.id);
+function eventBlockLabel(e,mode){
+  if(!canSeeDetail(e))return "使用中";
+  const ct=classType(e.classTypeId).name||"";
+  const who=mode==="room"?(byId(state.teachers,e.teacherId).name||"未割当"):(byId(state.rooms,e.roomId).name||"");
+  return `${ct} ${who}`.trim();
+}
+function laneAssignEvents(events){
+  const sorted=[...events].sort((a,b)=>minutes(a.start)-minutes(b.start)||minutes(a.end)-minutes(b.end));
+  const laneEnds=[];
+  const placed=sorted.map(e=>{
+    const s=minutes(e.start),en=minutes(e.end);
+    let lane=laneEnds.findIndex(end=>end<=s);
+    if(lane===-1){lane=laneEnds.length;laneEnds.push(en);}else{laneEnds[lane]=en;}
+    return {e,lane};
+  });
+  return {placed,maxLanes:laneEnds.length||1};
+}
+function renderEventTimelineGrid(containerId,columns,mode,confIds){
+  const START_MIN=9*60,END_MIN=20*60+30;
+  const PX_PER_MIN=1.3;
+  const totalH=(END_MIN-START_MIN)*PX_PER_MIN;
+  const catColor={music:"#dbeafe",english:"#dcfce7",health:"#ede9fe",rental:"#fef9c3"};
+  const catBorder={music:"#3b82f6",english:"#22c55e",health:"#a855f7",rental:"#eab308"};
+  const catText={music:"#1e3a5f",english:"#14532d",health:"#4a044e",rental:"#713f12"};
+  const timeAxis=[];
+  for(let m=START_MIN;m<=END_MIN;m+=30){
+    const top=(m-START_MIN)*PX_PER_MIN;
+    const isHour=m%60===0;
+    timeAxis.push(`<div style="position:absolute;top:${top}px;left:0;right:0;border-top:1px solid ${isHour?"#dfe2dc":"#eef0ec"};line-height:0">${isHour?`<span style="position:absolute;top:-8px;left:2px;font-size:10px;color:#9ca3af;background:#f8faf7;padding:0 2px">${String(Math.floor(m/60)).padStart(2,"0")}:00</span>`:""}</div>`);
   }
-  return `<div class="${cls}" onclick="editEvent('${e.id}')"><div class="title">${eventLabel(e)}</div><small>${e.start}-${e.end}</small><small>${eventSub(e)}</small></div>`;
+  const colW=150,timeW=56;
+  const colsHtml=columns.map(col=>{
+    const evs=filteredEvents().filter(e=>mode==="room"?e.roomId===col.id:e.teacherId===col.id);
+    const {placed,maxLanes}=laneAssignEvents(evs);
+    const blocks=placed.map(({e,lane})=>{
+      const s=Math.max(minutes(e.start),START_MIN),en=Math.min(minutes(e.end),END_MIN);
+      const top=(s-START_MIN)*PX_PER_MIN;
+      const h=Math.max((en-s)*PX_PER_MIN,18);
+      const conflict=confIds.has(e.id);
+      const catId=categoryForEvent(e);
+      const bg=conflict?"#fee2e2":(catColor[catId]||"#f3f4f6");
+      const border=conflict?"#ef4444":(catBorder[catId]||"#9ca3af");
+      const txt=conflict?"#7f1d1d":(catText[catId]||"#111");
+      const laneW=100/maxLanes,left=lane*laneW;
+      return `<div onclick="editEvent('${e.id}')" title="${eventBlockLabel(e,mode)}／${e.start}-${e.end}" style="position:absolute;top:${top}px;left:calc(${left}% + 2px);width:calc(${laneW}% - 4px);height:${h}px;background:${bg};border-left:3px solid ${border};border-radius:3px;padding:2px 4px;box-sizing:border-box;cursor:pointer;overflow:hidden;color:${txt};font-size:10px;line-height:1.25">
+        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.start} ${eventBlockLabel(e,mode)}</b>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${eventSub(e)}</span>
+        ${conflict?`<span style="color:#ef4444;font-weight:700">⚠重複</span>`:""}
+      </div>`;
+    }).join("");
+    return `<div style="position:relative;width:${colW}px;min-width:${colW}px;border-left:1px solid #e5e7eb">
+      <div style="text-align:center;font-weight:700;padding:4px 2px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${col.name}">${col.name}</div>
+      <div style="position:relative;height:${totalH}px">${blocks}</div>
+    </div>`;
+  }).join("");
+  $(containerId).innerHTML=`<div style="display:flex;min-width:${timeW+colW*columns.length+4}px">
+    <div style="width:${timeW}px;min-width:${timeW}px;flex-shrink:0">
+      <div style="height:26px;border-bottom:1px solid #e5e7eb"></div>
+      <div style="position:relative;height:${totalH}px">${timeAxis.join("")}</div>
+    </div>
+    ${colsHtml}
+  </div>`;
 }
 function renderConflicts(){
   const all=conflictsFor().filter(c=>selectedCategory==="all"||categoryForEvent(c.a)===selectedCategory||categoryForEvent(c.b)===selectedCategory);
