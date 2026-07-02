@@ -70,6 +70,7 @@
   .event.health{border-color:var(--purple);background:#f5f0fb}.event.rental{border-color:var(--amber);background:#fff3e7}
   .event.conflict{border-color:var(--red);background:#fff0ef}
   .event .title{font-weight:800}.event small{display:block;color:#5e665b}
+  .event.event-cont{padding:2px 7px;margin-bottom:2px;min-height:6px;opacity:.55;cursor:pointer}
   .list{display:flex;flex-direction:column;gap:10px}.item,.warn{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff}
   .warn{border-left:4px solid var(--red);background:#fff7f6}
   .view{display:none}.view.active{display:block}
@@ -172,7 +173,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630j</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630k</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -650,7 +651,8 @@ function renderRooms(){
   const rooms=state.rooms.filter(r=>r.active).filter(r=>!$("roomFilter").value||r.id===$("roomFilter").value);
   $("roomHead").innerHTML=`<tr><th class="time">時間</th>${rooms.map(r=>`<th>${r.name}</th>`).join("")}</tr>`;
   const confIds=new Set(conflictsFor().flatMap(c=>[c.a.id,c.b.id]));
-  $("roomRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${rooms.map(r=>`<td>${eventsInSlot(r.id,t,"room").map(e=>eventCard(e,confIds)).join("")}</td>`).join("")}</tr>`).join("");
+  const roomSeen=new Set();
+  $("roomRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${rooms.map(r=>`<td>${eventsInSlot(r.id,t,"room").map(e=>eventCard(e,confIds,roomSeen)).join("")}</td>`).join("")}</tr>`).join("");
 }
 function renderRoomMonth(){
   const roomId=$("roomFilter").value;
@@ -672,10 +674,18 @@ function renderTeachers(){
   const teachers=state.teachers.filter(t=>t.role==="teacher"&&t.active);
   $("teacherHead").innerHTML=`<tr><th class="time">時間</th>${teachers.map(t=>`<th>${t.name.replace("先生","")}</th>`).join("")}</tr>`;
   const confIds=new Set(conflictsFor().flatMap(c=>[c.a.id,c.b.id]));
-  $("teacherRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${teachers.map(x=>`<td>${eventsInSlot(x.id,t,"teacher").map(e=>eventCard(e,confIds)).join("")}</td>`).join("")}</tr>`).join("");
+  const teacherSeen=new Set();
+  $("teacherRows").innerHTML=timeRows.map(t=>`<tr><td class="time">${t}</td>${teachers.map(x=>`<td>${eventsInSlot(x.id,t,"teacher").map(e=>eventCard(e,confIds,teacherSeen)).join("")}</td>`).join("")}</tr>`).join("");
 }
 function eventsInSlot(id,t,mode){const s=minutes(t),e=s+30;return filteredEvents().filter(x=>(mode==="room"?x.roomId===id:x.teacherId===id)&&minutes(x.start)<e&&s<minutes(x.end));}
-function eventCard(e,confIds){const cls=`event ${categoryForEvent(e)} ${confIds.has(e.id)?"conflict":""}`;return `<div class="${cls}" onclick="editEvent('${e.id}')"><div class="title">${eventLabel(e)}</div><small>${e.start}-${e.end}</small><small>${eventSub(e)}</small></div>`;}
+function eventCard(e,confIds,seen){
+  const cls=`event ${categoryForEvent(e)} ${confIds.has(e.id)?"conflict":""}`;
+  if(seen){
+    if(seen.has(e.id))return `<div class="${cls} event-cont" onclick="editEvent('${e.id}')" title="${eventLabel(e)} ${e.start}-${e.end}"></div>`;
+    seen.add(e.id);
+  }
+  return `<div class="${cls}" onclick="editEvent('${e.id}')"><div class="title">${eventLabel(e)}</div><small>${e.start}-${e.end}</small><small>${eventSub(e)}</small></div>`;
+}
 function renderConflicts(){
   const all=conflictsFor().filter(c=>selectedCategory==="all"||categoryForEvent(c.a)===selectedCategory||categoryForEvent(c.b)===selectedCategory);
   all.sort((x,y)=>String(x.a.date+x.a.start).localeCompare(String(y.a.date+y.a.start)));
