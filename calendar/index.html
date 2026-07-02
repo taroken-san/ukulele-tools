@@ -33,7 +33,9 @@
   .nav-group:first-child{margin-top:4px}
   .nav-btn{border:0;background:transparent;color:#dce7df;text-align:left;border-radius:8px;padding:10px 12px;font-weight:800}
   .nav-btn.active{background:#fff;color:#26352e}
-  .date-label{font-weight:800;min-width:120px;text-align:center;font-size:15px}
+  .date-nav{display:flex;align-items:center;gap:4px;margin-left:10px}
+  .date-label{font-weight:800;min-width:120px;text-align:center;font-size:20px;color:var(--green);background:var(--green-soft);border-radius:8px;padding:4px 10px}
+  .title-row{flex-wrap:wrap}
   .side-note{position:absolute;left:18px;right:18px;bottom:18px;color:#c5d2c9;font-size:12px;line-height:1.6}
   main{min-width:0}
   header{background:rgba(244,245,242,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;padding:14px 22px}
@@ -170,17 +172,16 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630i</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630j</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
     <header>
       <div class="top">
-        <div class="title-row"><button class="nav-toggle" id="navToggle" aria-label="メニュー">☰</button><h1 id="title">教室使用表</h1></div>
+        <div class="title-row"><button class="nav-toggle" id="navToggle" aria-label="メニュー">☰</button><h1 id="title">教室使用表</h1>
+          <div class="date-nav"><button class="tool-btn" id="prevDay">‹</button><span class="date-label" id="dateLabel"></span><button class="tool-btn" id="nextDay">›</button></div>
+        </div>
         <div class="toolbar">
-          <button class="tool-btn" id="prevDay">‹</button>
-          <span class="date-label" id="dateLabel"></span>
-          <button class="tool-btn" id="nextDay">›</button>
           <input class="chip" id="currentDate" type="date" title="日付を選ぶ">
           <select class="chip" id="roomFilter"></select>
           <select class="chip" id="categoryFilter"></select>
