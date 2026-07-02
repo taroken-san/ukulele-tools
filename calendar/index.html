@@ -173,7 +173,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630m</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630n</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -723,9 +723,10 @@ function renderEventTimelineGrid(containerId,columns,mode,confIds){
         ${conflict?`<span style="color:#ef4444;font-weight:700">⚠重複</span>`:""}
       </div>`;
     }).join("");
+    const gridBg=`repeating-linear-gradient(to bottom,#dbdfd8 0,#dbdfd8 1px,transparent 1px,transparent ${60*PX_PER_MIN}px),repeating-linear-gradient(to bottom,#eef0ec 0,#eef0ec 1px,transparent 1px,transparent ${30*PX_PER_MIN}px)`;
     return `<div style="position:relative;width:${colW}px;min-width:${colW}px;border-left:1px solid #e5e7eb">
       <div style="text-align:center;font-weight:700;padding:4px 2px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${col.name}">${col.name}</div>
-      <div style="position:relative;height:${totalH}px">${blocks}</div>
+      <div style="position:relative;height:${totalH}px;background-image:${gridBg}">${blocks}</div>
     </div>`;
   }).join("");
   $(containerId).innerHTML=`<div style="display:flex;min-width:${timeW+colW*columns.length+4}px">
