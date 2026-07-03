@@ -27,6 +27,9 @@
   .login.signedin{padding:8px 10px}
   .login-compact{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .login-compact .who{font-size:13px;font-weight:800;color:#fff}
+  .quick-sync{display:flex;gap:6px;margin:10px 2px 4px}
+  .quick-sync button{flex:1;border:1px solid rgba(255,255,255,.3);background:transparent;color:#dce7df;border-radius:7px;padding:8px 4px;font-weight:800;font-size:12px}
+  .quick-sync button:active{background:rgba(255,255,255,.12)}
   .login-compact .switch{width:auto;margin:0;border:1px solid rgba(255,255,255,.25);background:transparent;color:#dce7df;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700}
   nav{display:flex;flex-direction:column;gap:3px}
   .nav-group{font-size:10px;font-weight:800;letter-spacing:.08em;color:#8aa394;margin:14px 8px 4px;text-transform:none}
@@ -158,6 +161,10 @@
         <button class="switch" id="btnSwitchUser">切替</button>
       </div>
     </div>
+    <div class="quick-sync">
+      <button class="switch" id="btnQuickLoad">読み込み ↓</button>
+      <button class="switch" id="btnQuickSave">保存 ↑</button>
+    </div>
     <nav>
       <div class="nav-group">日々の確認</div>
       <button class="nav-btn active" data-view="rooms">教室使用表</button>
@@ -173,7 +180,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630r</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0630s</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -456,6 +463,7 @@
 <script>
 const STORE_KEY="classroom-calendar-mvp-v7";
 const URL_KEY="classroom-calendar-gas-url";
+const DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbxwdMiFwI3cUstSHlPMKRXdKo7T-Bf5az9Kup8-D5MPXBP5lGlI-z0qHjd2eacOKExHiA/exec";
 const ADMIN_PIN="1125";
 const SCHED_PIN="7015";
 const TEACHER_PINS=["8459", "7549", "7144", "1796", "5941", "2130", "3497", "1973", "6788", "6726", "4890", "4304", "1430", "4273", "6673", "8565", "1950", "6418", "4313", "5907", "9328", "8130"];
@@ -545,7 +553,7 @@ function init(){
   $("currentDate").value=today;
   $("eventDate").value=today;$("eventStart").value="10:00";$("eventEnd").value="11:10";$("recurringStart").value="10:00";$("recurringEnd").value="11:10";
   $("availDate").value=today;$("availStart").value="10:00";$("availEnd").value="11:10";
-  $("gasUrl").value=localStorage.getItem(URL_KEY)||"";
+  $("gasUrl").value=localStorage.getItem(URL_KEY)||DEFAULT_GAS_URL;
   fillSelectors();bind();loginAs(state.teachers[0]);render();
   if($("gasUrl").value.trim())loadRemote(true);
 }
@@ -610,6 +618,7 @@ function bind(){
   $("studentRange").onchange=renderStudentSchedule;$("studentClass").onchange=renderStudentSchedule;$("studentRoomFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("studentTypeFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("btnPrintStudent").onclick=()=>window.print();
   $("btnSaveSettings").onclick=()=>{localStorage.setItem(URL_KEY,$("gasUrl").value.trim());toast("設定を保存しました");};
   $("btnLoadRemote").onclick=()=>loadRemote();$("btnSaveRemote").onclick=saveRemote;
+  $("btnQuickLoad").onclick=()=>loadRemote();$("btnQuickSave").onclick=saveRemote;
   $("btnResetSeed").onclick=()=>{if(!confirm("【初期化】ファイルの初期状態に戻し、予定を作り直します。アプリ上で手入力した予定・確定/休講・メモは消えます（生徒数は今の値を引き継ぎます）。データがおかしくなったとき以外は使いません。実行しますか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("初期化しました（予定を作り直しました）");};
   $("btnMergeMasters").onclick=mergeMasters;
   $("btnBackup").onclick=downloadBackup;
