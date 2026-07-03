@@ -1492,6 +1492,7 @@ PracticeTools.looper = {
     playPos:0, playing:false, recording:false, syncFirstActive:false,
     volume:0.9, monitor:false, clickWhileRec:true,
     clickTimer:0, clickNext:0, clickBeat:0,
+    busy:false, _recFull:false, _commit:false,
     raf:0
   },
   els:{
@@ -1580,12 +1581,13 @@ PracticeTools.looper = {
       let out = 0;
       if(st.recording && !st.loopDefined){
         if(st.recordPos < st.recordBuf.length){ st.recordBuf[st.recordPos] = input[i]; st.recordPos++; }
+        else st._recFull = true;
       }
       if(st.loopDefined && (st.playing || st.recording)){
         for(let L=0;L<st.layers.length;L++) out += st.layers[L][st.playPos];
         if(st.recording && st.currentLayer) st.currentLayer[st.playPos] += input[i];
         if(st.monitor) out += input[i];
-        output[i] = out * st.volume;
+        output[i] = Math.max(-1, Math.min(1, out * st.volume));
         st.playPos++;
         if(st.playPos >= st.loopLen){
           st.playPos = 0;
@@ -1603,17 +1605,23 @@ PracticeTools.looper = {
     }
   },
 
-  onRec(){
+  async onRec(){
     const st = this.state;
-    if(!st.loopDefined && !st.recording){
-      if(st.mode === "sync") this.startSyncFirst();
-      else this.startFreeFirst();
-    }else if(st.mode === "free" && st.recording && !st.loopDefined){
-      this.finishFreeFirst();
-    }else if(st.loopDefined && !st.recording){
-      this.startOverdub();
-    }else if(st.loopDefined && st.recording){
-      this.stopOverdub();
+    if(st.busy) return;
+    st.busy = true;
+    try{
+      if(!st.loopDefined && !st.recording){
+        if(st.mode === "sync") await this.startSyncFirst();
+        else await this.startFreeFirst();
+      }else if(st.mode === "free" && st.recording && !st.loopDefined){
+        this.finishFreeFirst();
+      }else if(st.loopDefined && !st.recording){
+        await this.startOverdub();
+      }else if(st.loopDefined && st.recording){
+        this.stopOverdub();
+      }
+    }finally{
+      st.busy = false;
     }
   },
 
@@ -1650,7 +1658,7 @@ PracticeTools.looper = {
 
   finishFreeFirst(){
     const st = this.state;
-    if(st.recordPos < st.sampleRate * 0.2){ this.state.recording = false; this.updateUI(); return; }
+    if(st.recordPos < st.sampleRate * 0.2){ st.recording = false; st.recordBuf = null; this.updateUI(); return; }
     st.loopLen = st.recordPos;
     st.layers = [st.recordBuf.slice(0, st.loopLen)];
     st.recordBuf = null;
@@ -1661,12 +1669,17 @@ PracticeTools.looper = {
     this.updateUI();
   },
 
-  startOverdub(){
+  async startOverdub(){
+    try{
+      await this.ensureGraph(true);
+    }catch(err){ this.micError(err); return; }
     const st = this.state;
     st.currentLayer = new Float32Array(st.loopLen);
     st.recording = true;
     st.playing = true;
     this.startClicks();
+    cancelAnimationFrame(st.raf);
+    this.draw();
     this.updateUI();
   },
 
@@ -1679,11 +1692,20 @@ PracticeTools.looper = {
     this.updateUI();
   },
 
-  togglePlay(){
+  async togglePlay(){
     const st = this.state;
     if(!st.loopDefined || st.recording) return;
-    st.playing = !st.playing;
-    if(!st.playing) st.playPos = 0;
+    if(!st.playing){
+      try{
+        await this.ensureGraph(false);
+      }catch(err){ this.micError(err); return; }
+      st.playing = true;
+      cancelAnimationFrame(st.raf);
+      this.draw();
+    }else{
+      st.playing = false;
+      st.playPos = 0;
+    }
     this.updateUI();
   },
 
@@ -1771,6 +1793,11 @@ PracticeTools.looper = {
     }else if(st.recording && !st.loopDefined){
       const secs = st.recordPos / st.sampleRate;
       this.els.main.textContent = `録音 ${secs.toFixed(1)}s`;
+      if(st._recFull){
+        st._recFull = false;
+        this.finishFreeFirst();
+        this.els.status.textContent = `上限${this.MAX_SECONDS}秒に達したのでループを確定しました。`;
+      }
     }
     if(st._commit){ st._commit = false; this.updateUI(); }
     if(st.playing || st.recording){
