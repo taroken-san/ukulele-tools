@@ -249,6 +249,12 @@
       <input id="setCentralUrl" placeholder="https://script.google.com/macros/s/.../exec">
     </div>
 
+    <div class="field">
+      <label>スプレッドシートの見た目を整える</label>
+      <button class="btn-ghost" id="btnRebuild" style="width:100%;">📋 スプレッドシート整形（20秒ほどかかる）</button>
+      <div style="font-size:11px;color:var(--sub);margin-top:4px;">保存自体は毎回反映されます。代表がスプレッドシートを見る前など、必要な時だけ押してください。</div>
+    </div>
+
     <div class="section-div">クラスの管理</div>
     <div class="class-pick">
       <select id="editClassSel"></select>
@@ -872,6 +878,29 @@ async function doSave(){
     btn.disabled=false; btn.textContent=orig; saving=false;
   }
 }
+async function doRebuild(){
+  if(!effectiveUrl() || !store.teacherId){ toast('講師未選択'); return; }
+  const btn = document.getElementById('btnRebuild');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(()=>{ btn.textContent = '整形中 '+Math.floor((Date.now()-t0)/1000)+'秒'; }, 500);
+  const ctrl = new AbortController();
+  const to = setTimeout(()=>ctrl.abort(), 90000);
+  try{
+    const url = effectiveUrl() + '?action=rebuild&teacher=' + encodeURIComponent(store.teacherId);
+    const res = await fetch(url, {method:'GET', signal:ctrl.signal});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const j = await res.json();
+    if(!j.ok) throw new Error(j.error||'unknown');
+    toast('スプレッドシートを整形しました');
+  }catch(e){
+    toast(e.name==='AbortError' ? '整形タイムアウト' : '整形に失敗: '+e.message);
+  }finally{
+    clearTimeout(to); clearInterval(tick);
+    btn.disabled=false; btn.textContent=orig;
+  }
+}
 async function doReload(){
   if(!effectiveUrl()){ toast('中央URL未設定'); return; }
   if(!store.teacherId){ toast('先に「設定」で講師を選択してください'); return; }
@@ -1016,6 +1045,7 @@ function init(){
   };
   document.getElementById('btnSave').onclick=doSave;
   document.getElementById('btnReload').onclick=doReload;
+  document.getElementById('btnRebuild').onclick=doRebuild;
   document.getElementById('btnSettings').onclick=openSettings;
   document.getElementById('btnChangeTeacher').onclick=(e)=>{ e.preventDefault(); teacherEditMode=true; renderTeacherSel(); };
   document.getElementById('btnHelp').onclick=()=>document.getElementById('dlgHelp').showModal();
