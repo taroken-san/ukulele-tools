@@ -180,7 +180,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0630s</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0701a</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -463,6 +463,8 @@
 <script>
 const STORE_KEY="classroom-calendar-mvp-v7";
 const URL_KEY="classroom-calendar-gas-url";
+const TOKEN_KEY="classroom-calendar-save-token";
+const DIRTY_KEY="classroom-calendar-dirty";
 const DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbxwdMiFwI3cUstSHlPMKRXdKo7T-Bf5az9Kup8-D5MPXBP5lGlI-z0qHjd2eacOKExHiA/exec";
 const ADMIN_PIN="1125";
 const SCHED_PIN="7015";
@@ -531,7 +533,10 @@ function inferSeedTeacher(roomId,classTypeId){
 }
 function uid(){return "id_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);}
 function $(id){return document.getElementById(id);}
-function saveLocal(){state.updatedAt=new Date().toISOString();const raw=JSON.stringify(state);localStorage.setItem(STORE_KEY,raw);if(raw.length>3500000)toast("保存データがかなり大きくなっています。古い年度の整理を検討してください");}
+function saveLocal(){const raw=JSON.stringify(state);try{localStorage.setItem(STORE_KEY,raw);}catch(err){toast("端末への保存に失敗しました（容量超過の可能性）。スプレッドシートへ保存↑してください");}if(raw.length>3500000)toast("保存データがかなり大きくなっています。古い年度の整理を検討してください");}
+function markDirty(){try{localStorage.setItem(DIRTY_KEY,"1");}catch(e){}}
+function clearDirty(){try{localStorage.removeItem(DIRTY_KEY);}catch(e){}}
+function isDirty(){return localStorage.getItem(DIRTY_KEY)==="1";}
 function loadLocal(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"null")}catch(e){return null}}
 function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");clearTimeout(window._toastT);window._toastT=setTimeout(()=>$("toast").classList.remove("show"),2600)}
 function byId(list,id){return list.find(x=>x.id===id)||{}}
@@ -617,9 +622,10 @@ function bind(){
   $("btnSaveRecurring").onclick=saveRecurring;$("btnGenerateMonth").onclick=generateMonthEvents;$("btnGenerateYear").onclick=generateYearEvents;$("btnRebuildEvents").onclick=rebuildEvents;$("btnDeleteRecurring").onclick=deleteRecurring;
   $("studentRange").onchange=renderStudentSchedule;$("studentClass").onchange=renderStudentSchedule;$("studentRoomFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("studentTypeFilter").onchange=()=>{fillStudentClassOptions();renderStudentSchedule();};$("btnPrintStudent").onclick=()=>window.print();
   $("btnSaveSettings").onclick=()=>{localStorage.setItem(URL_KEY,$("gasUrl").value.trim());toast("設定を保存しました");};
-  $("btnLoadRemote").onclick=()=>loadRemote();$("btnSaveRemote").onclick=saveRemote;
-  $("btnQuickLoad").onclick=()=>loadRemote();$("btnQuickSave").onclick=saveRemote;
-  $("btnResetSeed").onclick=()=>{if(!confirm("【初期化】ファイルの初期状態に戻し、予定を作り直します。アプリ上で手入力した予定・確定/休講・メモは消えます（生徒数は今の値を引き継ぎます）。データがおかしくなったとき以外は使いません。実行しますか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("初期化しました（予定を作り直しました）");};
+  $("btnLoadRemote").onclick=()=>loadRemote(false,$("btnLoadRemote"));$("btnSaveRemote").onclick=()=>saveRemote($("btnSaveRemote"));
+  $("btnQuickLoad").onclick=()=>loadRemote(false,$("btnQuickLoad"));$("btnQuickSave").onclick=()=>saveRemote($("btnQuickSave"));
+  window.addEventListener("beforeunload",e=>{if(isDirty()){e.preventDefault();e.returnValue="";}});
+  $("btnResetSeed").onclick=()=>{if(!confirm("【初期化】ファイルの初期状態に戻し、予定を作り直します。アプリ上で手入力した予定・確定/休講・メモは消えます（生徒数は今の値を引き継ぎます）。データがおかしくなったとき以外は使いません。実行しますか？"))return;const prevStu={};(state.recurringClasses||[]).forEach(r=>{if(r.students)prevStu[stuKey(r)]=r.students;});localStorage.removeItem(STORE_KEY);state=seedData();state.recurringClasses.forEach(r=>{const v=prevStu[stuKey(r)];if(v!=null)r.students=v;});markDirty();saveLocal();generateEventsForRange(schoolYearStart($("currentDate").value),12);render();toast("初期化しました（予定を作り直しました）※スプレッドシートへ反映するには保存↑");};
   $("btnMergeMasters").onclick=mergeMasters;
   $("btnBackup").onclick=downloadBackup;
   $("btnRestore").onclick=()=>$("restoreFile").click();
@@ -1109,7 +1115,7 @@ function renderRecurring(){
   if(!list.length){$("recurringList").innerHTML=`<div class="item">該当する基本スケジュールがありません。</div>`;return;}
   $("recurringList").innerHTML=list.map(r=>`<div class="mini-row${r.teacherId?"":" off"}">
     <div style="flex:1;cursor:pointer" onclick="editRecurring('${r.id}')">
-      <b>${r.className}</b>
+      <b>${r.className}</b>${r.active===false?`<small style="color:var(--red);font-weight:800">［無効］</small>`:""}
       <small>${patternLabel(r.weekPattern)} ${weekdays[r.weekday]}曜 ${r.start}-${r.end} / ${byId(state.rooms,r.roomId).name} / ${classType(r.classTypeId).name}</small>
       ${r.note?`<small>${r.note}</small>`:""}
     </div>
@@ -1268,7 +1274,7 @@ function restoreBackup(e){
       const data=JSON.parse(reader.result);
       if(!data||!Array.isArray(data.teachers)||!Array.isArray(data.events))throw new Error("形式が違います");
       if(!confirm("このバックアップで現在のデータを置き換えます。よろしいですか？"))return;
-      state=data;saveLocal();render();toast("バックアップから復元しました");
+      state=data;markDirty();saveLocal();render();toast("バックアップから復元しました");
     }catch(err){toast("復元に失敗："+err.message);}
     finally{e.target.value="";}
   };
@@ -1283,10 +1289,10 @@ function mergeMasters(){
   sync(state.rooms,s.rooms,["name","area"]);
   sync(state.classTypes,s.classTypes,["name","categoryId"]);
   sync(state.categories,s.categories,["name"]);
-  saveLocal();render();
+  markDirty();saveLocal();render();
   toast(`マスタを更新：追加${added}件・名称修正${renamed}件（予定はそのまま）`);
 }
-function assignRecurringTeacher(id,teacherId){const r=byId(state.recurringClasses,id);if(!r.id)return;r.teacherId=teacherId;r.categoryId=r.categoryId||classType(r.classTypeId).categoryId;saveLocal();renderRecurring();toast(teacherId?`${byId(state.teachers,teacherId).name} を割当`:"未割当に戻しました");}
+function assignRecurringTeacher(id,teacherId){const r=byId(state.recurringClasses,id);if(!r.id)return;r.teacherId=teacherId;r.categoryId=r.categoryId||classType(r.classTypeId).categoryId;markDirty();saveLocal();renderRecurring();toast(teacherId?`${byId(state.teachers,teacherId).name} を割当`:"未割当に戻しました");}
 window.assignRecurringTeacher=assignRecurringTeacher;
 function renderMasters(){
   if(!$("teacherMasterList"))return;
@@ -1297,16 +1303,16 @@ function renderMasters(){
 function clearTeacherMaster(){$("masterTeacherId").value="";$("masterTeacherName").value="";$("masterTeacherPin").value="";$("masterTeacherRole").value="teacher";$("masterTeacherActive").checked=true;}
 function focusMaster(inputId){const el=$(inputId);el.scrollIntoView({block:"center",behavior:"smooth"});el.focus();el.select&&el.select();}
 function editTeacherMaster(id){const t=byId(state.teachers,id);$("masterTeacherId").value=t.id;$("masterTeacherName").value=t.name||"";$("masterTeacherPin").value="";$("masterTeacherRole").value=t.role||"teacher";$("masterTeacherActive").checked=t.active!==false;focusMaster("masterTeacherName");}
-function saveTeacherMaster(){const name=$("masterTeacherName").value.trim();if(!name)return toast("講師名を入力してください");const id=$("masterTeacherId").value||("t_"+Date.now());const pin=$("masterTeacherPin").value.trim();if(!$("masterTeacherId").value&&!/^\d{4}$/.test(pin))return toast("新規追加時は4桁PINが必要です");if(pin&&!/^\d{4}$/.test(pin))return toast("PINは4桁の数字にしてください");const i=state.teachers.findIndex(t=>t.id===id);const current=i>=0?state.teachers[i]:{id,pin:""};const next={...current,id,name,role:$("masterTeacherRole").value,active:$("masterTeacherActive").checked};if(pin)next.pin=pin;if(i>=0)state.teachers[i]=next;else state.teachers.push(next);clearTeacherMaster();saveLocal();render();toast("講師マスタを保存しました");}
-function toggleTeacherMaster(id){const t=byId(state.teachers,id);if(t.id==="admin"&&t.active!==false)return toast("管理者は無効化できません");t.active=t.active===false;saveLocal();render();}
+function saveTeacherMaster(){const name=$("masterTeacherName").value.trim();if(!name)return toast("講師名を入力してください");const id=$("masterTeacherId").value||("t_"+Date.now());const pin=$("masterTeacherPin").value.trim();if(!$("masterTeacherId").value&&!/^\d{4}$/.test(pin))return toast("新規追加時は4桁PINが必要です");if(pin&&!/^\d{4}$/.test(pin))return toast("PINは4桁の数字にしてください");const i=state.teachers.findIndex(t=>t.id===id);const current=i>=0?state.teachers[i]:{id,pin:""};const next={...current,id,name,role:$("masterTeacherRole").value,active:$("masterTeacherActive").checked};if(pin)next.pin=pin;if(i>=0)state.teachers[i]=next;else state.teachers.push(next);clearTeacherMaster();markDirty();saveLocal();render();toast("講師マスタを保存しました");}
+function toggleTeacherMaster(id){const t=byId(state.teachers,id);if(t.id==="admin"&&t.active!==false)return toast("管理者は無効化できません");t.active=t.active===false;markDirty();saveLocal();render();}
 function clearRoomMaster(){$("masterRoomId").value="";$("masterRoomName").value="";$("masterRoomActive").checked=true;}
 function editRoomMaster(id){const r=byId(state.rooms,id);$("masterRoomId").value=r.id;$("masterRoomName").value=r.name||"";$("masterRoomActive").checked=r.active!==false;focusMaster("masterRoomName");}
-function saveRoomMaster(){const name=$("masterRoomName").value.trim();if(!name)return toast("教室名を入力してください");const id=$("masterRoomId").value||("r_"+Date.now());const i=state.rooms.findIndex(r=>r.id===id);const next={...(i>=0?state.rooms[i]:{}),id,name,area:name,active:$("masterRoomActive").checked};if(i>=0)state.rooms[i]=next;else state.rooms.push(next);clearRoomMaster();saveLocal();render();toast("教室マスタを保存しました");}
-function toggleRoomMaster(id){const r=byId(state.rooms,id);r.active=r.active===false;saveLocal();render();}
+function saveRoomMaster(){const name=$("masterRoomName").value.trim();if(!name)return toast("教室名を入力してください");const id=$("masterRoomId").value||("r_"+Date.now());const i=state.rooms.findIndex(r=>r.id===id);const next={...(i>=0?state.rooms[i]:{}),id,name,area:name,active:$("masterRoomActive").checked};if(i>=0)state.rooms[i]=next;else state.rooms.push(next);clearRoomMaster();markDirty();saveLocal();render();toast("教室マスタを保存しました");}
+function toggleRoomMaster(id){const r=byId(state.rooms,id);r.active=r.active===false;markDirty();saveLocal();render();}
 function clearClassTypeMaster(){$("masterClassTypeId").value="";$("masterClassTypeName").value="";$("masterClassTypeCategory").value="music";$("masterClassTypeActive").checked=true;}
 function editClassTypeMaster(id){const ct=byId(state.classTypes,id);$("masterClassTypeId").value=ct.id;$("masterClassTypeName").value=ct.name||"";$("masterClassTypeCategory").value=ct.categoryId||"music";$("masterClassTypeActive").checked=ct.active!==false;focusMaster("masterClassTypeName");}
-function saveClassTypeMaster(){const name=$("masterClassTypeName").value.trim();if(!name)return toast("種別名を入力してください");const id=$("masterClassTypeId").value||("ct_"+Date.now());const i=state.classTypes.findIndex(ct=>ct.id===id);const next={...(i>=0?state.classTypes[i]:{}),id,name,categoryId:$("masterClassTypeCategory").value,active:$("masterClassTypeActive").checked};if(i>=0)state.classTypes[i]=next;else state.classTypes.push(next);clearClassTypeMaster();saveLocal();render();toast("クラス種別マスタを保存しました");}
-function toggleClassTypeMaster(id){const ct=byId(state.classTypes,id);ct.active=ct.active===false;saveLocal();render();}
+function saveClassTypeMaster(){const name=$("masterClassTypeName").value.trim();if(!name)return toast("種別名を入力してください");const id=$("masterClassTypeId").value||("ct_"+Date.now());const i=state.classTypes.findIndex(ct=>ct.id===id);const next={...(i>=0?state.classTypes[i]:{}),id,name,categoryId:$("masterClassTypeCategory").value,active:$("masterClassTypeActive").checked};if(i>=0)state.classTypes[i]=next;else state.classTypes.push(next);clearClassTypeMaster();markDirty();saveLocal();render();toast("クラス種別マスタを保存しました");}
+function toggleClassTypeMaster(id){const ct=byId(state.classTypes,id);ct.active=ct.active===false;markDirty();saveLocal();render();}
 function renderFormCheck(){
   const e=formEvent();const others=state.events.filter(x=>x.id!==e.id&&x.date===e.date);const room=others.filter(x=>overlaps(e,x)&&x.roomId===e.roomId);const teacher=others.filter(x=>overlaps(e,x)&&x.teacherId===e.teacherId);
   $("formCheck").innerHTML=`<div class="${room.length?"warn":"item"}"><b>${room.length?"教室重複あり":"教室OK"}</b><br>${room.length?room.map(eventLabel).join(" / "):"同じ教室の重複はありません。"}</div><div class="${teacher.length?"warn":"item"}"><b>${teacher.length?"講師重複あり":"講師OK"}</b><br>${teacher.length?teacher.map(eventLabel).join(" / "):"同じ講師の重複はありません。"}</div>`;
@@ -1314,11 +1320,11 @@ function renderFormCheck(){
 function formEvent(){return {id:$("eventId").value||uid(),date:$("eventDate").value,start:$("eventStart").value,end:$("eventEnd").value,roomId:$("eventRoom").value,teacherId:$("eventTeacher").value,categoryId:$("eventCategory").value,classTypeId:$("eventClassType").value,status:$("eventStatus").value,className:$("eventClassName").value,memo:$("eventMemo").value};}
 function clearForm(){$("eventId").value="";$("formTitle").textContent="予定入力";$("eventDate").value=$("currentDate").value;$("eventStart").value="10:00";$("eventEnd").value="11:10";$("eventStatus").value="tentative";$("eventClassName").value="";$("eventMemo").value="";if(!isManager())$("eventTeacher").value=currentUser.id;renderFormCheck();}
 function editEvent(id){const e=byId(state.events,id);if(!canSeeDetail(e)){toast("他講師の予定詳細は表示しません");return}showView("input");$("eventId").value=e.id;$("formTitle").textContent="予定編集";$("eventDate").value=e.date;$("eventRoom").value=e.roomId;$("eventStart").value=e.start;$("eventEnd").value=e.end;$("eventTeacher").value=e.teacherId;$("eventCategory").value=categoryForEvent(e);fillClassTypeSelectors();$("eventClassType").value=e.classTypeId;$("eventStatus").value=e.status;$("eventClassName").value=e.className||"";$("eventMemo").value=e.memo||"";renderFormCheck();}
-function saveEvent(){const e=formEvent();if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ保存できます");if(minutes(e.start)>=minutes(e.end))return toast("終了時刻を開始より後にしてください");const i=state.events.findIndex(x=>x.id===e.id);e.updatedAt=new Date().toISOString();if(i>=0)state.events[i]=e;else state.events.push(e);saveLocal();render();toast("予定を保存しました");}
-function deleteEvent(){const id=$("eventId").value;if(!id)return;const e=byId(state.events,id);if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ削除できます");state.events=state.events.filter(x=>x.id!==id);clearForm();saveLocal();render();toast("削除しました");}
-function saveRecurring(){const id=$("recurringId").value||uid();const classTypeId=$("recurringClassType").value;const r={id,className:$("recurringName").value||suggestClassName(),weekPattern:$("recurringPattern").value,weekday:Number($("recurringWeekday").value),roomId:$("recurringRoom").value,teacherId:$("recurringTeacher").value,classTypeId,categoryId:classType(classTypeId).categoryId,start:$("recurringStart").value,end:$("recurringEnd").value,active:true};const i=state.recurringClasses.findIndex(x=>x.id===id);if(i>=0)state.recurringClasses[i]=r;else state.recurringClasses.push(r);saveLocal();render();toast("基本スケジュールを保存しました");}
+function saveEvent(){const e=formEvent();if(!e.date)return toast("日付を選んでください");if(!e.roomId)return toast("教室を選んでください");if(!e.teacherId)return toast("講師を選んでください");if(!e.classTypeId)return toast("クラス種別を選んでください");if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ保存できます");if(minutes(e.start)>=minutes(e.end))return toast("終了時刻を開始より後にしてください");const i=state.events.findIndex(x=>x.id===e.id);e.updatedAt=new Date().toISOString();if(i>=0)state.events[i]=e;else state.events.push(e);markDirty();saveLocal();render();toast("予定を保存しました");}
+function deleteEvent(){const id=$("eventId").value;if(!id)return;const e=byId(state.events,id);if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ削除できます");state.events=state.events.filter(x=>x.id!==id);clearForm();markDirty();saveLocal();render();toast("削除しました");}
+function saveRecurring(){const id=$("recurringId").value||uid();const classTypeId=$("recurringClassType").value;const r={id,className:$("recurringName").value||suggestClassName(),weekPattern:$("recurringPattern").value,weekday:Number($("recurringWeekday").value),roomId:$("recurringRoom").value,teacherId:$("recurringTeacher").value,classTypeId,categoryId:classType(classTypeId).categoryId,start:$("recurringStart").value,end:$("recurringEnd").value,active:true};const i=state.recurringClasses.findIndex(x=>x.id===id);if(i>=0)state.recurringClasses[i]=r;else state.recurringClasses.push(r);markDirty();saveLocal();render();toast("基本スケジュールを保存しました");}
 function editRecurring(id){const r=byId(state.recurringClasses,id);$("recurringId").value=r.id;$("recurringName").value=r.className;$("recurringPattern").value=r.weekPattern;$("recurringWeekday").value=r.weekday;$("recurringRoom").value=r.roomId;$("recurringTeacher").value=r.teacherId;$("recurringClassType").value=r.classTypeId;$("recurringStart").value=r.start;$("recurringEnd").value=r.end;if(recurringViewMode==="grid")setRecurringView("list");$("recurringFormPanel").scrollIntoView({behavior:"smooth"});}
-function deleteRecurring(){const id=$("recurringId").value;if(!id)return toast("削除する基本スケジュールを選んでください");if(!confirm("この基本スケジュールを削除しますか？生成済み予定は残ります。"))return;state.recurringClasses=state.recurringClasses.filter(r=>r.id!==id);$("recurringId").value="";$("recurringName").value="";saveLocal();render();toast("基本スケジュールを削除しました");}
+function deleteRecurring(){const id=$("recurringId").value;if(!id)return toast("削除する基本スケジュールを選んでください");if(!confirm("この基本スケジュールを削除しますか？生成済み予定は残ります。"))return;state.recurringClasses=state.recurringClasses.filter(r=>r.id!==id);$("recurringId").value="";$("recurringName").value="";markDirty();saveLocal();render();toast("基本スケジュールを削除しました");}
 function timeLabel(time){const [h,m]=time.split(":");if(m==="00")return `${Number(h)}時`;if(m==="30")return `${Number(h)}時半`;return `${Number(h)}時${m}`;}
 function suggestClassNameFrom(pattern,weekday,start){return `${patternShort(pattern)}${weekdays[weekday]}曜${timeLabel(start)}クラス`;}
 function suggestClassName(){return suggestClassNameFrom($("recurringPattern").value,Number($("recurringWeekday").value),$("recurringStart").value);}
@@ -1333,12 +1339,55 @@ function rebuildEvents(){
   generateEventsForRange(schoolYearStart($("currentDate").value),12);
   toast(`予定を作り直しました（仮${removed}件を更新・手入力は保持）`);
 }
-function generateEventsForRange(base,months){let count=0;for(let i=0;i<months;i++){const d=new Date(base.getFullYear(),base.getMonth()+i,1);state.recurringClasses.filter(r=>r.active!==false).forEach(r=>datesForPattern(d.getFullYear(),d.getMonth(),r.weekday,r.weekPattern).forEach(date=>{const exists=state.events.some(e=>e.sourceRecurringClassId===r.id&&e.date===date);if(exists)return;state.events.push({id:uid(),date,start:r.start,end:r.end,roomId:r.roomId,teacherId:r.teacherId,categoryId:r.categoryId||classType(r.classTypeId).categoryId,classTypeId:r.classTypeId,status:"tentative",className:r.className,memo:"",sourceRecurringClassId:r.id,updatedAt:new Date().toISOString()});count++;}));}saveLocal();render();toast(`${count}件作成しました`);}
+function generateEventsForRange(base,months){let count=0;for(let i=0;i<months;i++){const d=new Date(base.getFullYear(),base.getMonth()+i,1);state.recurringClasses.filter(r=>r.active!==false).forEach(r=>datesForPattern(d.getFullYear(),d.getMonth(),r.weekday,r.weekPattern).forEach(date=>{const exists=state.events.some(e=>e.sourceRecurringClassId===r.id&&e.date===date);if(exists)return;state.events.push({id:uid(),date,start:r.start,end:r.end,roomId:r.roomId,teacherId:r.teacherId,categoryId:r.categoryId||classType(r.classTypeId).categoryId,classTypeId:r.classTypeId,status:"tentative",className:r.className,memo:"",sourceRecurringClassId:r.id,updatedAt:new Date().toISOString()});count++;}));}markDirty();saveLocal();render();toast(`${count}件作成しました`);}
 function datesForPattern(y,m,weekday,pattern){const target=patternWeeks(pattern);const out=[];for(let d=1;d<=31;d++){const dt=new Date(y,m,d);if(dt.getMonth()!==m)break;if(dt.getDay()===Number(weekday)){const nth=Math.floor((d-1)/7)+1;if(target.includes(nth))out.push(ymd(dt));}}return out;}
 function pickDate(date){$("currentDate").value=date;$("eventDate").value=date;showView("rooms");}
 function busyBtn(btn,label){const orig=btn.textContent;btn.dataset.orig=orig;btn.disabled=true;btn.textContent=label;return()=>{btn.disabled=false;btn.textContent=btn.dataset.orig||orig;};}
-async function loadRemote(auto){const url=$("gasUrl").value.trim();if(!url)return auto?undefined:toast("GAS URLを設定してください");const done=auto?null:busyBtn($("btnLoadRemote"),"読込中…");if(auto)toast("最新データを読み込み中…");try{const res=await fetch(url);const data=await res.json();if(!data.ok)throw new Error(data.error||"load failed");state=data.data||seedData();saveLocal();render();toast(auto?"✓ 最新データを読み込みました":"✓ 読み込みました");}catch(e){toast((auto?"自動読み込みに失敗しました: ":"読み込みに失敗しました: ")+e.message);}finally{if(done)done();}}
-async function saveRemote(){const url=$("gasUrl").value.trim();if(!url)return toast("GAS URLを設定してください");const done=busyBtn($("btnSaveRemote"),"保存中…");try{const res=await fetch(url,{method:"POST",body:JSON.stringify({action:"save",data:state})});const data=await res.json();if(!data.ok)throw new Error(data.error||"save failed");toast("✓ スプレッドシートに保存しました");}catch(e){toast("保存に失敗しました: "+e.message);}finally{done();}}
+let syncBusy=false;
+async function fetchJson(url,opts){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),20000);try{const res=await fetch(url,{...(opts||{}),signal:ctl.signal});return await res.json();}catch(e){if(e.name==="AbortError")throw new Error("タイムアウト（20秒）。通信状況を確認してください");throw e;}finally{clearTimeout(t);}}
+function validRemoteData(d){return d&&Array.isArray(d.teachers)&&d.teachers.length>0&&Array.isArray(d.recurringClasses)&&d.recurringClasses.length>0;}
+async function loadRemote(auto,btn){
+  const url=$("gasUrl").value.trim();if(!url)return auto?undefined:toast("GAS URLを設定してください");
+  if(syncBusy)return;
+  if(isDirty()&&!confirm("この端末に未保存の変更があります。読み込むとその変更は消えます。読み込みますか？\n（変更を残したい場合はキャンセル →「保存 ↑」）"))return;
+  syncBusy=true;const done=(!auto&&btn)?busyBtn(btn,"読込中…"):null;if(auto)toast("最新データを読み込み中…");
+  try{
+    const data=await fetchJson(url);
+    if(!data.ok)throw new Error(data.error==="store_empty"?"スプレッドシートが空です（初回は管理者が保存↑してください）":(data.error||"load failed"));
+    if(!validRemoteData(data.data))throw new Error("受信データが空か壊れています。読み込みを中止しました（このまま保存↑しないでください）");
+    state=data.data;clearDirty();saveLocal();render();
+    toast(auto?"✓ 最新データを読み込みました":"✓ 読み込みました");
+  }catch(e){toast((auto?"自動読み込みに失敗: ":"読み込みに失敗: ")+e.message);}
+  finally{syncBusy=false;if(done)done();}
+}
+function getSaveToken(){let t=localStorage.getItem(TOKEN_KEY)||"";if(!t){t=(prompt("保存用の合言葉を入力してください（初回のみ）")||"").trim();if(t)try{localStorage.setItem(TOKEN_KEY,t);}catch(e){}}return t;}
+async function saveRemote(btn){
+  const url=$("gasUrl").value.trim();if(!url)return toast("GAS URLを設定してください");
+  if(syncBusy)return;
+  const token=getSaveToken();if(!token)return toast("合言葉が未入力のため保存を中止しました");
+  syncBusy=true;const done=btn?busyBtn(btn,"保存中…"):null;
+  try{
+    // 競合プリフライト：サーバの現在版と自分の基準版を比較
+    let base=state.updatedAt||"";
+    try{
+      const cur=await fetchJson(url);
+      if(cur.ok&&cur.data&&cur.data.updatedAt&&cur.data.updatedAt!==base){
+        if(!confirm("他の端末が先に保存しています。このまま保存すると相手の変更が消えます。\n推奨：キャンセル →「読み込み ↓」→ 編集し直し → 保存。\nそれでも上書き保存しますか？")){toast("保存を中止しました。読み込み↓してください");return;}
+        base=cur.data.updatedAt;
+      }
+    }catch(pf){/* プリフライト失敗時はサーバ側チェックに委ねる */}
+    const data=await fetchJson(url,{method:"POST",body:JSON.stringify({action:"save",data:state,token,baseUpdatedAt:base})});
+    if(!data.ok){
+      if(data.error==="bad_token"){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}throw new Error("合言葉が違います。もう一度「保存 ↑」を押して入力し直してください");}
+      if(data.error==="conflict")throw new Error("他の端末が先に保存しました。読み込み↓してから保存し直してください");
+      throw new Error(data.error||"save failed");
+    }
+    if(data.savedAt)state.updatedAt=data.savedAt;
+    clearDirty();saveLocal();
+    toast("✓ スプレッドシートに保存しました");
+  }catch(e){toast("保存に失敗: "+e.message);}
+  finally{syncBusy=false;if(done)done();}
+}
 window.editEvent=editEvent;window.editRecurring=editRecurring;window.pickDate=pickDate;
 window.editTeacherMaster=editTeacherMaster;window.toggleTeacherMaster=toggleTeacherMaster;
 window.editRoomMaster=editRoomMaster;window.toggleRoomMaster=toggleRoomMaster;
