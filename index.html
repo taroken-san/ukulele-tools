@@ -130,6 +130,8 @@
   <button id="dlFile">💾 ファイル保存</button>
   <button id="ulFile">📂 ファイル読込</button>
   <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
+  <button id="ulMxml" title="MusicXML(.xml/.mxl)を取り込んでメロディ・コードを自動でTAB化">🎼 楽譜を取り込む</button>
+  <input type="file" id="mxmlInput" accept=".xml,.musicxml,.mxl" style="display:none">
   <button id="helpBtn" title="使い方ガイド">❓ 使い方</button>
   <button id="mobileToggle" title="スマホ入力画面の確認">📱 スマホ表示</button>
   <span id="saveStat" class="hint" style="margin:0;color:#1d9e75;"></span>
@@ -878,6 +880,168 @@ document.getElementById('kanaBtn').onclick=async()=>{
     stat.style.color='#1d9e75'; stat.textContent='✓ ひらがな化＋音符数で配分しました（手動でスペースを微調整可）';
   }catch(e){stat.style.color='#a32d2d';stat.textContent='変換に失敗: '+e.message;}
   finally{btn.disabled=false;}
+};
+
+// ===== MusicXML 取り込み（メロディ＋コードを自動でTAB化）=====
+const FFL={ready:false,loading:null};
+function ensureFflate(){
+  if(FFL.ready)return Promise.resolve();
+  if(FFL.loading)return FFL.loading;
+  FFL.loading=loadScript('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js')
+    .then(()=>{FFL.ready=true;}).catch(e=>{FFL.loading=null;throw e;});
+  return FFL.loading;
+}
+async function readMxml(buf){
+  await ensureFflate();
+  const files=fflate.unzipSync(new Uint8Array(buf));
+  const dec=new TextDecoder('utf-8');
+  let path=null;
+  if(files['META-INF/container.xml']){
+    const cx=new DOMParser().parseFromString(dec.decode(files['META-INF/container.xml']),'application/xml');
+    const rf=cx.getElementsByTagName('rootfile')[0];
+    if(rf)path=rf.getAttribute('full-path');
+  }
+  if(!path||!files[path])path=Object.keys(files).find(n=>/\.(xml|musicxml)$/i.test(n)&&!/container\.xml$/i.test(n));
+  if(!path)throw new Error('ファイル内にスコアXMLが見つかりません');
+  return dec.decode(files[path]);
+}
+const XPC={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+function noteToMidiXml(p){
+  const step=p.getElementsByTagName('step')[0].textContent.trim();
+  const al=p.getElementsByTagName('alter')[0];
+  const oct=+p.getElementsByTagName('octave')[0].textContent;
+  return (oct+1)*12+XPC[step]+(al?+al.textContent:0);
+}
+const XKIND={'major':'','minor':'m','dominant':'7','major-seventh':'M7','minor-seventh':'m7',
+  'diminished':'dim','diminished-seventh':'dim7','augmented':'aug','half-diminished':'m7-5',
+  'suspended-fourth':'sus4','suspended-second':'sus2','major-sixth':'6','minor-sixth':'m6',
+  'dominant-ninth':'9','major-ninth':'M9','minor-ninth':'m9','power':'5','none':''};
+function harmonyToText(el){
+  const rs=el.getElementsByTagName('root-step')[0]; if(!rs)return '';
+  let root=rs.textContent.trim();
+  const ra=el.getElementsByTagName('root-alter')[0];
+  if(ra){const a=+ra.textContent; root+=a>0?'#':(a<0?'b':'');}
+  const kEl=el.getElementsByTagName('kind')[0];
+  const kv=kEl?kEl.textContent.trim():'';
+  const kt=kEl?kEl.getAttribute('text'):null;
+  const suf=(kt!=null&&kt!=='')?kt:(XKIND[kv]!==undefined?XKIND[kv]:'');
+  return root+suf;
+}
+function parseMusicXML(xml){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw new Error('XMLの解析に失敗しました');
+  const parts=doc.getElementsByTagName('part');
+  if(!parts.length)throw new Error('partが見つかりません（score-partwise形式が必要）');
+  const g=t=>{const e=doc.getElementsByTagName(t)[0];return e?e.textContent.trim():'';};
+  let title=g('work-title')||g('movement-title')||'', composer='', lyricist='';
+  for(const c of doc.getElementsByTagName('creator')){const t=(c.getAttribute('type')||'').toLowerCase();
+    if(t==='composer')composer=c.textContent.trim(); else if(t==='lyricist'||t==='poet')lyricist=c.textContent.trim();}
+  const part=parts[0], measures=part.getElementsByTagName('measure');
+  let bpm=0, timeSig={beats:4,beatType:4}, divisions=1, measureStartBeat=0;
+  const notes=[], harmonies=[];
+  for(const m of measures){
+    let cursor=0, maxCursor=0;
+    for(const el of m.children){
+      const tag=el.tagName;
+      if(tag==='attributes'){
+        const d=el.getElementsByTagName('divisions')[0]; if(d)divisions=+d.textContent||1;
+        const t=el.getElementsByTagName('time')[0];
+        if(t){const b=t.getElementsByTagName('beats')[0], bt=t.getElementsByTagName('beat-type')[0];
+          if(b&&bt)timeSig={beats:+b.textContent,beatType:+bt.textContent};}
+      }else if(tag==='direction'){
+        const snd=el.getElementsByTagName('sound')[0];
+        if(snd&&snd.getAttribute('tempo'))bpm=Math.round(+snd.getAttribute('tempo'));
+        if(!bpm){const pm=el.getElementsByTagName('per-minute')[0]; if(pm)bpm=Math.round(+pm.textContent);}
+      }else if(tag==='harmony'){
+        const txt=harmonyToText(el);
+        if(txt)harmonies.push({beat:measureStartBeat+cursor/divisions,text:txt});
+      }else if(tag==='note'){
+        const isChord=el.getElementsByTagName('chord').length>0;
+        const dEl=el.getElementsByTagName('duration')[0], dur=dEl?+dEl.textContent:0;
+        const stEl=el.getElementsByTagName('staff')[0], staff=stEl?+stEl.textContent:1;
+        const isRest=el.getElementsByTagName('rest').length>0;
+        const onset=measureStartBeat+cursor/divisions;
+        if(staff===1&&!isRest){
+          const pEl=el.getElementsByTagName('pitch')[0];
+          if(pEl){const tieStop=[...el.getElementsByTagName('tie')].some(t=>t.getAttribute('type')==='stop');
+            notes.push({midi:noteToMidiXml(pEl),beat:onset,durBeat:dur/divisions,tie:tieStop});}
+        }
+        if(!isChord){cursor+=dur; if(cursor>maxCursor)maxCursor=cursor;}
+      }else if(tag==='backup'){
+        const d=el.getElementsByTagName('duration')[0]; cursor-=d?+d.textContent:0; if(cursor<0)cursor=0;
+      }else if(tag==='forward'){
+        const d=el.getElementsByTagName('duration')[0]; cursor+=d?+d.textContent:0; if(cursor>maxCursor)maxCursor=cursor;
+      }
+    }
+    measureStartBeat+=maxCursor/divisions;
+  }
+  return {title,composer,lyricist,bpm,timeSig,notes,harmonies};
+}
+// --- 弦・フレット割当（既存 INST.freq を使用／Python版を移植）---
+const XMAXFRET=12, XPREF=7, XMAXSHIFT=2;
+function openMidis(){const o={};for(const st of STRINGS)o[st]=Math.round(69+12*Math.log2(INST.freq[st]/440));return o;}
+function xCand(midi,om){const out=[];for(const st of STRINGS){const f=midi-om[st];if(f>=0&&f<=XMAXFRET)out.push([+st,f]);}return out;}
+function xCost(prev,cur){const cf=cur[1], reach=Math.max(0,cf-XPREF)**2; if(!prev)return reach;
+  return (cur[0]===prev[0]?0:1)+(cf-prev[1])**2+reach;}
+function xShift(midi,om){for(const sh of [0,-1,1,-2,2]){const c=xCand(midi+sh*12,om);if(c.length)return[sh,c];}return[null,[]];}
+function assignPositions(notes){const om=openMidis();let prev=null;
+  return notes.map(n=>{const[sh,c]=xShift(n.midi,om); if(!c.length)return{...n,string:null,fret:null,shift:null};
+    let best=c[0],bc=Infinity; for(const cand of c){const co=xCost(prev,cand); if(co<bc){bc=co;best=cand;}}
+    prev=best; return{...n,string:best[0],fret:best[1],shift:sh};});}
+function buildSongFromMusicXML(p){
+  const meter=(p.timeSig.beats===3)?3:4;
+  const meterApprox=!((p.timeSig.beats===4||p.timeSig.beats===3)&&p.timeSig.beatType===4);
+  const div=4, slotsPer=meter*div;
+  const notes=p.notes.slice().sort((a,b)=>a.beat-b.beat);
+  const pos=assignPositions(notes).map(n=>({...n,grid:Math.round(n.beat*div)}));
+  let maxGrid=0; pos.forEach(n=>{if(n.grid>maxGrid)maxGrid=n.grid;});
+  const numMeasures=Math.floor(maxGrid/slotsPer)+2;
+  const song=[]; for(let i=0;i<numMeasures;i++)song.push(newMeasure(meter,div));
+  let dropped=0; const oct={};
+  pos.sort((a,b)=>a.grid-b.grid||a.midi-b.midi);   // 同一スロットは高音が後勝ち＝主旋律を採用
+  for(const n of pos){
+    if(n.string==null){dropped++;continue;}
+    const mi=Math.floor(n.grid/slotsPer), rem=n.grid%slotsPer, bi=Math.floor(rem/div), si=rem%div;
+    if(mi>=numMeasures){dropped++;continue;}
+    if(n.shift)oct[n.shift]=(oct[n.shift]||0)+1;
+    const slot=song[mi].beats[bi].slots[si];
+    slot.type='pick'; slot.frets={[String(n.string)]:n.fret}; if(n.tie)slot.tie=true;
+  }
+  let chordCount=0;
+  if(INST.hasChord)for(const h of p.harmonies){const gr=Math.round(h.beat*div);
+    const mi=Math.floor(gr/slotsPer), rem=gr%slotsPer, bi=Math.floor(rem/div);
+    if(mi<numMeasures&&!song[mi].beats[bi].chord){song[mi].beats[bi].chord=h.text;chordCount++;}}
+  return {song,dropped,oct,chordCount,measures:numMeasures,meterApprox};
+}
+document.getElementById('ulMxml').onclick=()=>document.getElementById('mxmlInput').click();
+document.getElementById('mxmlInput').onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  saveStat.style.color=''; saveStat.textContent='楽譜を読み込み中…';
+  try{
+    let xml;
+    if(/\.mxl$/i.test(f.name)){xml=await readMxml(await f.arrayBuffer());}
+    else{xml=await f.text();}
+    const parsed=parseMusicXML(xml);
+    if(!parsed.notes.length)throw new Error('主旋律の音符が見つかりません（最初のパート上段を旋律とみなします）');
+    const r=buildSongFromMusicXML(parsed);
+    const shifted=Object.values(r.oct).reduce((a,b)=>a+b,0);
+    const warn=[]; if(!parsed.bpm)warn.push('テンポ未検出→96で仮'); if(r.dropped)warn.push('音域外'+r.dropped+'音は省略');
+    if(r.meterApprox)warn.push('拍子を4/4で近似（3/4以外）');
+    const msg='取り込み内容\n・'+r.measures+'小節\n・BPM '+(parsed.bpm||96)+(parsed.bpm?'（検出）':'（仮）')
+      +'\n・コード '+r.chordCount+'個\n・弾きやすさ優先のオクターブ補正 '+shifted+'音'
+      +(warn.length?'\n\n⚠ '+warn.join(' / '):'')
+      +'\n\n※自動採譜は下書きです（主旋律の推定・オクターブ移動で原曲と変わる場合あり）。\nこの内容で新しい曲として取り込みますか？';
+    if(!confirm(msg)){saveStat.textContent='取り込みを中止しました';return;}
+    SAVE_ID=(crypto.randomUUID?crypto.randomUUID():'id'+Date.now());
+    song=normalize({format:'ukulele-pattern',song:r.song});
+    titleEl.value=parsed.title||f.name.replace(/\.[^.]+$/,''); composerEl.value=parsed.composer||''; lyricistEl.value=parsed.lyricist||'';
+    applySettings({bpm:parsed.bpm||96});
+    cur=0;SEL=null;undoStack=[];redoStack=[];baseline=null;
+    render(); saveSong();
+    saveStat.style.color='#1d9e75';
+    saveStat.textContent='✓ 取込完了：'+r.measures+'小節 / コード'+r.chordCount+' / 補正'+shifted+'音'+(r.dropped?' / 省略'+r.dropped:'');
+  }catch(err){saveStat.style.color='#a32d2d'; saveStat.textContent='取り込み失敗: '+err.message;}
+  finally{e.target.value='';}
 };
 
 // --- 起動：前回の曲を復元、無ければ新規 ---
