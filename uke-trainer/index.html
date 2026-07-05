@@ -98,6 +98,26 @@
   body.big-ui .note-chip{font-size:17px;padding:5px 12px}
   body.big-ui .opt-line{font-size:15px}
   body.big-ui button.action{padding:18px;font-size:18px}
+  /* 今日のお題 */
+  .suggest-box{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .suggest-label{font-size:11px;font-weight:600;color:var(--accent-2);letter-spacing:.05em;margin-bottom:4px}
+  .suggest-text{font-size:16px;font-weight:700;color:var(--koa);font-family:Georgia,serif}
+  .chip-btn{font-size:12px;padding:7px 14px;border-radius:14px;border:1.5px solid var(--line);
+    background:var(--cream-deep);color:var(--ink-soft);cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap}
+  .chip-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  /* 上達モード */
+  .practice-info{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .practice-bar{height:6px;background:var(--cream-deep);border-radius:3px;margin-top:5px;max-width:240px;overflow:hidden}
+  .practice-bar i{display:block;height:100%;background:var(--accent-2)}
+  input[type=range]:disabled{opacity:.45}
+  /* できたねフィードバック */
+  .celebrate-overlay{position:fixed;inset:0;background:rgba(43,32,23,.45);display:flex;
+    align-items:center;justify-content:center;z-index:999;padding:20px}
+  .celebrate-card{background:var(--cream);border-radius:16px;padding:28px 32px;text-align:center;
+    max-width:320px;box-shadow:0 12px 30px var(--shadow)}
+  .celebrate-emoji{font-size:34px;margin-bottom:6px}
+  .celebrate-title{font-size:19px;font-weight:700;color:var(--koa);font-family:Georgia,serif;margin-bottom:4px}
+  .celebrate-sub{font-size:13px;color:var(--ink-soft);margin-bottom:14px}
 </style>
 </head>
 <body>
@@ -107,6 +127,17 @@
     <h1>ウクレレ<span>進行</span>トレーナー <span style="font-size:.55em">v2</span></h1>
     <div class="sub">進行・2フォーム・コードトーン・スケール — 鳴らして覚える</div>
   </header>
+
+  <div class="panel suggest-box">
+    <div>
+      <div class="suggest-label">今日のお題</div>
+      <div class="suggest-text" id="suggestText"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="chip-btn" id="suggestReroll">🔄 別のお題</button>
+      <button class="chip-btn primary" id="suggestGo">このお題で始める</button>
+    </div>
+  </div>
 
   <div class="panel">
     <div class="row">
@@ -132,6 +163,13 @@
       <label><input type="checkbox" id="autochord">コード自動再生</label>
       <label><input type="checkbox" id="perchord">コードごとにスケール切替</label>
       <label><input type="checkbox" id="bigui">拡大モード</label>
+    </div>
+    <div>
+      <label><input type="checkbox" id="practiceMode">上達モード（1周ごとに自動でテンポUP）</label>
+      <div class="practice-info" id="practiceInfo" style="display:none">
+        開始<span id="ptStart">60</span> → 現在<b id="ptCurrent" style="color:var(--koa)">60</b> → 上限<span id="ptCap">130</span>
+        <div class="practice-bar"><i id="ptBar" style="width:0%"></i></div>
+      </div>
     </div>
     <div class="btns">
       <button class="action play" id="play">スタート</button>
@@ -328,7 +366,8 @@ function click(time,isDown,accentOn){
 let st={progIndex:0,key:"C",bpm:90,beatsPerBar:4,barsPerChord:1,
   accent:true,click:true,autochord:false,playing:false,
   currentChordIdx:0,beatInBar:0,barCounter:0,nextNoteTime:0,schedulerId:null,
-  forms:{},showHigh:false,custom:{},perChordMode:false,bigUI:false}; // forms[idx]=選択フォーム / showHigh / custom[chord]=[shape...]
+  forms:{},showHigh:false,custom:{},perChordMode:false,bigUI:false,
+  practiceMode:false,tempoStart:60,tempoStep:5,tempoCap:130,lapCount:0,displayChordIdx:0}; // forms[idx]=選択フォーム / showHigh / custom[chord]=[shape...]
 
 const LS_KEY="uke_trainer_v2_custom";
 const LS_SONGS="uke_trainer_v2_user_songs";
@@ -558,7 +597,8 @@ function clearCustomForm(chordName,idx){
 function renderScalePanel(){
   const prog=allProgs()[st.progIndex];
   const list=chordsOfProg();
-  const curChord=list[st.currentChordIdx]||list[0];
+  const showIdx=st.playing?st.displayChordIdx:st.currentChordIdx;
+  const curChord=list[showIdx]||list[0];
   const curName=curChord.recommended;
   let sc,scaleRootPc,scaleLabelKey;
   if(st.perChordMode){
@@ -644,7 +684,7 @@ function scaleFretboard(scalePcs,ctPcs,fromFret,toFret){
 }
 
 function renderDots(){const d=$("dots");d.innerHTML="";for(let i=0;i<st.beatsPerBar;i++){const dot=document.createElement("div");dot.className="dot"+(i===0?" downbeat":"");d.appendChild(dot);}}
-function highlight(){document.querySelectorAll(".chord-card").forEach((c,i)=>c.classList.toggle("active",st.playing&&i===st.currentChordIdx));}
+function highlight(){const idx=st.playing?st.displayChordIdx:st.currentChordIdx;document.querySelectorAll(".chord-card").forEach((c,i)=>c.classList.toggle("active",st.playing&&i===idx));}
 
 /* メトロノーム scheduler */
 function scheduler(){
@@ -659,14 +699,59 @@ function scheduler(){
       if(shape){const midis=shapeToMidis(shape);midis.forEach((m,k)=>pluck(m,st.nextNoteTime+k*0.03,secPerBeat*st.beatsPerBar*st.barsPerChord*0.9,0.13));}
     }
     const bi=st.beatInBar,ci=st.currentChordIdx,delay=(st.nextNoteTime-ctx.currentTime)*1000;
-    setTimeout(()=>{const dots=document.querySelectorAll(".dot");dots.forEach((d,i)=>d.classList.toggle("on",i===bi));st.currentChordIdx=ci;highlight();renderScalePanel();},Math.max(0,delay));
+    setTimeout(()=>{const dots=document.querySelectorAll(".dot");dots.forEach((d,i)=>d.classList.toggle("on",i===bi));st.displayChordIdx=ci;highlight();renderScalePanel();},Math.max(0,delay));
     st.nextNoteTime+=secPerBeat;st.beatInBar++;
     if(st.beatInBar>=st.beatsPerBar){st.beatInBar=0;st.barCounter++;
-      if(st.barCounter>=st.barsPerChord){st.barCounter=0;const item=allProgs()[st.progIndex];const len=item.kind==='song'?item.chords.length:item.deg.length;st.currentChordIdx=(st.currentChordIdx+1)%len;}}
+      if(st.barCounter>=st.barsPerChord){
+        st.barCounter=0;
+        const item=allProgs()[st.progIndex];
+        const len=item.kind==='song'?item.chords.length:item.deg.length;
+        const wasLast=st.currentChordIdx===len-1;
+        st.currentChordIdx=(st.currentChordIdx+1)%len;
+        if(wasLast)onLapComplete();
+      }}
   }
   st.schedulerId=setTimeout(scheduler,25);
 }
-function start(){ac();st.playing=true;st.currentChordIdx=0;st.beatInBar=0;st.barCounter=0;st.nextNoteTime=ac().currentTime+0.06;scheduler();$("play").textContent="ストップ";$("play").classList.add("playing");highlight();}
+/* 1周完走ごとの処理：上達モードのテンポUP＋できたねフィードバック */
+function onLapComplete(){
+  st.lapCount++;
+  if(st.practiceMode){
+    st.bpm=Math.min(st.tempoCap,st.bpm+st.tempoStep);
+    $("bpm").value=st.bpm;$("bpmVal").textContent=st.bpm;
+    updatePracticeInfo();
+  }
+  showLapCelebration();
+}
+function updatePracticeInfo(){
+  $("ptStart").textContent=st.tempoStart;
+  $("ptCap").textContent=st.tempoCap;
+  $("ptCurrent").textContent=st.bpm;
+  const pct=100*(st.bpm-st.tempoStart)/(st.tempoCap-st.tempoStart);
+  $("ptBar").style.width=Math.max(0,Math.min(100,pct))+"%";
+}
+function showLapCelebration(){
+  if(document.querySelector(".celebrate-overlay"))return;
+  const item=allProgs()[st.progIndex];
+  const overlay=document.createElement("div");
+  overlay.className="celebrate-overlay";
+  overlay.innerHTML=`<div class="celebrate-card">
+    <div class="celebrate-emoji">🎉</div>
+    <div class="celebrate-title">${st.lapCount}周できたね！</div>
+    <div class="celebrate-sub">${item.name}・キー${st.key}・${st.bpm}BPM</div>
+    <button class="chip-btn primary" id="celebrateClose">次も続ける</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  const close=()=>overlay.remove();
+  overlay.addEventListener("click",e=>{if(e.target===overlay)close();});
+  overlay.querySelector("#celebrateClose").addEventListener("click",close);
+  setTimeout(close,3500);
+}
+function start(){
+  ac();st.playing=true;st.currentChordIdx=0;st.displayChordIdx=0;st.beatInBar=0;st.barCounter=0;st.lapCount=0;
+  if(st.practiceMode){st.bpm=st.tempoStart;$("bpm").value=st.bpm;$("bpmVal").textContent=st.bpm;updatePracticeInfo();}
+  st.nextNoteTime=ac().currentTime+0.06;scheduler();$("play").textContent="ストップ";$("play").classList.add("playing");highlight();
+}
 function stop(){st.playing=false;clearTimeout(st.schedulerId);$("play").textContent="スタート";$("play").classList.remove("playing");document.querySelectorAll(".dot").forEach(d=>d.classList.remove("on"));highlight();}
 
 /* events */
@@ -687,10 +772,39 @@ $("click").addEventListener("change",e=>st.click=e.target.checked);
 $("autochord").addEventListener("change",e=>st.autochord=e.target.checked);
 $("perchord").addEventListener("change",e=>{st.perChordMode=e.target.checked;renderScalePanel();});
 $("bigui").addEventListener("change",e=>{st.bigUI=e.target.checked;document.body.classList.toggle("big-ui",st.bigUI);});
+$("practiceMode").addEventListener("change",e=>{
+  st.practiceMode=e.target.checked;
+  $("practiceInfo").style.display=st.practiceMode?"block":"none";
+  $("bpm").disabled=st.practiceMode;
+  if(st.practiceMode){st.bpm=st.tempoStart;$("bpm").value=st.bpm;$("bpmVal").textContent=st.bpm;updatePracticeInfo();}
+});
 $("play").addEventListener("click",()=>st.playing?stop():start());
 let taps=[];$("tap").addEventListener("click",()=>{const now=performance.now();taps=taps.filter(t=>now-t<2500);taps.push(now);if(taps.length>=2){const iv=[];for(let i=1;i<taps.length;i++)iv.push(taps[i]-taps[i-1]);const avg=iv.reduce((a,b)=>a+b,0)/iv.length;let bpm=Math.round(60000/avg);bpm=Math.max(40,Math.min(200,bpm));st.bpm=bpm;$("bpm").value=bpm;$("bpmVal").textContent=bpm;}});
 
-initSelects();renderDots();renderChords();
+/* 今日のお題 */
+let suggestion=null;
+function pickSuggestion(){
+  const candidates=[];
+  PROGRESSIONS.forEach((p,i)=>{Object.keys(KEYS).forEach(k=>candidates.push({idx:i,key:k,label:p.name+"をキー"+k+"で"}));});
+  SONGS.forEach((p,i)=>{candidates.push({idx:PROGRESSIONS.length+i,key:p.key,label:p.name});});
+  let next=candidates[Math.floor(Math.random()*candidates.length)];
+  if(suggestion&&candidates.length>1){
+    let tries=0;
+    while(next.label===suggestion.label&&tries<10){next=candidates[Math.floor(Math.random()*candidates.length)];tries++;}
+  }
+  suggestion=next;
+  $("suggestText").textContent="今日は「"+suggestion.label+"」";
+}
+$("suggestReroll").addEventListener("click",pickSuggestion);
+$("suggestGo").addEventListener("click",()=>{
+  if(!suggestion)return;
+  st.progIndex=suggestion.idx;st.key=suggestion.key;st.currentChordIdx=0;st.forms={};
+  rebuildProgSelect();$("key").value=st.key;
+  renderChords();
+  window.scrollTo({top:0,behavior:"smooth"});
+});
+
+initSelects();renderDots();renderChords();pickSuggestion();
 </script>
 </body>
 </html>
