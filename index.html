@@ -960,11 +960,13 @@ function parseMusicXML(xml){
         const dEl=el.getElementsByTagName('duration')[0], dur=dEl?+dEl.textContent:0;
         const stEl=el.getElementsByTagName('staff')[0], staff=stEl?+stEl.textContent:1;
         const isRest=el.getElementsByTagName('rest').length>0;
+        const isGrace=el.getElementsByTagName('grace').length>0;
+        const vEl=el.getElementsByTagName('voice')[0], voice=vEl?vEl.textContent.trim():'1';
         const onset=measureStartBeat+cursor/divisions;
-        if(staff===1&&!isRest){
+        if(staff===1&&!isRest&&!isGrace){
           const pEl=el.getElementsByTagName('pitch')[0];
           if(pEl){const tieStop=[...el.getElementsByTagName('tie')].some(t=>t.getAttribute('type')==='stop');
-            notes.push({midi:noteToMidiXml(pEl),beat:onset,durBeat:dur/divisions,tie:tieStop});}
+            notes.push({midi:noteToMidiXml(pEl),beat:onset,durBeat:dur/divisions,tie:tieStop,voice});}
         }
         if(!isChord){cursor+=dur; if(cursor>maxCursor)maxCursor=cursor;}
       }else if(tag==='backup'){
@@ -988,11 +990,19 @@ function assignPositions(notes){const om=openMidis();let prev=null;
   return notes.map(n=>{const[sh,c]=xShift(n.midi,om); if(!c.length)return{...n,string:null,fret:null,shift:null};
     let best=c[0],bc=Infinity; for(const cand of c){const co=xCost(prev,cand); if(co<bc){bc=co;best=cand;}}
     prev=best; return{...n,string:best[0],fret:best[1],shift:sh};});}
+function median(arr){if(!arr.length)return 0;const a=arr.slice().sort((x,y)=>x-y);const m=a.length>>1;return a.length%2?a[m]:Math.round((a[m-1]+a[m])/2);}
 function buildSongFromMusicXML(p){
   const meter=(p.timeSig.beats===3)?3:4;
   const meterApprox=!((p.timeSig.beats===4||p.timeSig.beats===3)&&p.timeSig.beatType===4);
   const div=4, slotsPer=meter*div;
-  const notes=p.notes.slice().sort((a,b)=>a.beat-b.beat);
+  // 主声部抽出：staff1で最も音数が多いvoice（=主旋律）だけに絞り、内声を除去
+  const vc={}; p.notes.forEach(n=>{vc[n.voice]=(vc[n.voice]||0)+1;});
+  let melVoice=null,vmax=-1; for(const v in vc)if(vc[v]>vmax){vmax=vc[v];melVoice=v;}
+  let notes=p.notes.filter(n=>n.voice===melVoice).sort((a,b)=>a.beat-b.beat);
+  // 全体オクターブ正規化：旋律の中央音高を楽器の快適域中央へ一括移動（輪郭を保つ）
+  const om=openMidis(); const comfy=[]; for(const st of STRINGS)for(let f=0;f<=7;f++)comfy.push(om[st]+f);
+  const octShift=notes.length?Math.round((median(comfy)-median(notes.map(n=>n.midi)))/12):0;
+  if(octShift)notes=notes.map(n=>({...n,midi:n.midi+12*octShift}));
   const pos=assignPositions(notes).map(n=>({...n,grid:Math.round(n.beat*div)}));
   let maxGrid=0; pos.forEach(n=>{if(n.grid>maxGrid)maxGrid=n.grid;});
   const numMeasures=Math.floor(maxGrid/slotsPer)+2;
@@ -1011,7 +1021,7 @@ function buildSongFromMusicXML(p){
   if(INST.hasChord)for(const h of p.harmonies){const gr=Math.round(h.beat*div);
     const mi=Math.floor(gr/slotsPer), rem=gr%slotsPer, bi=Math.floor(rem/div);
     if(mi<numMeasures&&!song[mi].beats[bi].chord){song[mi].beats[bi].chord=h.text;chordCount++;}}
-  return {song,dropped,oct,chordCount,measures:numMeasures,meterApprox};
+  return {song,dropped,oct,chordCount,measures:numMeasures,meterApprox,octShift,melVoice,noteCount:notes.length};
 }
 document.getElementById('ulMxml').onclick=()=>document.getElementById('mxmlInput').click();
 document.getElementById('mxmlInput').onchange=async e=>{
@@ -1027,8 +1037,9 @@ document.getElementById('mxmlInput').onchange=async e=>{
     const shifted=Object.values(r.oct).reduce((a,b)=>a+b,0);
     const warn=[]; if(!parsed.bpm)warn.push('テンポ未検出→96で仮'); if(r.dropped)warn.push('音域外'+r.dropped+'音は省略');
     if(r.meterApprox)warn.push('拍子を4/4で近似（3/4以外）');
-    const msg='取り込み内容\n・'+r.measures+'小節\n・BPM '+(parsed.bpm||96)+(parsed.bpm?'（検出）':'（仮）')
-      +'\n・コード '+r.chordCount+'個\n・弾きやすさ優先のオクターブ補正 '+shifted+'音'
+    const octTxt=r.octShift?('全体を'+(r.octShift>0?'+':'')+r.octShift+'オクターブ移動'):'オクターブ移動なし';
+    const msg='取り込み内容\n・'+r.measures+'小節（主旋律のみ抽出：'+r.noteCount+'音）\n・BPM '+(parsed.bpm||96)+(parsed.bpm?'（検出）':'（仮）')
+      +'\n・コード '+r.chordCount+'個\n・'+octTxt+'／個別補正 '+shifted+'音'
       +(warn.length?'\n\n⚠ '+warn.join(' / '):'')
       +'\n\n※自動採譜は下書きです（主旋律の推定・オクターブ移動で原曲と変わる場合あり）。\nこの内容で新しい曲として取り込みますか？';
     if(!confirm(msg)){saveStat.textContent='取り込みを中止しました';return;}
