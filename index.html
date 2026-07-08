@@ -507,7 +507,12 @@ function drawScore(){
   let per=+document.getElementById('perrow').value;
   if(!per){const meter=cm().meter; per = meter===3?6:4; if(n<=4)per=Math.max(2,n); }
   const hasLyric=song.some(m=>(m.lyric||'').trim().length);
-  const rows=Math.ceil(n/per), mw=W/per, rowH=(hasLyric?150:124)+13, padTop=8;
+  // 各行の小節数を決定。最後の行が1小節だけ余る場合は、寂しい単独行にせず前の行へ吸収する
+  const rowCounts=[]; { let rest=n; while(rest>0){const c=Math.min(per,rest); rowCounts.push(c); rest-=c;} }
+  if(rowCounts.length>=2&&rowCounts[rowCounts.length-1]===1){
+    rowCounts.pop(); rowCounts[rowCounts.length-1]+=1;
+  }
+  const rows=rowCounts.length, rowH=(hasLyric?150:124)+13, padTop=8;
   const esc=s=>(''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const title=(document.getElementById('songTitle').value||'').trim();
   const lyricist=(document.getElementById('lyricist').value||'').trim();
@@ -519,9 +524,13 @@ function drawScore(){
   let g='';
   if(title)g+=`<text x="${(W+40)/2}" y="${padTop+21}" text-anchor="middle" font-size="20" font-weight="bold" fill="${PH.ink}">${esc(title)}</text>`;
   if(credits)g+=`<text x="${W+20}" y="${padTop+headerH-6}" text-anchor="end" font-size="12" fill="${PH.mut}">${esc(credits)}</text>`;
-  song.forEach((m,k)=>{const r=Math.floor(k/per),c=k%per,mx=20+c*mw,my=padTop+headerH+r*rowH;
-    g+=drawMeasure(mx,my,mw,m,k===cur,rowH,k);
-    if(!PRINTING)g+=`<rect class="mhit" data-k="${k}" x="${mx-2}" y="${my+2}" width="${mw}" height="${Math.round(rowH-8)}" fill="transparent" style="cursor:pointer"/>`;});
+  let k=0;
+  rowCounts.forEach((cnt,r)=>{const mw=W/cnt;
+    for(let c=0;c<cnt;c++){const m=song[k],mx=20+c*mw,my=padTop+headerH+r*rowH;
+      g+=drawMeasure(mx,my,mw,m,k===cur,rowH,k);
+      if(!PRINTING)g+=`<rect class="mhit" data-k="${k}" x="${mx-2}" y="${my+2}" width="${mw}" height="${Math.round(rowH-8)}" fill="transparent" style="cursor:pointer"/>`;
+      k++;}
+  });
   const scoreW=W+40, Z=SCALE;
   document.getElementById('scoreWrap').innerHTML=
     `<svg width="${scoreW*Z}" height="${H*Z}" viewBox="0 0 ${scoreW} ${H}">${g}</svg>`;
