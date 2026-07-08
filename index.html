@@ -191,7 +191,7 @@
     <button id="play" class="play">▶ 全曲再生</button>
   </div>
   <p class="hint pc-only">
-    各拍の上で<b>分割を個別変更</b>（例：2拍目だけ3連、4拍目だけ16分）。<b>付点8分＋16分</b>＝その拍を16分にして1マス目と4マス目だけ置く（自動で付点・二重連桁になります）。<br>
+    各拍の上で<b>分割を個別変更</b>（例：2拍目だけ3連、4拍目だけ16分）。マスを選んで<b>Alt+1〜4</b>でも切替可（1=4分/2=8分/3=3連/4=16分）。<b>付点8分＋16分</b>＝その拍を16分にして1マス目と4マス目だけ置く（自動で付点・二重連桁になります）。<br>
     <b>ストローク行</b>：クリック＝休み→↓→∧（アップ）。<b>弦の行</b>：クリックで弦を弾く（→数字キーでフレット）／複数＝つまみ。<b>アクセント・タイ</b>はマスを選んで上のボタンで付与。コードは各拍の上の欄に入力（拍ごと）。
   </p>
   <div class="pc-edit">
@@ -715,6 +715,13 @@ function moveSelVert(dir){
   render(); scrollSelIntoView();
 }
 function isMobileViewActive(){return document.body.classList.contains('force-mobile')||matchMedia('(max-width:760px)').matches;}
+function setBeatDiv(b,newDiv){
+  const bt=cm().beats[b]; if(bt.div===newDiv)return;
+  const ch=bt.chord;
+  cm().beats[b]=newBeat(newDiv); cm().beats[b].chord=ch;
+  if(SEL&&SEL.b===b)SEL={b,i:0,s:SEL.s};
+  render(); scrollSelIntoView();
+}
 document.addEventListener('keydown',e=>{
   if(/^(INPUT|SELECT|TEXTAREA)$/.test((e.target||{}).tagName))return; // 入力欄では無効
   if(isMobileViewActive())return; // スマホUIは別方式（タップ）のため対象外
@@ -723,6 +730,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'){moveSelHoriz(-1);e.preventDefault();return;}
   if(e.key==='ArrowRight'){moveSelHoriz(1);e.preventDefault();return;}
   if(!SEL)return;
+  if(e.altKey&&/^[1-4]$/.test(e.key)){setBeatDiv(SEL.b,+e.key);e.preventDefault();return;} // Alt+1〜4＝拍の音価を直接切替(4分/8分/3連/16分)
   const s=cm().beats[SEL.b].slots[SEL.i];
   if(!s)return;
   if(e.key==='t'||e.key==='T'){s.tie=!s.tie;e.preventDefault();render();return;}
