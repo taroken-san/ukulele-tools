@@ -31,6 +31,9 @@
   .lblrow.count{height:14px;}
   .beatcol{display:flex;flex-direction:column;gap:3px;flex:0 0 auto;}
   .bdiv{height:24px;font-size:11px;padding:1px 4px;}
+  .bdivbtns{display:flex;gap:2px;}
+  .bdivbtn{flex:1;height:24px;font-size:10px;padding:1px 2px;border:1px solid #ccc;background:#f7f7f7;border-radius:3px;cursor:pointer;}
+  .bdivbtn.on{background:#3a7bd5;color:#fff;border-color:#3a7bd5;font-weight:bold;}
   .bchord{height:28px;width:100%;font-size:12px;padding:1px 4px;text-align:center;}
   .chordlbl{height:28px;}
   .bgrid{display:grid;grid-template-rows:14px 30px 8px 30px 30px 30px 30px;gap:3px;}
@@ -309,8 +312,8 @@ function buildEditGrid(){
     +(INST.hasStroke?'<div class="lblrow">ストローク</div><div class="lblrow sep"></div>':'')
     +STRINGS.map(st=>`<div class="lblrow">${LBL[st]}</div>`).join('')+'</div>';
   m.beats.forEach((bt,b)=>{
-    const sel=`<select class="bdiv" data-b="${b}">`
-      +[[1,'4分'],[2,'8分'],[3,'3連'],[4,'16分']].map(([v,t])=>`<option value="${v}"${v===bt.div?' selected':''}>${t}</option>`).join('')+`</select>`;
+    const sel=`<div class="bdivbtns" data-b="${b}">`
+      +[[1,'4分'],[2,'8分'],[3,'3連'],[4,'16分']].map(([v,t])=>`<button type="button" class="bdivbtn${v===bt.div?' on':''}" data-b="${b}" data-v="${v}">${t}</button>`).join('')+`</div>`;
     const chordIn=INST.hasChord?`<input class="bchord" data-b="${b}" value="${bt.chord||''}" placeholder="—">`:'';
     const counts=beatCount(bt);let cells='';
     for(let i=0;i<bt.div;i++)cells+=`<div class="ccell">${i===0?(b+1):counts[i]}</div>`;
@@ -327,8 +330,8 @@ function buildEditGrid(){
     html+=`<div class="beatcol">${sel}${chordIn}<div class="bgrid" style="grid-template-columns:repeat(${bt.div},30px);grid-template-rows:${rowsCss}">${cells}</div></div>`;
   });
   g.innerHTML=html;
-  g.querySelectorAll('.bdiv').forEach(sel=>sel.onchange=()=>{const b=+sel.dataset.b,ch=cm().beats[b].chord;
-    cm().beats[b]=newBeat(+sel.value);cm().beats[b].chord=ch;render();});
+  g.querySelectorAll('.bdivbtn').forEach(btn=>btn.onclick=()=>{const b=+btn.dataset.b,v=+btn.dataset.v,ch=cm().beats[b].chord;
+    cm().beats[b]=newBeat(v);cm().beats[b].chord=ch;render();});
   g.querySelectorAll('.bchord').forEach(inp=>inp.oninput=()=>{cm().beats[+inp.dataset.b].chord=inp.value;
     drawScore();document.getElementById('out').value=exportJSON();});
   g.querySelectorAll('.ecell[data-row="strum"]').forEach(el=>{
