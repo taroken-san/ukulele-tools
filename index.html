@@ -1008,10 +1008,10 @@ $('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
 // ===== 歌詞のひらがな化（kuroshiro + kuromoji辞書）=====
 const KANA={ready:false,loading:null,kuroshiro:null};
 function loadScript(src){return new Promise((ok,ng)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>ng(new Error('load:'+src));document.head.appendChild(s);});}
-async function ensureKana(stat){
-  if(KANA.ready)return KANA.kuroshiro;
+function ensureKana(stat){
+  if(KANA.ready)return Promise.resolve(KANA.kuroshiro);
   if(KANA.loading)return KANA.loading;
-  KANA.loading=(async()=>{
+  const load=(async()=>{
     stat.style.color='';stat.textContent='辞書を読み込んでいます（初回のみ・10〜20秒）…';
     await loadScript('https://cdn.jsdelivr.net/npm/kuroshiro@1.2.0/dist/kuroshiro.min.js');
     await loadScript('https://cdn.jsdelivr.net/npm/kuroshiro-analyzer-kuromoji@1.1.0/dist/kuroshiro-analyzer-kuromoji.min.js');
@@ -1021,7 +1021,10 @@ async function ensureKana(stat){
     await k.init(new AnalyzerCtor({dictPath:'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/'}));
     KANA.kuroshiro=k; KANA.ready=true;
     return k;
-  })().catch(e=>{KANA.loading=null;throw e;});
+  })();
+  const timeout=new Promise((_,ng)=>setTimeout(()=>ng(new Error('辞書の読み込みがタイムアウトしました。通信環境をご確認のうえ、もう一度お試しください')),30000));
+  // タイムアウト/失敗時はキャッシュを残さない（残すと以後ずっと同じハングしたPromiseを使い回してしまい再試行不能になるため）
+  KANA.loading=Promise.race([load,timeout]).catch(e=>{KANA.loading=null;throw e;});
   return KANA.loading;
 }
 // 音符数に合わせて文字を配分（1音=1文字、残りは最後にまとめる）
