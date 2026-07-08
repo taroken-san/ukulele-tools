@@ -730,7 +730,10 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'){moveSelHoriz(-1);e.preventDefault();return;}
   if(e.key==='ArrowRight'){moveSelHoriz(1);e.preventDefault();return;}
   if(!SEL)return;
-  if(e.altKey&&/^[1-4]$/.test(e.key)){setBeatDiv(SEL.b,+e.key);e.preventDefault();return;} // Alt+1〜4＝拍の音価を直接切替(4分/8分/3連/16分)
+  if(e.altKey){ // Mac(Option)はAlt+数字でe.keyが特殊文字(¡等)に化けるため、物理キー位置のe.codeで判定
+    const m=/^Digit([1-4])$/.exec(e.code);
+    if(m){setBeatDiv(SEL.b,+m[1]);e.preventDefault();return;} // Alt/Option+1〜4＝拍の音価を直接切替(4分/8分/3連/16分)
+  }
   const s=cm().beats[SEL.b].slots[SEL.i];
   if(!s)return;
   if(e.key==='t'||e.key==='T'){s.tie=!s.tie;e.preventDefault();render();return;}
