@@ -22,6 +22,8 @@
   button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
   .play{background:#1d9e75;color:#fff;border-color:#1d9e75;font-weight:700;}
   .mnav{display:flex;align-items:center;gap:8px;font-weight:700;}
+  .pc-mini-preview{position:sticky;top:0;z-index:20;background:var(--card);border:0.5px solid var(--line);border-radius:8px;padding:4px 6px;margin-bottom:6px;}
+  .pc-mini-preview svg{display:block;width:100%;height:auto;max-height:110px;}
   .editgrid{display:flex;gap:8px;margin:10px 0 2px;align-items:flex-start;overflow-x:auto;padding-bottom:4px;}
   .lblcol{display:flex;flex-direction:column;gap:3px;flex:0 0 auto;}
   .lblcol .top{height:26px;}
@@ -193,6 +195,7 @@
     <b>ストローク行</b>：クリック＝休み→↓→∧（アップ）。<b>弦の行</b>：クリックで弦を弾く（→数字キーでフレット）／複数＝つまみ。<b>アクセント・タイ</b>はマスを選んで上のボタンで付与。コードは各拍の上の欄に入力（拍ごと）。
   </p>
   <div class="pc-edit">
+  <div id="pcMiniPreview" class="pc-mini-preview"></div>
   <div id="editgrid" class="editgrid"></div>
   <div class="ctrls" style="margin-top:8px;">
     <button id="accBtn" disabled>＞ アクセント</button>
@@ -548,17 +551,21 @@ document.getElementById('importSeq').onclick=()=>{
   }catch(e){stat.style.color='#a32d2d'; stat.textContent='読み込み失敗: '+e.message;}
 };
 
-// ===== スマホ用 ミニ譜面（編集中の小節だけ常時表示） =====
-function drawMiniPreview(){
-  const host=document.getElementById('mbPreview'); if(!host)return;
+// ===== 編集中の小節を常時ミニ表示（PC＝入力箇所の近く／スマホ＝上部sticky）=====
+function renderMiniInto(hostId,highlightBeat){
+  const host=document.getElementById(hostId); if(!host)return;
   const m=cm();
   const W=360, mx=10, my=4, mw=W-20;
   const hasLyric=(m.lyric||'').trim().length>0;
   const H=my+(hasLyric?138:114);
   const beatW=mw/m.beats.length;
-  const hl=COLOR?`<rect x="${mx+MFOCUS.b*beatW}" y="${my}" width="${beatW}" height="${H-my-2}" fill="#fbf6e9" rx="4"/>`:'';
+  const hl=COLOR?`<rect x="${mx+highlightBeat*beatW}" y="${my}" width="${beatW}" height="${H-my-2}" fill="#fbf6e9" rx="4"/>`:'';
   const g=drawMeasure(mx,my,mw,m,false,0);
   host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${hl}${g}</svg>`;
+}
+function drawMiniPreview(){
+  renderMiniInto('mbPreview',MFOCUS.b);
+  renderMiniInto('pcMiniPreview',SEL?SEL.b:0);
 }
 // ===== スマホ「1拍集中型」UI =====
 function buildMobile(){
