@@ -205,7 +205,8 @@
   <div class="ctrls" style="margin-top:8px;">
     <button id="accBtn" disabled>＞ アクセント</button>
     <button id="tieBtn" disabled>🔗 タイ</button>
-    <span class="hint" style="margin:0;">マスを選んで「アクセント」「タイ」を付与（タイはPCは T キーでも可）</span>
+    <button id="rollBtn" disabled>〜 ロール</button>
+    <span class="hint" style="margin:0;">マスを選んで「アクセント」「タイ」「ロール」を付与（タイはPCは T キーでも可）。ロールはコード弾き（複数弦）に付けると低音弦から高音弦へ素早くかき鳴らす「ポロロン」表記に。</span>
   </div>
   <div class="ctrls" id="numpad" style="margin-top:8px;gap:5px;">
     <span class="hint" style="margin:0 4px 0 0;">フレット入力（弦のマスを選んで押す）▶</span>
@@ -289,7 +290,7 @@ document.title=INST.name+'譜エディタ';
 {const _h=document.querySelector('h1'); if(_h&&_h.firstChild)_h.firstChild.textContent=INST.name+'譜エディタ ';}
 const SUB={1:[''],2:['','&'],3:['','・','・'],4:['','e','&','a']};
 
-function newSlot(){return {type:'rest',stroke:'d',acc:false,tie:false,frets:{}};}
+function newSlot(){return {type:'rest',stroke:'d',acc:false,tie:false,roll:false,frets:{}};}
 function newBeat(div){return {div,chord:'',slots:Array.from({length:div},newSlot)};}
 function newMeasure(meter,div){return {meter,chord:'',lyric:'',mark:'',beats:Array.from({length:meter},()=>newBeat(div))};}
 
@@ -336,8 +337,8 @@ function buildEditGrid(){
     drawScore();document.getElementById('out').value=exportJSON();});
   g.querySelectorAll('.ecell[data-row="strum"]').forEach(el=>{
     el.onclick=()=>{const b=+el.dataset.b,i=+el.dataset.i,s=cm().beats[b].slots[i];
-      if(s.type!=='strum'){s.type='strum';s.stroke='d';s.acc=false;s.frets={};}
-      else if(s.stroke==='d')s.stroke='u';else{s.type='rest';s.acc=false;}
+      if(s.type!=='strum'){s.type='strum';s.stroke='d';s.acc=false;s.roll=false;s.frets={};}
+      else if(s.stroke==='d')s.stroke='u';else{s.type='rest';s.acc=false;s.roll=false;}
       SEL={b,i,s:null};render();};
     });
   g.querySelectorAll('.ecell[data-row="str"]').forEach(el=>{
@@ -345,7 +346,7 @@ function buildEditGrid(){
       if(s.type!=='pick'){s.type='pick';s.frets={};}
       if(st in s.frets){                       // 既にON
         if(SEL&&SEL.b===b&&SEL.i===i&&SEL.s===st){delete s.frets[st];SEL=null;
-          if(Object.keys(s.frets).length===0)s.type='rest';}
+          if(Object.keys(s.frets).length===0){s.type='rest';s.roll=false;}}
         else SEL={b,i,s:st};                    // 選択し直し（数字入力できる）
       }else{s.frets[st]=0;SEL={b,i,s:st};}       // 新規ON（開放0）→選択
       render();};
@@ -462,7 +463,12 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
         g+=`<line x1="${x-5}" y1="${baseY-4}" x2="${x+5}" y2="${yOf(1)+4}" stroke="${col}" stroke-width="2.2"/>`;
         if(s.stroke==='u')g+=`<text x="${x}" y="${baseY+18}" text-anchor="middle" font-size="12" fill="${col}" font-weight="bold">∧</text>`;
       }else if(s.type==='pick'){
-        fretKeys(s).forEach(st=>{g+=noteNum(x,yOf(st),s.frets[st],P,st);});
+        const fk=fretKeys(s);
+        if(s.roll&&fk.length>1){const ry1=yOf(fk[0])-6,ry2=yOf(fk[fk.length-1])+6,rx=x-11;
+          let d=`M ${rx},${ry1}`,seg=(ry2-ry1)/6;
+          for(let k=0;k<6;k++)d+=` q ${(k%2===0?-3.5:3.5)},${seg/2} 0,${seg}`;
+          g+=`<path d="${d}" fill="none" stroke="${P.stem}" stroke-width="1.3"/>`;}
+        fk.forEach(st=>{g+=noteNum(x,yOf(st),s.frets[st],P,st);});
       }else{ // 休符：4分＝「ー」／8分以下＝「・」
         const rsym=div===1?'ー':'・';
         g+=`<text x="${x}" y="${(yOf(1)+yOf(N))/2+5}" text-anchor="middle" font-size="${div===1?13:18}" fill="${P.mut}">${rsym}</text>`;}
@@ -508,7 +514,7 @@ function drawScore(){
 function tokenOf(s){const tie=s.tie?'~':'';
   if(s.type==='strum')return (s.stroke==='d'?'D':'U')+(s.acc?'!':'')+tie;
   if(s.type==='pick'&&Object.keys(s.frets).length)
-    return fretKeys(s).map(st=>`${st}.${s.frets[st]}`).join('+')+(s.acc?'!':'')+tie;
+    return fretKeys(s).map(st=>`${st}.${s.frets[st]}`).join('+')+(s.acc?'!':'')+(s.roll?'*':'')+tie;
   return '0'+tie;}
 function seqOf(m){return m.beats.map(bt=>bt.slots.map(tokenOf).join(' ')).join(' | ');}
 function chordsOf(m){return m.beats.map(bt=>bt.chord||'').join('|');}
@@ -517,23 +523,24 @@ function exportJSON(){
 
 // ===== seqテキスト読み込み（貼り付け→曲データ）＝tokenOfの逆変換 =====
 function parseToken(tokRaw){
-  let tok=tokRaw.trim(), acc=false, tie=false;
+  let tok=tokRaw.trim(), acc=false, tie=false, roll=false;
   // 表記ゆれ吸収：「休み」「休」「rest」「-」「ー」→休符、「弦」「string」を区切りとして許容
   tok=tok.replace(/^(休み|休符|休|rest|ー|―|-)$/i,'0');
   if(tok.endsWith('~')||tok.endsWith('タイ')){tie=true; tok=tok.replace(/(~|タイ)$/,'');}
   if(tok.endsWith('!')||tok.endsWith('アクセント')){acc=true; tok=tok.replace(/(!|アクセント)$/,'');}
+  if(tok.endsWith('*')||tok.endsWith('ロール')||tok.endsWith('ポロロン')){roll=true; tok=tok.replace(/(\*|ロール|ポロロン)$/,'');}
   tok=tok.trim();
-  if(tok===''||tok==='0')return {type:'rest',stroke:'d',acc,tie,frets:{}};
-  if(/^(D|down|ダウン|↓)$/i.test(tok))return {type:'strum',stroke:'d',acc,tie,frets:{}};
-  if(/^(U|up|アップ|↑|∧)$/i.test(tok))return {type:'strum',stroke:'u',acc,tie,frets:{}};
+  if(tok===''||tok==='0')return {type:'rest',stroke:'d',acc,tie,roll:false,frets:{}};
+  if(/^(D|down|ダウン|↓)$/i.test(tok))return {type:'strum',stroke:'d',acc,tie,roll:false,frets:{}};
+  if(/^(U|up|アップ|↑|∧)$/i.test(tok))return {type:'strum',stroke:'u',acc,tie,roll:false,frets:{}};
   const frets={};
   // 「2.3」「2弦3」「2弦.3」「2弦3フレット」「2-3」など弦とフレットの区切りを広く許容
   tok.split(/[+、,]/).forEach(part=>{
     const m=part.trim().match(/^(\d+)\s*(?:弦|string|st)?\s*[.．\-]?\s*(\d+)\s*(?:フレット|fret)?$/i);
     if(m)frets[+m[1]]=+m[2];
   });
-  if(Object.keys(frets).length)return {type:'pick',stroke:'d',acc,tie,frets};
-  return {type:'rest',stroke:'d',acc,tie,frets:{}};
+  if(Object.keys(frets).length)return {type:'pick',stroke:'d',acc,tie,roll,frets};
+  return {type:'rest',stroke:'d',acc,tie,roll:false,frets:{}};
 }
 function parseSeqLine(line,lineNo){
   // 「|」の代わりに「／」「、」区切りの拍指定も許容。全角スペースも区切りとして扱う
@@ -623,6 +630,7 @@ function buildMobile(){
     +`<button data-act="rest" class="${slot.type==='rest'?'act':''}">休符</button>`
     +`<button data-act="acc" class="${slot.acc&&slot.type!=='rest'?'act':''}">＞ アクセント</button>`
     +`<button data-act="tie" class="${slot.tie?'act':''}">🔗 タイ</button>`
+    +(slot.type==='pick'?`<button data-act="roll" class="${slot.roll?'act':''}">〜 ロール</button>`:'')
     +'</div>';
   const fretReady=SEL&&SEL.b===MFOCUS.b&&SEL.i===MFOCUS.i&&slot.type==='pick'&&(SEL.s in slot.frets);
   const showNumpad=fretReady&&!NUMPAD_HIDDEN;
@@ -651,15 +659,16 @@ function mbAction(ds){
     case 'str':{const st=+ds.s;
       if(slot.type!=='pick'){slot.type='pick';slot.frets={};slot.acc=false;}
       if(st in slot.frets){
-        if(SEL&&SEL.b===MFOCUS.b&&SEL.i===MFOCUS.i&&SEL.s===st){delete slot.frets[st];SEL=null;if(Object.keys(slot.frets).length===0)slot.type='rest';}
+        if(SEL&&SEL.b===MFOCUS.b&&SEL.i===MFOCUS.i&&SEL.s===st){delete slot.frets[st];SEL=null;if(Object.keys(slot.frets).length===0){slot.type='rest';slot.roll=false;}}
         else SEL={b:MFOCUS.b,i:MFOCUS.i,s:st};
       }else{slot.frets[st]=0;SEL={b:MFOCUS.b,i:MFOCUS.i,s:st};}
       break;}
-    case 'down': slot.type='strum';slot.stroke='d';slot.frets={};SEL=null; break;
-    case 'up': slot.type='strum';slot.stroke='u';slot.frets={};SEL=null; break;
-    case 'rest': slot.type='rest';slot.frets={};slot.acc=false;SEL=null; break;
+    case 'down': slot.type='strum';slot.stroke='d';slot.frets={};slot.roll=false;SEL=null; break;
+    case 'up': slot.type='strum';slot.stroke='u';slot.frets={};slot.roll=false;SEL=null; break;
+    case 'rest': slot.type='rest';slot.frets={};slot.acc=false;slot.roll=false;SEL=null; break;
     case 'acc': if(slot.type!=='rest')slot.acc=!slot.acc; break;
     case 'tie': slot.tie=!slot.tie; break;
+    case 'roll': if(slot.type==='pick')slot.roll=!slot.roll; break;
     case 'togglepad': NUMPAD_HIDDEN=!NUMPAD_HIDDEN; break;
     case 'num': applyFret(ds.n); return;
     case 'back': applyFret('back'); return;
@@ -685,6 +694,11 @@ function render(){
   tb.disabled=!ss;
   tb.style.background=ss&&ss.tie?'#1d9e75':'';
   tb.style.color=ss&&ss.tie?'#fff':'';
+  const rb=document.getElementById('rollBtn');
+  const rollOK=ss&&ss.type==='pick';
+  rb.disabled=!rollOK;
+  rb.style.background=rollOK&&ss.roll?'#3a7bd5':'';
+  rb.style.color=rollOK&&ss.roll?'#fff':'';
   // 数字パッドの状態（弦のマス＝pickかつ弦選択時のみ有効）
   const fretOK=ss&&ss.type==='pick'&&SEL.s!=null&&(SEL.s in ss.frets);
   document.querySelectorAll('.npd').forEach(b=>b.disabled=!fretOK);
@@ -715,6 +729,11 @@ document.getElementById('tieBtn').onclick=()=>{
   const s=cm().beats[SEL.b].slots[SEL.i];
   if(!s)return;
   s.tie=!s.tie;render();
+};
+document.getElementById('rollBtn').onclick=()=>{
+  if(!SEL)return;const s=cm().beats[SEL.b].slots[SEL.i];
+  if(!s||s.type!=='pick')return;
+  s.roll=!s.roll;render();
 };
 
 // ===== キーボードだけでマス移動＋テンキー入力（PC専用） =====
@@ -774,7 +793,7 @@ document.getElementById('next').onclick=()=>{if(cur<song.length-1){cur++;SEL=nul
 document.getElementById('add').onclick=()=>{song.splice(cur+1,0,newMeasure(cm().meter,+document.getElementById('alldiv').value));cur++;render();};
 document.getElementById('dup').onclick=()=>{const src=cm();
   const copy={meter:src.meter,lyric:src.lyric,mark:'', // マークは複製先に引き継がない(区間の目印なので重複を避ける)
-    beats:src.beats.map(bt=>({div:bt.div,chord:bt.chord,slots:bt.slots.map(s=>({type:s.type,stroke:s.stroke,acc:s.acc,tie:s.tie,frets:{...s.frets}}))}))};
+    beats:src.beats.map(bt=>({div:bt.div,chord:bt.chord,slots:bt.slots.map(s=>({type:s.type,stroke:s.stroke,acc:s.acc,tie:s.tie,roll:s.roll,frets:{...s.frets}}))}))};
   song.splice(cur+1,0,copy);cur++;render();};
 document.getElementById('del').onclick=()=>{if(song.length>1){song.splice(cur,1);if(cur>=song.length)cur=song.length-1;render();}};
 document.getElementById('meter').onchange=e=>{const meter=+e.target.value;const m=cm();
@@ -807,7 +826,8 @@ function voice(time,freq,vol){const o=ac.createOscillator(),g=ac.createGain();
   g.gain.exponentialRampToValueAtTime(0.0001,time+0.42);
   o.connect(g);g.connect(ac.destination);o.start(time);o.stop(time+0.47);}
 function playSlot(time,s){if(s.type==='pick'){
-    Object.entries(s.frets).forEach(([st,fr])=>voice(time,FREQ[st]*Math.pow(2,fr/12),0.3));}
+    if(s.roll)fretKeys(s).forEach((st,i)=>voice(time+i*0.045,FREQ[st]*Math.pow(2,s.frets[st]/12),0.3));
+    else Object.entries(s.frets).forEach(([st,fr])=>voice(time,FREQ[st]*Math.pow(2,fr/12),0.3));}
   else if(s.type==='strum'){const v=s.acc?0.34:0.2;
     (s.stroke==='d'?[4,3,2,1]:[1,2,3,4]).forEach((st,i)=>voice(time+i*0.012,FREQ[st],v));}}
 function scheduler(){while(nextT<ac.currentTime+0.1){const ev=line[idx];if(ev)playSlot(nextT,ev.s);
@@ -856,7 +876,7 @@ function normalize(doc){
         if(s&&s.frets&&typeof s.frets==='object')for(const k in s.frets){
           const st=+k, fr=+s.frets[k];
           if([1,2,3,4].includes(st)&&Number.isFinite(fr))frets[st]=Math.min(24,Math.max(0,Math.round(fr)));}
-        return {type,stroke:(s&&s.stroke==='u')?'u':'d',acc:!!(s&&s.acc),tie:!!(s&&s.tie),frets};
+        return {type,stroke:(s&&s.stroke==='u')?'u':'d',acc:!!(s&&s.acc),tie:!!(s&&s.tie),roll:!!(s&&s.roll),frets};
       });
       return {div,chord:(bt&&bt.chord!=null)?''+bt.chord:'',slots};
     });
