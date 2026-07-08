@@ -248,6 +248,7 @@
         <input type="text" id="lyric" placeholder="例：感じ取れたら 手をつなごう" style="flex:1">
         <button id="kanaBtn" title="漢字をひらがなに変換＋音符数で自動区切り">ひらがな化</button>
       </div>
+      <div id="lyricModeHint" class="hint" style="margin:4px 0 0;"></div>
       <div id="kanaStat" class="hint" style="margin:4px 0 0;"></div>
     </div>
   </div>
@@ -311,6 +312,8 @@ const SUB={1:[''],2:['','&'],3:['','・','・'],4:['','e','&','a']};
 function newSlot(){return {type:'rest',stroke:'d',acc:false,tie:false,roll:false,frets:{}};}
 function newBeat(div){return {div,chord:'',slots:Array.from({length:div},newSlot)};}
 function newMeasure(meter,div){return {meter,chord:'',lyric:'',mark:'',beats:Array.from({length:meter},()=>newBeat(div))};}
+// メロディ（ピック音符）を含む小節か。ストロークのみの小節では歌詞を音符ごとに割り振らず、流れるテキストとして扱う
+function hasMelody(m){return m.beats.some(bt=>bt.slots.some(s=>s.type==='pick'));}
 
 let song=[newMeasure(4,2)];
 let cur=0;
@@ -415,7 +418,8 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
   g+=`<line x1="${mx}" y1="${yOf(1)}" x2="${mx}" y2="${baseY}" stroke="${P.bar}" stroke-width="1.4"/>`;
   g+=`<line x1="${mx+mw}" y1="${yOf(1)}" x2="${mx+mw}" y2="${baseY}" stroke="${P.bar}" stroke-width="1.4"/>`;
   const beatW=mw/m.beats.length;
-  const lyrTok=(m.lyric||'').trim().length?m.lyric.trim().split(/\s+/):[];
+  const melodic=hasMelody(m);
+  const lyrTok=(melodic&&(m.lyric||'').trim().length)?m.lyric.trim().split(/\s+/):[];
   let lyrIdx=0;
   // タイ弧のためにスロット位置を先に収集
   const slotXArr=[];
@@ -498,6 +502,9 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
         g+=`<text x="${x}" y="${baseY+44}" text-anchor="middle" font-size="11" fill="${P.ink}">${lyrTok[lyrIdx++]}</text>`;}
     });
   });
+  // ストロークのみの小節：歌詞を音符ごとに割り振らず、1行の流れるテキストとして小節下に表示
+  if(!melodic){const flow=(m.lyric||'').trim();
+    if(flow)g+=`<text x="${mx+mw/2}" y="${baseY+44}" text-anchor="middle" font-size="11" fill="${P.ink}">${flow}</text>`;}
   return g;
 }
 // ===== 全曲スコア（A4イメージ）=====
@@ -708,6 +715,9 @@ function render(){
   document.getElementById('meter').value=cm().meter;
   document.getElementById('lyric').value=cm().lyric;
   document.getElementById('mark').value=cm().mark||'';
+  document.getElementById('lyricModeHint').textContent=hasMelody(cm())
+    ?'この小節はメロディあり：歌詞は音符ごとに自動で配置されます'
+    :'この小節はストロークのみ：歌詞は音符ごとに割らず、そのまま1行で表示されます';
   buildEditGrid();buildMobile();drawMiniPreview();drawScore();
   // タイボタンの状態（選択マスがあれば有効・ON表示）
   const ab=document.getElementById('accBtn');
@@ -1067,7 +1077,10 @@ async function ensureKana(stat){
 }
 // 音符数に合わせて文字を配分（1音=1文字、残りは最後にまとめる）
 function fitToBeats(text,m){
-  m=m||cm(); const notes=m.beats.reduce((n,bt)=>n+bt.slots.filter(s=>s.type!=='rest').length,0);
+  m=m||cm();
+  // ストロークのみの小節（メロディなし）は音符ごとに割り振らず、そのまま流れるテキストとして使う
+  if(!hasMelody(m))return text.trim();
+  const notes=m.beats.reduce((n,bt)=>n+bt.slots.filter(s=>s.type!=='rest').length,0);
   // 空白・改行を除いた連続した文字
   const chars=text.replace(/[\s　]+/g,'').split('');
   if(notes<=0||chars.length<=notes)return chars.join(' ');
