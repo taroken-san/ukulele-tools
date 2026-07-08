@@ -137,6 +137,7 @@
   <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
   <button id="ulMxml" title="MusicXML(.xml/.mxl)を取り込んでメロディ・コードを自動でTAB化">🎼 楽譜を取り込む</button>
   <input type="file" id="mxmlInput" accept=".xml,.musicxml,.mxl" style="display:none">
+  <button id="lyricBulkBtn" title="曲全体の歌詞を1行1小節でまとめて入力">📋 歌詞をまとめて入力</button>
   <button id="helpBtn" title="使い方ガイド">❓ 使い方</button>
   <button id="mobileToggle" title="スマホ入力画面の確認">📱 スマホ表示</button>
   <span id="saveStat" class="hint" style="margin:0;color:#1d9e75;"></span>
@@ -172,6 +173,23 @@
       <p>曲名・作詞・作曲を入れて「印刷 / PDF保存」。シニアの方にはこの印刷物を配布します。</p>
     </div>
     <div class="modal-foot"><button id="helpCloseBtn" class="primary">閉じる</button></div>
+  </div>
+</div>
+
+<div class="modal-bg noprint" id="lyricBulkModal">
+  <div class="modal">
+    <div class="modal-head"><span>歌詞をまとめて入力</span><button id="lyricBulkClose" aria-label="閉じる" style="width:36px;">✕</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin:0 0 8px;">1行＝1小節。曲全体の歌詞を貼り付けると、各小節の歌詞欄に自動で振り分けます（小節数と行数が合わなくても、合う分だけ反映）。</p>
+      <textarea id="lyricBulkInput" rows="10" style="width:100%;font-size:13px;line-height:1.7;" placeholder="1小節目の歌詞&#10;2小節目の歌詞&#10;3小節目の歌詞&#10;…"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mut);margin:10px 0 4px;">
+        <input type="checkbox" id="lyricBulkKana" checked style="width:16px;height:16px;">
+        貼り付け時に自動でひらがな化＋音符数に合わせて配分する
+      </label>
+      <p class="hint" style="margin:0;">オフにすると、そのままの文字列を各小節の歌詞欄に入れるだけ（配分は手動）。</p>
+      <p id="lyricBulkStat" class="hint" style="margin:8px 0 0;"></p>
+    </div>
+    <div class="modal-foot"><button id="lyricBulkCancel">キャンセル</button><button id="lyricBulkApply" class="primary">適用</button></div>
   </div>
 </div>
 
@@ -1007,8 +1025,8 @@ async function ensureKana(stat){
   return KANA.loading;
 }
 // 音符数に合わせて文字を配分（1音=1文字、残りは最後にまとめる）
-function fitToBeats(text){
-  const m=cm(); const notes=m.beats.reduce((n,bt)=>n+bt.slots.filter(s=>s.type!=='rest').length,0);
+function fitToBeats(text,m){
+  m=m||cm(); const notes=m.beats.reduce((n,bt)=>n+bt.slots.filter(s=>s.type!=='rest').length,0);
   // 空白・改行を除いた連続した文字
   const chars=text.replace(/[\s　]+/g,'').split('');
   if(notes<=0||chars.length<=notes)return chars.join(' ');
@@ -1030,6 +1048,38 @@ document.getElementById('kanaBtn').onclick=async()=>{
     document.getElementById('out').value=exportJSON();
     scheduleAutosave();
     stat.style.color='#1d9e75'; stat.textContent='✓ ひらがな化＋音符数で配分しました（手動でスペースを微調整可）';
+  }catch(e){stat.style.color='#a32d2d';stat.textContent='変換に失敗: '+e.message;}
+  finally{btn.disabled=false;}
+};
+
+// ===== 歌詞まとめて入力（1行＝1小節）=====
+function openLyricBulk(){$('lyricBulkStat').textContent='';$('lyricBulkModal').classList.add('open');}
+function closeLyricBulk(){$('lyricBulkModal').classList.remove('open');}
+$('lyricBulkBtn').onclick=openLyricBulk;
+$('lyricBulkClose').onclick=closeLyricBulk;
+$('lyricBulkCancel').onclick=closeLyricBulk;
+$('lyricBulkModal').addEventListener('click',e=>{if(e.target===$('lyricBulkModal'))closeLyricBulk();});
+$('lyricBulkApply').onclick=async()=>{
+  const stat=$('lyricBulkStat');
+  const lines=$('lyricBulkInput').value.replace(/\r\n/g,'\n').split('\n');
+  if(!lines.some(l=>l.trim())){stat.style.color='#a32d2d';stat.textContent='歌詞を入力してから押してください';return;}
+  const useKana=$('lyricBulkKana').checked;
+  const btn=$('lyricBulkApply'); btn.disabled=true;
+  try{
+    let k=null;
+    if(useKana){stat.style.color='';stat.textContent='変換中…';k=await ensureKana(stat);}
+    const n=Math.min(lines.length,song.length);
+    for(let i=0;i<n;i++){
+      const line=lines[i].trim();
+      if(!line)continue;
+      song[i].lyric=useKana?fitToBeats(await k.convert(line,{to:'hiragana',mode:'normal'}),song[i]):line;
+    }
+    document.getElementById('lyric').value=cm().lyric;
+    drawMiniPreview&&drawMiniPreview(); drawScore();
+    document.getElementById('out').value=exportJSON();
+    scheduleAutosave();
+    const over=lines.length>song.length?`（${lines.length-song.length}行は小節数を超えたため未反映）`:'';
+    stat.style.color='#1d9e75'; stat.textContent=`✓ ${n}小節に反映しました${over}`;
   }catch(e){stat.style.color='#a32d2d';stat.textContent='変換に失敗: '+e.message;}
   finally{btn.disabled=false;}
 };
