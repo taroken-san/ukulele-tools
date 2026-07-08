@@ -251,6 +251,13 @@
   <textarea id="out" readonly></textarea>
   <p class="hint">seq：拍を <b>|</b> 区切り、拍内スペース区切り。0=休み／D=↓・U=↑（!=アクセント）／<b>弦.フレット</b>（例 <b>1.5</b>＝1弦5フレット、<b>4.0+1.3</b>＝つまみ）。</p>
 </div>
+
+<div class="panel noprint">
+  <div class="ctrls"><button class="primary" id="importSeq">📋 このテキストを読み込む（曲を置き換え）</button>
+    <span class="hint" style="margin:0;">1行＝1小節。書式は上と同じ（<b>弦.フレット</b>・<b>|</b>で拍区切り・スペースで拍内区切り）</span></div>
+  <textarea id="seqIn" placeholder="例：&#10;2.0 2.3 | 3.0 3.3 | 2.3 | 1.5 2.0&#10;1.5 2.0 | 1.5 1.3 | 1.5 2.0 | 0"></textarea>
+  <p class="hint" id="importStat"></p>
+</div>
 </div>
 
 <script>
@@ -492,6 +499,55 @@ function chordsOf(m){return m.beats.map(bt=>bt.chord||'').join('|');}
 function exportJSON(){
   return '[\n'+song.map(m=>`  {chords:'${chordsOf(m)}',beats:${m.beats.length},seq:'${seqOf(m)}',lyric:'${m.lyric}'},`).join('\n')+'\n]';}
 
+// ===== seqテキスト読み込み（貼り付け→曲データ）＝tokenOfの逆変換 =====
+function parseToken(tokRaw){
+  let tok=tokRaw.trim(), acc=false, tie=false;
+  // 表記ゆれ吸収：「休み」「休」「rest」「-」「ー」→休符、「弦」「string」を区切りとして許容
+  tok=tok.replace(/^(休み|休符|休|rest|ー|―|-)$/i,'0');
+  if(tok.endsWith('~')||tok.endsWith('タイ')){tie=true; tok=tok.replace(/(~|タイ)$/,'');}
+  if(tok.endsWith('!')||tok.endsWith('アクセント')){acc=true; tok=tok.replace(/(!|アクセント)$/,'');}
+  tok=tok.trim();
+  if(tok===''||tok==='0')return {type:'rest',stroke:'d',acc,tie,frets:{}};
+  if(/^(D|down|ダウン|↓)$/i.test(tok))return {type:'strum',stroke:'d',acc,tie,frets:{}};
+  if(/^(U|up|アップ|↑|∧)$/i.test(tok))return {type:'strum',stroke:'u',acc,tie,frets:{}};
+  const frets={};
+  // 「2.3」「2弦3」「2弦.3」「2弦3フレット」「2-3」など弦とフレットの区切りを広く許容
+  tok.split(/[+、,]/).forEach(part=>{
+    const m=part.trim().match(/^(\d+)\s*(?:弦|string|st)?\s*[.．\-]?\s*(\d+)\s*(?:フレット|fret)?$/i);
+    if(m)frets[+m[1]]=+m[2];
+  });
+  if(Object.keys(frets).length)return {type:'pick',stroke:'d',acc,tie,frets};
+  return {type:'rest',stroke:'d',acc,tie,frets:{}};
+}
+function parseSeqLine(line,lineNo){
+  // 「|」の代わりに「／」「、」区切りの拍指定も許容。全角スペースも区切りとして扱う
+  const beatStrs=line.trim().split(/[|｜]/).map(s=>s.trim());
+  const beats=beatStrs.map((bstr,bi)=>{
+    const toks=bstr.split(/[\s　]+/).filter(Boolean);
+    if(toks.length>4)throw new Error(`小節${lineNo}の${bi+1}拍目に${toks.length}音あります（拍の区切り「|」が抜けていませんか？ 1拍は最大4音までです）`);
+    const div=toks.length||1;
+    return {div,chord:'',slots:(toks.length?toks:['0']).map(parseToken)};
+  });
+  return {meter:beats.length||4,chord:'',lyric:'',beats};
+}
+function parseSeqText(text){
+  return text.split('\n').map(l=>l.trim()).filter(l=>l.length).map((l,i)=>parseSeqLine(l,i+1));
+}
+document.getElementById('importSeq').onclick=()=>{
+  const txt=document.getElementById('seqIn').value;
+  const stat=document.getElementById('importStat');
+  if(!txt.trim()){stat.style.color='#a32d2d';stat.textContent='テキストが空です';return;}
+  try{
+    const measures=parseSeqText(txt);
+    if(!measures.length)throw new Error('小節を認識できませんでした');
+    if(!confirm(`${measures.length}小節を読み込みます。今の曲を置き換えますが良いですか？`))return;
+    song=normalize({format:'ukulele-pattern',song:measures});
+    cur=0;SEL=null;undoStack=[];redoStack=[];baseline=null;
+    render(); scheduleAutosave();
+    stat.style.color='#1d9e75'; stat.textContent='✓ '+measures.length+'小節を読み込みました';
+  }catch(e){stat.style.color='#a32d2d'; stat.textContent='読み込み失敗: '+e.message;}
+};
+
 // ===== スマホ用 ミニ譜面（編集中の小節だけ常時表示） =====
 function drawMiniPreview(){
   const host=document.getElementById('mbPreview'); if(!host)return;
@@ -604,12 +660,16 @@ function render(){
 }
 // フレット入力（キーボード／数字パッド共通）
 function applyFret(key){
-  if(!SEL)return;
+  if(!SEL||SEL.s==null)return;
   const s=cm().beats[SEL.b].slots[SEL.i];
-  if(!s||s.type!=='pick'||!(SEL.s in s.frets))return;
-  if(/^[0-9]$/.test(key)){const cv=s.frets[SEL.s], nv=cv*10+ +key;
-    s.frets[SEL.s]= nv>24? +key : nv;}        // 0〜24、2桁超えはリセット
-  else if(key==='back'){s.frets[SEL.s]=Math.floor(s.frets[SEL.s]/10);}
+  if(!s)return;
+  if(s.type!=='pick'){s.type='pick';s.acc=false;s.frets={};}  // 未アクティブなマスも数字キー一発でON化
+  if(/^[0-9]$/.test(key)){
+    if(SEL.s in s.frets){const cv=s.frets[SEL.s], nv=cv*10+ +key;
+      s.frets[SEL.s]= nv>24? +key : nv;}        // 0〜24、2桁超えはリセット
+    else s.frets[SEL.s]=+key;                    // 新規ON
+  }
+  else if(key==='back'){if(SEL.s in s.frets)s.frets[SEL.s]=Math.floor(s.frets[SEL.s]/10);}
   render();
 }
 document.querySelectorAll('.npd').forEach(b=>b.onclick=()=>applyFret(b.dataset.n));
@@ -625,15 +685,43 @@ document.getElementById('tieBtn').onclick=()=>{
   s.tie=!s.tie;render();
 };
 
-// ===== フレット数字入力（マス選択中に数字キー）=====
+// ===== キーボードだけでマス移動＋テンキー入力（PC専用） =====
+function gridPositions(){const m=cm(),out=[];m.beats.forEach((bt,b)=>{for(let i=0;i<bt.div;i++)out.push({b,i});});return out;}
+function scrollSelIntoView(){const el=document.querySelector('#editgrid .ecell.sel');if(el)el.scrollIntoView({inline:'nearest',block:'nearest'});}
+function moveSelHoriz(dir){
+  const positions=gridPositions();
+  if(!SEL){SEL={b:positions[0].b,i:positions[0].i,s:STRINGS[0]};render();scrollSelIntoView();return;}
+  const idx=positions.findIndex(p=>p.b===SEL.b&&p.i===SEL.i);
+  const ni=idx+dir;
+  if(ni<0){ if(cur<=0)return; cur--; const pm=gridPositions(); const last=pm[pm.length-1]; SEL={b:last.b,i:last.i,s:SEL.s}; }
+  else if(ni>=positions.length){ if(cur>=song.length-1)return; cur++; const nm=gridPositions(); SEL={b:nm[0].b,i:nm[0].i,s:SEL.s}; }
+  else{ SEL={b:positions[ni].b,i:positions[ni].i,s:SEL.s}; }
+  render(); scrollSelIntoView();
+}
+function moveSelVert(dir){
+  if(!SEL){SEL={b:0,i:0,s:STRINGS[0]};render();scrollSelIntoView();return;}
+  const idx=SEL.s==null?-1:STRINGS.indexOf(SEL.s);
+  const ni=idx+dir;
+  if(ni<0){ if(INST.hasStroke)SEL={...SEL,s:null}; else return; }
+  else if(ni>=STRINGS.length){ return; }
+  else SEL={...SEL,s:STRINGS[ni]};
+  render(); scrollSelIntoView();
+}
+function isMobileViewActive(){return document.body.classList.contains('force-mobile')||matchMedia('(max-width:760px)').matches;}
 document.addEventListener('keydown',e=>{
-  if(!SEL)return;
   if(/^(INPUT|SELECT|TEXTAREA)$/.test((e.target||{}).tagName))return; // 入力欄では無効
+  if(isMobileViewActive())return; // スマホUIは別方式（タップ）のため対象外
+  if(e.key==='ArrowUp'){moveSelVert(-1);e.preventDefault();return;}
+  if(e.key==='ArrowDown'){moveSelVert(1);e.preventDefault();return;}
+  if(e.key==='ArrowLeft'){moveSelHoriz(-1);e.preventDefault();return;}
+  if(e.key==='ArrowRight'){moveSelHoriz(1);e.preventDefault();return;}
+  if(!SEL)return;
   const s=cm().beats[SEL.b].slots[SEL.i];
   if(!s)return;
   if(e.key==='t'||e.key==='T'){s.tie=!s.tie;e.preventDefault();render();return;}
-  if(s.type!=='pick'||!(SEL.s in s.frets))return;
+  if(SEL.s==null)return; // ストローク行は別操作（クリックで循環）のため数字キー対象外
   if(/^[0-9]$/.test(e.key)){applyFret(e.key);e.preventDefault();}
+  else if(e.key==='Delete'){ if(s.type==='pick'&&SEL.s in s.frets){delete s.frets[SEL.s]; if(!Object.keys(s.frets).length)s.type='rest'; render();} e.preventDefault(); }
   else if(e.key==='Backspace'){applyFret('back');e.preventDefault();}
   else if(e.key==='Escape'){SEL=null;render();}
 });
