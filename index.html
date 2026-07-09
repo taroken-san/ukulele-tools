@@ -54,8 +54,10 @@
   .mfields .f{flex:1 1 200px;}
   .mfields label{display:block;font-size:11px;}
   .mfields input{width:100%;}
-  .scoreWrap{background:#fff;border:0.5px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;}
+  .scoreWrap{background:#fff;border:0.5px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;position:relative;}
   .scoreWrap svg{display:block;margin:0 auto;max-width:none;}
+  #lyricEditor{position:absolute;box-sizing:border-box;font-size:11px;text-align:center;line-height:normal;
+    border:1.5px solid #3a7bd5;border-radius:5px;background:#fff;color:#23241f;padding:0 3px;z-index:5;outline:none;}
   textarea{width:100%;height:64px;font-family:ui-monospace,Menlo,monospace;font-size:11px;border:0.5px solid var(--line);border-radius:6px;padding:8px;margin-top:6px;}
   /* ===== スマホ「1拍集中型」UI ===== */
   #mobilePanel{display:none;}
@@ -271,7 +273,7 @@
     <button id="print">🖨 印刷 / PDF保存</button>
     <span style="font-size:12px;color:var(--mut);">A4・1ページ目安：16〜24小節</span>
   </div>
-  <div class="scoreWrap" id="scoreWrap"></div>
+  <div class="scoreWrap" id="scoreWrap"><div id="svgHost"></div><input id="lyricEditor" class="noprint" style="display:none" spellcheck="false"></div>
 </div>
 
 <div class="panel noprint">
@@ -314,12 +316,17 @@ function newBeat(div){return {div,chord:'',slots:Array.from({length:div},newSlot
 function newMeasure(meter,div){return {meter,chord:'',lyric:'',mark:'',beats:Array.from({length:meter},()=>newBeat(div))};}
 // メロディ（ピック音符）を含む小節か。ストロークのみの小節では歌詞を音符ごとに割り振らず、流れるテキストとして扱う
 function hasMelody(m){return m.beats.some(bt=>bt.slots.some(s=>s.type==='pick'));}
+// 歌詞ベースラインのy（drawMeasureのbaseY+44に一致）。譜面上の歌詞直接編集ゾーン(.lhit)と共用。
+// ※MTOP=13/tabTop=+44/sp=13 はdrawMeasure内の定数と対応。drawMeasureのレイアウトを変えたらここも合わせる。
+function lyricBaselineY(my){return my+101+(N-1)*13;}
+function xesc(s){return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 let song=[newMeasure(4,2)];
 let cur=0;
 let SEL=null;          // 選択中の弦マス {b,i,s}
 let MFOCUS={b:0,i:0};  // スマホUIで編集中の拍・スロット
 let NUMPAD_HIDDEN=false; // スマホ：数字パッドを手動で隠す
+let LYRICEDIT=null;    // 譜面上で歌詞を直接編集中の小節index（null=非編集）
 const cm=()=>song[cur];
 const fretKeys=s=>Object.keys(s.frets||{}).map(Number).sort((a,b)=>b-a); // 4→1 の順
 
@@ -499,12 +506,12 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
       if(dotted)g+=`<circle cx="${x+8}" cy="${stemBase-3}" r="1.6" fill="${P.stem}"/>`;
       // 歌詞（音のある所に1トークンずつ）
       if(s.type!=='rest'&&lyrIdx<lyrTok.length){
-        g+=`<text x="${x}" y="${baseY+44}" text-anchor="middle" font-size="11" fill="${P.ink}">${lyrTok[lyrIdx++]}</text>`;}
+        g+=`<text x="${x}" y="${lyricBaselineY(my)}" text-anchor="middle" font-size="11" fill="${P.ink}">${xesc(lyrTok[lyrIdx++])}</text>`;}
     });
   });
   // ストロークのみの小節：歌詞を音符ごとに割り振らず、1行の流れるテキストとして小節下に表示
   if(!melodic){const flow=(m.lyric||'').trim();
-    if(flow)g+=`<text x="${mx+mw/2}" y="${baseY+44}" text-anchor="middle" font-size="11" fill="${P.ink}">${flow}</text>`;}
+    if(flow)g+=`<text x="${mx+mw/2}" y="${lyricBaselineY(my)}" text-anchor="middle" font-size="11" fill="${P.ink}">${xesc(flow)}</text>`;}
   return g;
 }
 // ===== 全曲スコア（A4イメージ）=====
@@ -535,14 +542,62 @@ function drawScore(){
   rowCounts.forEach((cnt,r)=>{const mw=W/cnt;
     for(let c=0;c<cnt;c++){const m=song[k],mx=20+c*mw,my=padTop+headerH+r*rowH;
       g+=drawMeasure(mx,my,mw,m,k===cur,rowH,k);
-      if(!PRINTING)g+=`<rect class="mhit" data-k="${k}" x="${mx-2}" y="${my+2}" width="${mw}" height="${Math.round(rowH-8)}" fill="transparent" style="cursor:pointer"/>`;
+      if(!PRINTING){
+        g+=`<rect class="mhit" data-k="${k}" x="${mx-2}" y="${my+2}" width="${mw}" height="${Math.round(rowH-8)}" fill="transparent" style="cursor:pointer"/>`;
+        // 歌詞ゾーン（drawMeasureのlyricBaselineYと一致）。mhitより後に描くのでこの帯は歌詞編集が優先
+        const lyY=lyricBaselineY(my);
+        g+=`<rect class="lhit" data-k="${k}" x="${mx}" y="${lyY-13}" width="${mw}" height="24" fill="transparent" style="cursor:text"/>`;
+      }
       k++;}
   });
   const scoreW=W+40, Z=SCALE;
-  document.getElementById('scoreWrap').innerHTML=
+  document.getElementById('svgHost').innerHTML=
     `<svg width="${scoreW*Z}" height="${H*Z}" viewBox="0 0 ${scoreW} ${H}">${g}</svg>`;
   document.querySelectorAll('.mhit').forEach(r=>r.onclick=()=>{cur=+r.dataset.k;SEL=null;render();});
+  document.querySelectorAll('.lhit').forEach(r=>r.onclick=()=>openLyricEditor(+r.dataset.k));
+  if(LYRICEDIT!=null)positionLyricEditor(); // 再描画後もフローティング入力欄を追従させる
 }
+
+// ===== 譜面上で歌詞を直接編集（歌詞ゾーンをクリック→その場に入力欄）=====
+function positionLyricEditor(){
+  if(LYRICEDIT==null)return;
+  const wrap=document.getElementById('scoreWrap');
+  const hit=wrap.querySelector(`.lhit[data-k="${LYRICEDIT}"]`);
+  const ed=document.getElementById('lyricEditor');
+  if(!hit){ed.style.display='none';return;} // 小節が消えた等
+  const wr=wrap.getBoundingClientRect(), hr=hit.getBoundingClientRect();
+  ed.style.left =(hr.left-wr.left+wrap.scrollLeft)+'px';
+  ed.style.top  =(hr.top -wr.top +wrap.scrollTop )+'px';
+  ed.style.width =hr.width+'px';
+  ed.style.height=hr.height+'px';
+}
+function openLyricEditor(k){
+  LYRICEDIT=k;
+  const ed=document.getElementById('lyricEditor');
+  ed.value=(song[k].lyric||'');
+  ed.placeholder=hasMelody(song[k])?'例：か ん じ（音符ごとにスペース）':'例：かんじとれたら';
+  ed.style.display='block';
+  positionLyricEditor();
+  ed.focus(); ed.select();
+}
+function closeLyricEditor(){
+  if(LYRICEDIT==null)return;
+  LYRICEDIT=null;
+  document.getElementById('lyricEditor').style.display='none';
+}
+(function(){const ed=document.getElementById('lyricEditor');
+  ed.addEventListener('input',()=>{if(LYRICEDIT==null)return;const k=LYRICEDIT;
+    song[k].lyric=ed.value;
+    if(k===cur)document.getElementById('lyric').value=ed.value; // 下の歌詞欄も同期
+    drawScore(); // 譜面をライブ更新（入力欄はsvgHost外なのでフォーカス保持）＋positionLyricEditorで追従
+    document.getElementById('out').value=exportJSON(); scheduleAutosave();
+  });
+  ed.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();ed.blur();}
+  });
+  // blurで閉じる。ただし別の歌詞ゾーンをクリックした場合は開き直し（refocus）されるので閉じない
+  ed.addEventListener('blur',()=>{setTimeout(()=>{if(document.activeElement!==ed)closeLyricEditor();},120);});
+})();
 
 // ===== seq / 出力 =====
 function tokenOf(s){const tie=s.tie?'~':'';
@@ -711,6 +766,7 @@ function mbAction(ds){
   render();
 }
 function render(){
+  closeLyricEditor(); // 小節切替や音符編集など他操作が入ったら譜面上の歌詞編集は閉じる（歌詞入力自体はdrawScore直呼びで継続）
   document.getElementById('mpos').textContent=`${cur+1} / ${song.length}`;
   document.getElementById('meter').value=cm().meter;
   document.getElementById('lyric').value=cm().lyric;
