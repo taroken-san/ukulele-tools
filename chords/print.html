@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ウクレレ コード一覧 印刷用 | S&Sシニアスマイル音楽教室</title>
+<style>
+  :root{--ink:#2f2a26;--sub:#8a8177;--line:#d9d2c6;
+    --root:#e07a3f;--third:#6fae6f;--fifth:#3f7ea0;--ext:#b06fb0;}
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae6;font-family:-apple-system,"Hiragino Sans",sans-serif;color:var(--ink)}
+  .toolbar{padding:12px;text-align:center}
+  .toolbar a.back{display:inline-block;margin-bottom:8px;font-size:12px;color:#3f7ea0;text-decoration:none}
+  .toolbar button{font:inherit;padding:8px 16px;border-radius:8px;border:0;background:#e07a3f;color:#fff;cursor:pointer}
+  .sheet{background:#fff;width:794px;min-height:1123px;margin:0 auto 20px;padding:20px 22px;box-shadow:0 4px 20px rgba(0,0,0,.12);display:flex;flex-direction:column}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:7px;margin-bottom:10px}
+  .head h1{margin:0;font-size:21px}
+  .head .meta{font-size:11px;color:var(--sub);text-align:right}
+  table{border-collapse:collapse;table-layout:fixed;width:100%}
+  th{font-size:12px;color:var(--sub);font-weight:700;padding:2px 0}
+  th.blankh{color:#b98a4a}
+  td.rlabel{width:20px;font-weight:800;font-size:17px;text-align:center}
+  td{border-bottom:1px dashed #ece7dd;padding:7px 4px}
+  td.type-min,td.type-m7{background:#faf9f6}
+  td.blankc{background:#fcfbf8}
+  .cn{font-size:14px;font-weight:800;color:var(--ink);text-align:center;line-height:1.1;margin-bottom:2px}
+  .bname{border-bottom:1px solid var(--line);height:16px;margin:0 12px 2px}
+  svg{display:block;margin:0 auto;width:100%;height:auto;max-width:118px}
+  .foot{margin-top:10px;font-size:11px;color:var(--sub);display:flex;gap:14px;border-top:1px solid var(--line);padding-top:7px}
+  .foot .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:3px;vertical-align:-1px}
+  @media print{body{background:#fff}.toolbar{display:none}.sheet{box-shadow:none;margin:0;width:auto}@page{size:A4 portrait;margin:9mm}}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div style="max-width:760px;margin:0 auto;text-align:left;background:#fff;border-radius:12px;padding:14px 16px">
+    <a class="back" href="index.html">← コード帳へ戻る</a>
+    <div style="font-weight:700;margin-bottom:8px">🛠 載せる内容を選ぶ（この設定は印刷に出ません）</div>
+    <div style="margin-bottom:8px"><b style="font-size:12px;color:#8a8177">タイプ：</b><span id="ctlTypes"></span></div>
+    <div style="margin-bottom:8px"><b style="font-size:12px;color:#8a8177">キー：</b><span id="ctlRoots"></span></div>
+    <div style="margin-bottom:10px"><b style="font-size:12px;color:#8a8177">追加ブランク列：</b>
+      <select id="ctlBlank"><option>0</option><option>1</option><option selected>2</option><option>3</option></select> 列</div>
+    <button onclick="window.print()">🖨 印刷プレビュー</button>
+  </div>
+</div>
+
+<div class="sheet">
+  <div class="head">
+    <h1>🎵 ウクレレ コード一覧</h1>
+    <div class="meta">S&Sシニアスマイル音楽教室　／　調弦：Low-G（G C E A）<br>お名前：____________</div>
+  </div>
+  <table id="tbl"></table>
+  <div class="foot">
+    <span>指の数字＝押さえる指（1人差/2中/3薬/4小）　○＝開放　✕＝弾かない</span>
+    <span><span class="dot" style="background:var(--root)"></span>ルート</span>
+    <span><span class="dot" style="background:var(--third)"></span>3rd</span>
+    <span><span class="dot" style="background:var(--fifth)"></span>5th</span>
+    <span><span class="dot" style="background:var(--ext)"></span>7th</span>
+  </div>
+</div>
+
+<script>
+const OPEN=[7,0,4,9];
+const DEGCOL={'1':'var(--root)','3':'var(--third)','b3':'var(--third)','5':'var(--fifth)','b5':'var(--fifth)','#5':'var(--fifth)','7':'var(--ext)','b7':'var(--ext)','9':'var(--ext)','6':'var(--ext)'};
+function noteAt(s,f){return f<0?null:(OPEN[s]+f)%12;}
+function deg(rootPc,pc){const iv=(pc-rootPc+12)%12;return{0:'1',1:'b9',2:'9',3:'b3',4:'3',5:'11',6:'b5',7:'5',8:'#5',9:'6',10:'b7',11:'7'}[iv];}
+
+const ROOTS=[['C',0],['D',2],['E',4],['F',5],['G',7],['A',9],['B♭',10],['B',11]];
+const SH={
+ 'C':{f:[0,0,0,3],g:[0,0,0,3]},'Cm':{f:[0,3,3,3],g:[0,1,2,3]},'C7':{f:[0,0,0,1],g:[0,0,0,1]},'Cm7':{f:[3,3,3,3],g:[3,3,3,3]},
+ 'D':{f:[2,2,2,0],g:[1,2,3,0]},'Dm':{f:[2,2,1,0],g:[2,3,1,0]},'D7':{f:[2,0,2,0],g:[2,0,3,0]},'Dm7':{f:[2,2,1,3],g:[2,3,1,4]},
+ 'E':{f:[4,4,4,2],g:[3,4,4,1]},'Em':{f:[0,4,3,2],g:[0,4,3,2]},'E7':{f:[1,2,0,2],g:[1,2,0,3]},'Em7':{f:[0,2,0,2],g:[0,2,0,3]},
+ 'F':{f:[2,0,1,0],g:[2,0,1,0]},'Fm':{f:[1,0,1,3],g:[1,0,2,4]},'F7':{f:[2,3,1,3],g:[2,3,1,4]},'Fm7':{f:[1,3,1,3],g:[1,3,1,4]},
+ 'G':{f:[0,2,3,2],g:[0,1,3,2]},'Gm':{f:[0,2,3,1],g:[0,2,3,1]},'G7':{f:[0,2,1,2],g:[0,3,1,2]},'Gm7':{f:[0,2,1,1],g:[0,3,1,2]},
+ 'A':{f:[2,1,0,0],g:[2,1,0,0]},'Am':{f:[2,0,0,0],g:[2,0,0,0]},'A7':{f:[0,1,0,0],g:[0,1,0,0]},'Am7':{f:[0,0,0,0],g:[0,0,0,0]},
+ 'B♭':{f:[3,2,1,1],g:[3,2,1,1]},'B♭m':{f:[3,1,1,1],g:[3,1,1,1]},'B♭7':{f:[1,2,1,1],g:[1,3,1,2]},'B♭m7':{f:[1,1,1,1],g:[1,1,1,1]},
+ 'B':{f:[4,3,2,2],g:[4,3,1,2]},'Bm':{f:[4,2,2,2],g:[4,1,1,1]},'B7':{f:[4,3,2,0],g:[4,3,2,0]},'Bm7':{f:[2,2,2,2],g:[2,2,2,2]},
+};
+const TYPES=[['メジャー',''],['マイナー','m'],['セブンス','7'],['マイナー7th','m7']];
+
+function load(key,fallback){ try{const v=JSON.parse(localStorage.getItem(key)); return v==null?fallback:v;}catch(e){return fallback;} }
+function save(key,val){ localStorage.setItem(key,JSON.stringify(val)); }
+const typeOn=load('ukechords.print.types',[true,true,true,false]);
+const rootOn=load('ukechords.print.roots',ROOTS.map(()=>true));
+const blankCols0=load('ukechords.print.blank',2);
+
+function grid(){
+  const W=96,H=76,padL=15,padR=8,padT=8,fr=4,st=4;const fx=(W-padL-padR)/fr,sy=(H-padT-7)/(st-1);let s='';
+  for(let f=0;f<=fr;f++){const x=padL+f*fx;s+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+(st-1)*sy}" stroke="var(--line)" stroke-width="${f===0?2:.9}"/>`}
+  for(let r=0;r<st;r++){const y=padT+r*sy;s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line)" stroke-width=".9"/>`}
+  return {s,W,H,padL,padR,padT,fx,sy,fr,st};
+}
+function draw(name,rootPc){
+  const c=SH[name];if(!c)return blank();
+  const b=grid();let s=b.s;const idx=[3,2,1,0];
+  for(let r=0;r<b.st;r++){const str=idx[r],y=b.padT+r*b.sy,f=c.f[str];const pc=noteAt(str,f);const d=pc==null?null:deg(rootPc,pc);const col=d?(DEGCOL[d]||'var(--sub)'):'#bbb';
+    if(f<0)s+=`<text x="${b.padL-8}" y="${y+3}" text-anchor="middle" font-size="9" fill="#bbb">✕</text>`;
+    else if(f===0)s+=`<circle cx="${b.padL-7}" cy="${y}" r="3.4" fill="none" stroke="${col}" stroke-width="1.5"/>`;
+    else{const x=b.padL+(f-0.5)*b.fx;s+=`<circle cx="${x}" cy="${y}" r="7" fill="${col}"/><text x="${x}" y="${y+3}" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="700">${c.g[str]||''}</text>`;}
+  }
+  return `<svg viewBox="0 0 ${b.W} ${b.H}" width="${b.W}" height="${b.H}">${s}</svg>`;
+}
+function blank(){const b=grid();return `<svg viewBox="0 0 ${b.W} ${b.H}" width="${b.W}" height="${b.H}">${b.s}</svg>`;}
+
+function renderTable(){
+  const blankCols=+document.getElementById('ctlBlank').value;
+  save('ukechords.print.blank',blankCols);
+  const types=TYPES.filter((t,i)=>typeOn[i]);
+  let html='<tr><th></th>'+types.map(t=>`<th>${t[0]}</th>`).join('');
+  for(let i=0;i<blankCols;i++)html+=`<th class="blankh">追加${i+1}</th>`;
+  html+='</tr>';
+  ROOTS.forEach(([rn,rpc],ri)=>{
+    if(!rootOn[ri])return;
+    html+=`<tr><td class="rlabel">${rn}</td>`+
+      types.map((t)=>{const name=rn+t[1];const cls=t[1]==='m'?'type-min':(t[1]==='m7'?'type-m7':'');return `<td class="${cls}"><div class="cn">${name}</div>${draw(name,rpc)}</td>`}).join('');
+    for(let i=0;i<blankCols;i++)html+=`<td class="blankc"><div class="bname"></div>${blank()}</td>`;
+    html+='</tr>';
+  });
+  document.getElementById('tbl').innerHTML=html;
+}
+document.getElementById('ctlTypes').innerHTML=TYPES.map((t,i)=>`<label style="margin-right:10px;font-size:13px"><input type="checkbox" ${typeOn[i]?'checked':''} onchange="typeOn[${i}]=this.checked;save('ukechords.print.types',typeOn);renderTable()"> ${t[0]}</label>`).join('');
+document.getElementById('ctlRoots').innerHTML=ROOTS.map((r,i)=>`<label style="margin-right:8px;font-size:13px"><input type="checkbox" ${rootOn[i]?'checked':''} onchange="rootOn[${i}]=this.checked;save('ukechords.print.roots',rootOn);renderTable()"> ${r[0]}</label>`).join('');
+document.getElementById('ctlBlank').value=blankCols0;
+document.getElementById('ctlBlank').onchange=renderTable;
+window.renderTable=renderTable;window.typeOn=typeOn;window.rootOn=rootOn;window.save=save;
+renderTable();
+</script>
+</body>
+</html>
