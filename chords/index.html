@@ -28,7 +28,7 @@
   .card .voname{font-size:11px;color:var(--sub);font-weight:500}
   .badge{position:absolute;top:12px;right:12px;font-size:10px;background:#f0e9dd;color:var(--sub);padding:3px 7px;border-radius:20px}
   .badge.custom{background:#fbeadd;color:var(--accent)}
-  .star{position:absolute;top:12px;left:12px;cursor:pointer;font-size:15px;color:#ddd6c8}
+  .star{cursor:pointer;font-size:15px;color:#ddd6c8;margin-right:2px}
   .star.on{color:#e0a63f}
   svg{display:block;margin:6px auto}
   .degrees{text-align:center;font-size:12px;color:var(--sub);margin-top:6px}
@@ -319,9 +319,8 @@ function render(){
       const v=voicings[vi];
       const isFav=favorites.includes(c.name);
       card.innerHTML=`
-        <span class="star ${isFav?'on':''}">★</span>
         <span class="badge ${vi>0?'custom':''}">${vi>0?'マイ登録':c.sym}</span>
-        <div class="name">${c.name}<span class="voname">${c.sym} · ${v.label}</span></div>
+        <div class="name"><span class="star ${isFav?'on':''}">★</span>${c.name}<span class="voname">${c.sym} · ${v.label}</span></div>
         ${drawChord(v,c.rootPc)}
         <div class="degrees">${degreeLine(v,c.rootPc,keyRootPc)}</div>
         <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
