@@ -65,6 +65,8 @@
   .row input{flex:1;padding:7px 10px;border-radius:9px;border:1px solid var(--line);font:inherit}
   .modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   input[type=file]{display:none}
+  .tabbtn{font:inherit;padding:7px 14px;border-radius:20px 20px 0 0;border:1px solid var(--line);border-bottom:none;background:var(--bg);color:var(--sub);cursor:pointer;font-size:13px}
+  .tabbtn.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
 </style>
 </head>
 <body>
@@ -76,8 +78,12 @@
     </div>
     <a class="printlink" href="print.html">🖨 印刷用ページへ</a>
   </div>
+  <div class="tabs hrow" style="gap:6px;padding-top:8px">
+    <button class="tabbtn on" id="tabbtnGenerate" onclick="switchTab('generate')">コード生成</button>
+    <button class="tabbtn" id="tabbtnSearch" onclick="switchTab('search')">🔍 全コード検索</button>
+  </div>
 </header>
-<div class="wrap">
+<div class="wrap" id="tabGenerate">
   <div class="controls">
     <label>キー
       <select id="key"></select>
@@ -116,6 +122,20 @@
   </div>
 </div>
 
+<div class="wrap" id="tabSearch" style="display:none">
+  <div class="controls">
+    <label>ルート
+      <select id="searchRoot"><option value="">すべて</option></select>
+    </label>
+    <label>種類
+      <select id="searchQuality"><option value="ALL">すべて</option></select>
+    </label>
+    <input type="text" id="searchText" placeholder="コード名で検索（例: F#m7）" style="padding:8px 12px;border-radius:10px;border:1px solid var(--line);min-width:200px">
+    <span style="font-size:12px;color:var(--sub)" id="searchCount"></span>
+  </div>
+  <div class="grid" id="searchGrid"></div>
+</div>
+
 <div class="mask" id="mask">
   <div class="modal">
     <h3>ボイシングを登録</h3>
@@ -150,7 +170,7 @@ function degName(rootPc,pc){ const iv=(pc-rootPc+12)%12; return {0:'1',1:'b9',2:
 
 // 品質ごとの構成音(半音interval)
 const QUALITY_TONES={'':[0,4,7], 'm':[0,3,7], '7':[0,4,7,10], 'm7':[0,3,7,10]};
-const QUALITY_LABEL={'':'', 'm':'m', '7':'7', 'm7':'m7'};
+const QUALITY_LABEL={'':'', 'm':'m', '7':'7', 'm7':'m7', 'maj7':'maj7', 'dim':'dim', 'm7-5':'m7(-5)', 'aug':'aug', 'sus4':'sus4'};
 
 // 実測ボイシング(12ルート×4品質、Ukulele Chord Bible p.10-11より検証済み) [G,C,E,A]
 const SH={
@@ -168,6 +188,24 @@ const SH={
  'B':{f:[4,3,2,2],g:[4,3,1,2]},'Bm':{f:[4,2,2,2],g:[4,1,1,1]},'B7':{f:[4,3,2,0],g:[4,3,2,0]},'Bm7':{f:[2,2,2,2],g:[2,2,2,2]},
 };
 const PRIMARY_ROOTS={0:'C',1:'C#',2:'D',3:'D#',4:'E',5:'F',6:'F#',7:'G',8:'G#',9:'A',10:'Bb',11:'B'};
+
+// 全コード検索用：12ルート×9種類(Ukulele Chord Bible p.10-11実測、機械理論検証済み)
+const SH_ALL={
+ 'C':{f:[0,0,0,3],g:[0,0,0,1]}, 'Cm':{f:[0,3,3,3],g:[0,1,1,1]}, 'C7':{f:[0,0,0,1],g:[0,0,0,1]}, 'Cmaj7':{f:[0,0,0,2],g:[0,0,0,1]}, 'Cm7':{f:[3,3,3,3],g:[1,1,1,1]}, 'Cdim':{f:[2,3,2,3],g:[1,2,1,2]}, 'Cm7-5':{f:[3,3,2,3],g:[2,2,1,2]}, 'Caug':{f:[1,0,0,3],g:[1,0,0,2]}, 'Csus4':{f:[0,0,1,3],g:[0,0,1,2]},
+ 'C#':{f:[1,1,1,4],g:[1,1,1,2]}, 'C#m':{f:[6,4,4,4],g:[2,1,1,1]}, 'C#7':{f:[1,1,1,2],g:[1,1,1,2]}, 'C#maj7':{f:[1,1,1,3],g:[1,1,1,2]}, 'C#m7':{f:[1,1,0,2],g:[1,1,0,2]}, 'C#dim':{f:[0,1,0,1],g:[0,1,0,1]}, 'C#m7-5':{f:[4,4,3,4],g:[2,2,1,2]}, 'C#aug':{f:[2,1,1,0],g:[2,1,1,0]}, 'C#sus4':{f:[1,1,2,4],g:[1,1,2,3]},
+ 'D':{f:[2,2,2,0],g:[1,1,1,0]}, 'Dm':{f:[2,2,1,0],g:[2,2,1,0]}, 'D7':{f:[2,0,2,0],g:[1,0,1,0]}, 'Dmaj7':{f:[2,2,2,0],g:[1,1,1,0]}, 'Dm7':{f:[2,2,1,3],g:[2,2,1,3]}, 'Ddim':{f:[1,2,1,2],g:[1,2,1,2]}, 'Dm7-5':{f:[5,5,4,5],g:[2,2,1,2]}, 'Daug':{f:[3,2,2,1],g:[3,2,2,1]}, 'Dsus4':{f:[2,2,3,0],g:[1,1,2,0]},
+ 'D#':{f:[3,3,3,1],g:[2,2,2,1]}, 'D#m':{f:[3,3,2,1],g:[3,3,2,1]}, 'D#7':{f:[3,3,3,4],g:[1,1,1,2]}, 'D#maj7':{f:[3,3,3,5],g:[1,1,1,2]}, 'D#m7':{f:[3,3,2,4],g:[2,2,1,3]}, 'D#dim':{f:[2,3,2,3],g:[1,2,1,2]}, 'D#m7-5':{f:[6,6,5,6],g:[2,2,1,2]}, 'D#aug':{f:[4,3,3,2],g:[3,2,2,1]}, 'D#sus4':{f:[3,3,4,1],g:[2,2,3,1]},
+ 'E':{f:[4,4,4,2],g:[2,2,2,1]}, 'Em':{f:[0,4,3,2],g:[0,3,2,1]}, 'E7':{f:[1,2,0,2],g:[1,2,0,2]}, 'Emaj7':{f:[4,3,4,2],g:[3,2,3,1]}, 'Em7':{f:[0,2,0,2],g:[0,1,0,1]}, 'Edim':{f:[0,1,0,1],g:[0,1,0,1]}, 'Em7-5':{f:[0,2,0,1],g:[0,2,0,1]}, 'Eaug':{f:[5,4,4,3],g:[3,2,2,1]}, 'Esus4':{f:[4,4,5,2],g:[2,2,3,1]},
+ 'F':{f:[2,0,1,0],g:[2,0,1,0]}, 'Fm':{f:[1,0,1,3],g:[1,0,1,2]}, 'F7':{f:[2,3,1,3],g:[2,3,1,3]}, 'Fmaj7':{f:[2,0,0,0],g:[1,0,0,0]}, 'Fm7':{f:[1,3,1,3],g:[1,2,1,2]}, 'Fdim':{f:[1,2,1,2],g:[1,2,1,2]}, 'Fm7-5':{f:[1,3,1,2],g:[1,3,1,2]}, 'Faug':{f:[2,1,1,0],g:[2,1,1,0]}, 'Fsus4':{f:[3,0,1,1],g:[2,0,1,1]},
+ 'F#':{f:[3,1,2,1],g:[3,1,2,1]}, 'F#m':{f:[2,1,2,0],g:[2,1,2,0]}, 'F#7':{f:[3,4,2,4],g:[2,3,1,3]}, 'F#maj7':{f:[3,1,1,1],g:[2,1,1,1]}, 'F#m7':{f:[2,4,2,4],g:[1,2,1,2]}, 'F#dim':{f:[2,3,2,3],g:[1,2,1,2]}, 'F#m7-5':{f:[2,4,2,3],g:[1,3,1,2]}, 'F#aug':{f:[3,2,2,1],g:[3,2,2,1]}, 'F#sus4':{f:[6,6,7,4],g:[2,2,3,1]},
+ 'G':{f:[0,2,3,2],g:[0,1,2,1]}, 'Gm':{f:[0,2,3,1],g:[0,2,3,1]}, 'G7':{f:[0,2,1,2],g:[0,2,1,2]}, 'Gmaj7':{f:[0,2,2,2],g:[0,1,1,1]}, 'Gm7':{f:[0,2,1,1],g:[0,2,1,1]}, 'Gdim':{f:[0,1,0,1],g:[0,1,0,1]}, 'Gm7-5':{f:[0,1,1,1],g:[0,1,1,1]}, 'Gaug':{f:[0,3,3,2],g:[0,2,2,1]}, 'Gsus4':{f:[0,2,3,3],g:[0,1,2,2]},
+ 'G#':{f:[1,3,4,3],g:[1,2,3,2]}, 'G#m':{f:[1,3,4,2],g:[1,3,4,2]}, 'G#7':{f:[1,3,2,3],g:[1,3,2,3]}, 'G#maj7':{f:[1,3,3,3],g:[1,2,2,2]}, 'G#m7':{f:[1,3,2,2],g:[1,3,2,2]}, 'G#dim':{f:[1,2,1,2],g:[1,2,1,2]}, 'G#m7-5':{f:[1,2,2,2],g:[1,2,2,2]}, 'G#aug':{f:[1,0,0,3],g:[1,0,0,2]}, 'G#sus4':{f:[8,8,9,6],g:[2,2,3,1]},
+ 'A':{f:[2,1,0,0],g:[2,1,0,0]}, 'Am':{f:[2,0,0,0],g:[1,0,0,0]}, 'A7':{f:[0,1,0,0],g:[0,1,0,0]}, 'Amaj7':{f:[1,1,0,0],g:[1,1,0,0]}, 'Am7':{f:[0,0,0,0],g:[0,0,0,0]}, 'Adim':{f:[2,3,2,3],g:[1,2,1,2]}, 'Am7-5':{f:[2,3,3,3],g:[1,2,2,2]}, 'Aaug':{f:[2,1,1,0],g:[2,1,1,0]}, 'Asus4':{f:[2,2,0,0],g:[1,1,0,0]},
+ 'A#':{f:[3,2,1,1],g:[3,2,1,1]}, 'A#m':{f:[3,1,1,1],g:[2,1,1,1]}, 'A#7':{f:[1,2,1,1],g:[1,2,1,1]}, 'A#maj7':{f:[3,2,1,0],g:[3,2,1,0]}, 'A#m7':{f:[1,1,1,1],g:[1,1,1,1]}, 'A#dim':{f:[0,1,0,1],g:[0,1,0,1]}, 'A#m7-5':{f:[1,1,0,1],g:[1,1,0,1]}, 'A#aug':{f:[3,2,2,1],g:[3,2,2,1]}, 'A#sus4':{f:[3,3,1,1],g:[2,2,1,1]},
+ 'B':{f:[4,3,2,2],g:[3,2,1,1]}, 'Bm':{f:[4,2,2,2],g:[2,1,1,1]}, 'B7':{f:[4,3,2,0],g:[3,2,1,0]}, 'Bmaj7':{f:[4,3,2,1],g:[4,3,2,1]}, 'Bm7':{f:[2,2,2,2],g:[1,1,1,1]}, 'Bdim':{f:[1,2,1,2],g:[1,2,1,2]}, 'Bm7-5':{f:[2,2,1,2],g:[2,2,1,2]}, 'Baug':{f:[4,3,3,2],g:[3,2,2,1]}, 'Bsus4':{f:[4,4,2,2],g:[2,2,1,1]},
+};
+const QUALITY_ALL=[['','メジャー'],['m','マイナー'],['7','セブンス'],['maj7','メジャーセブンス'],['m7','マイナーセブンス'],['dim','ディミニッシュ'],['m7-5','マイナーセブンスフラットファイブ'],['aug','オーギュメント'],['sus4','サスフォー']];
+const ROOT_ALL=[['C',0],['C#',1],['D',2],['D#',3],['E',4],['F',5],['F#',6],['G',7],['G#',8],['A',9],['A#',10],['B',11]];
 function lookupShape(rootPc,q){
   const nm=PRIMARY_ROOTS[rootPc]; if(!nm)return null;
   const key=nm+q; return SH[key]?{key,...SH[key]}:null;
@@ -409,6 +447,45 @@ function saveVoicing(){
 }
 window.setFret=setFret;window.openAdd=openAdd;window.closeAdd=closeAdd;window.saveVoicing=saveVoicing;
 window.exportJSON=exportJSON;window.clearMemo=clearMemo;window.$=$;
+
+// ===== タブ切替・全コード検索 =====
+function switchTab(tab){
+  $('tabGenerate').style.display = tab==='generate' ? '' : 'none';
+  $('tabSearch').style.display = tab==='search' ? '' : 'none';
+  $('tabbtnGenerate').classList.toggle('on', tab==='generate');
+  $('tabbtnSearch').classList.toggle('on', tab==='search');
+  if(tab==='search') renderSearch();
+}
+ROOT_ALL.forEach(([nm,pc])=>{ const o=document.createElement('option'); o.value=nm; o.textContent=nm; $('searchRoot').appendChild(o); });
+QUALITY_ALL.forEach(([q,label])=>{ const o=document.createElement('option'); o.value=q; o.textContent=`${label} (${q||'無記号'})`; $('searchQuality').appendChild(o); });
+function renderSearch(){
+  const rf=$('searchRoot').value, qf=$('searchQuality').value, tf=$('searchText').value.trim().toLowerCase();
+  const grid=$('searchGrid'); grid.innerHTML='';
+  let count=0;
+  ROOT_ALL.forEach(([rootName,rootPc])=>{
+    if(rf && rf!==rootName) return;
+    QUALITY_ALL.forEach(([q,qLabel])=>{
+      if(qf!=='ALL' && q!==qf) return;
+      const name=rootName+q;
+      if(tf && !name.toLowerCase().includes(tf)) return;
+      const shape=SH_ALL[name]; if(!shape) return;
+      count++;
+      const card=document.createElement('div'); card.className='card';
+      card.title=qLabel;
+      card.innerHTML=`
+        <div class="name">${name}<span class="voname">${QUALITY_LABEL[q]||'メジャー'}</span></div>
+        ${drawChord({frets:shape.f,fingers:shape.g},rootPc)}
+        <div class="degrees">${degreeLine({frets:shape.f,fingers:shape.g},rootPc,7)}</div>
+      `;
+      grid.appendChild(card);
+    });
+  });
+  $('searchCount').textContent = count+'件';
+}
+$('searchRoot').onchange=renderSearch;
+$('searchQuality').onchange=renderSearch;
+$('searchText').oninput=renderSearch;
+window.switchTab=switchTab;
 
 render(); renderProgs(); renderMemo();
 </script>
