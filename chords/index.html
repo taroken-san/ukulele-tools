@@ -152,19 +152,22 @@ function degName(rootPc,pc){ const iv=(pc-rootPc+12)%12; return {0:'1',1:'b9',2:
 const QUALITY_TONES={'':[0,4,7], 'm':[0,3,7], '7':[0,4,7,10], 'm7':[0,3,7,10]};
 const QUALITY_LABEL={'':'', 'm':'m', '7':'7', 'm7':'m7'};
 
-// 実測ボイシング(8ルート×4品質) [G,C,E,A]
+// 実測ボイシング(12ルート×4品質、Ukulele Chord Bible p.10-11より検証済み) [G,C,E,A]
 const SH={
  'C':{f:[0,0,0,3],g:[0,0,0,3]},'Cm':{f:[0,3,3,3],g:[0,1,2,3]},'C7':{f:[0,0,0,1],g:[0,0,0,1]},'Cm7':{f:[3,3,3,3],g:[3,3,3,3]},
+ 'C#':{f:[1,1,1,4],g:[1,1,1,2]},'C#m':{f:[6,4,4,4],g:[2,1,1,1]},'C#7':{f:[1,1,1,2],g:[1,1,1,2]},'C#m7':{f:[1,1,0,2],g:[1,1,0,2]},
  'D':{f:[2,2,2,0],g:[1,2,3,0]},'Dm':{f:[2,2,1,0],g:[2,3,1,0]},'D7':{f:[2,0,2,0],g:[2,0,3,0]},'Dm7':{f:[2,2,1,3],g:[2,3,1,4]},
+ 'D#':{f:[3,3,3,1],g:[2,2,2,1]},'D#m':{f:[3,3,2,1],g:[3,3,2,1]},'D#7':{f:[3,3,3,4],g:[1,1,1,2]},'D#m7':{f:[3,3,2,4],g:[2,2,1,3]},
  'E':{f:[4,4,4,2],g:[3,4,4,1]},'Em':{f:[0,4,3,2],g:[0,4,3,2]},'E7':{f:[1,2,0,2],g:[1,2,0,3]},'Em7':{f:[0,2,0,2],g:[0,2,0,3]},
  'F':{f:[2,0,1,0],g:[2,0,1,0]},'Fm':{f:[1,0,1,3],g:[1,0,2,4]},'F7':{f:[2,3,1,3],g:[2,3,1,4]},'Fm7':{f:[1,3,1,3],g:[1,3,1,4]},
+ 'F#':{f:[3,1,2,1],g:[3,1,2,1]},'F#m':{f:[2,1,2,0],g:[2,1,2,0]},'F#7':{f:[3,4,2,4],g:[2,3,1,3]},'F#m7':{f:[2,4,2,4],g:[1,2,1,2]},
  'G':{f:[0,2,3,2],g:[0,1,3,2]},'Gm':{f:[0,2,3,1],g:[0,2,3,1]},'G7':{f:[0,2,1,2],g:[0,3,1,2]},'Gm7':{f:[0,2,1,1],g:[0,3,1,2]},
+ 'G#':{f:[1,3,4,3],g:[1,2,3,2]},'G#m':{f:[1,3,4,2],g:[1,3,4,2]},'G#7':{f:[1,3,2,3],g:[1,3,2,3]},'G#m7':{f:[1,3,2,2],g:[1,3,2,2]},
  'A':{f:[2,1,0,0],g:[2,1,0,0]},'Am':{f:[2,0,0,0],g:[2,0,0,0]},'A7':{f:[0,1,0,0],g:[0,1,0,0]},'Am7':{f:[0,0,0,0],g:[0,0,0,0]},
  'Bb':{f:[3,2,1,1],g:[3,2,1,1]},'Bbm':{f:[3,1,1,1],g:[3,1,1,1]},'Bb7':{f:[1,2,1,1],g:[1,3,1,2]},'Bbm7':{f:[1,1,1,1],g:[1,1,1,1]},
  'B':{f:[4,3,2,2],g:[4,3,1,2]},'Bm':{f:[4,2,2,2],g:[4,1,1,1]},'B7':{f:[4,3,2,0],g:[4,3,2,0]},'Bm7':{f:[2,2,2,2],g:[2,2,2,2]},
 };
-function shKey(rootPc,q){ const nm=spell(0,rootPc).replace('#','#').replace('b','b'); return nm+q; } // 素の名前生成用(内部)
-const PRIMARY_ROOTS={0:'C',2:'D',4:'E',5:'F',7:'G',9:'A',10:'Bb',11:'B'};
+const PRIMARY_ROOTS={0:'C',1:'C#',2:'D',3:'D#',4:'E',5:'F',6:'F#',7:'G',8:'G#',9:'A',10:'Bb',11:'B'};
 function lookupShape(rootPc,q){
   const nm=PRIMARY_ROOTS[rootPc]; if(!nm)return null;
   const key=nm+q; return SH[key]?{key,...SH[key]}:null;
@@ -181,11 +184,11 @@ function autoShape(rootPc,q){
   const fingers=[0,0,0,0]; nz.forEach((o,k)=>fingers[o.i]=k+1);
   return {f:frets,g:fingers};
 }
-function chordName(rootPc,q){ return spell(rootPc,rootPc)+QUALITY_LABEL[q]; }
+function chordName(rootPc,q,keyRootPc){ return spell(keyRootPc==null?rootPc:keyRootPc,rootPc)+QUALITY_LABEL[q]; }
 function getShape(rootPc,q){
   const cur=lookupShape(rootPc,q);
-  if(cur) return cur;
-  return {key:chordName(rootPc,q), ...autoShape(rootPc,q)};
+  if(cur) return {...cur, fromBook:true};
+  return {...autoShape(rootPc,q), fromBook:false};
 }
 
 // ===== キー内コード生成 =====
@@ -198,7 +201,7 @@ const DEG_MAP={
 };
 function degChord(keyRootPc, sym){
   const d=DEG_MAP[sym]; const rootPc=(keyRootPc+d.off)%12;
-  return {sym, rootPc, q:d.q, name: chordName(rootPc,d.q)};
+  return {sym, rootPc, q:d.q, name: chordName(rootPc,d.q,keyRootPc)};
 }
 function buildKeySet(keyRootPc, cat){
   let syms;
@@ -207,7 +210,7 @@ function buildKeySet(keyRootPc, cat){
   else{ // common
     syms=['I','ii7','iii7','IV','iv','V7','vi7','bVII'];
     // セカンダリドミナント
-    const sec=(targetSym)=>{ const t=DEG_MAP[targetSym]; const root=(keyRootPc+t.off+7)%12; return {sym:'V7/'+targetSym.replace('7',''), rootPc:root, q:'7', name:chordName(root,'7')}; };
+    const sec=(targetSym)=>{ const t=DEG_MAP[targetSym]; const root=(keyRootPc+t.off+7)%12; return {sym:'V7/'+targetSym.replace('7',''), rootPc:root, q:'7', name:chordName(root,'7',keyRootPc)}; };
     return [...syms.map(s=>degChord(keyRootPc,s)), sec('ii7'), sec('V7'), sec('vi7')];
   }
   return syms.map(s=>degChord(keyRootPc,s));
@@ -237,8 +240,9 @@ function drawChord(shape,rootPc){
   }
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${g}${marks}${labels}</svg>`;
 }
-function degreeLine(shape,rootPc){
-  const parts=shape.frets.map((f,s)=>{const pc=noteAt(s,f);if(pc==null)return null;const d=degName(rootPc,pc);return `<b style="color:${DEGCOL[d]||'var(--ink)'}">${spell(rootPc,pc)}</b>(${BOOK[d]||d})`;}).filter(Boolean);
+function degreeLine(shape,rootPc,keyRootPc){
+  const spellCtx=keyRootPc==null?rootPc:keyRootPc;
+  const parts=shape.frets.map((f,s)=>{const pc=noteAt(s,f);if(pc==null)return null;const d=degName(rootPc,pc);return `<b style="color:${DEGCOL[d]||'var(--ink)'}">${spell(spellCtx,pc)}</b>(${BOOK[d]||d})`;}).filter(Boolean);
   return parts.join(' · ');
 }
 
@@ -270,7 +274,7 @@ function render(){
   list.forEach(c=>{
     const base=getShape(c.rootPc,c.q);
     const custom=customVoicings[c.name]||[];
-    const voicings=[{label:base.key===c.name?'基本':'基本(自動)', frets:base.f, fingers:base.g}, ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers}))];
+    const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g}, ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers}))];
     let vi=0;
     const card=document.createElement('div'); card.className='card';
     function paint(){
@@ -281,7 +285,7 @@ function render(){
         <span class="badge ${vi>0?'custom':''}">${vi>0?'マイ登録':c.sym}</span>
         <div class="name">${c.name}<span class="voname">${c.sym} · ${v.label}</span></div>
         ${drawChord(v,c.rootPc)}
-        <div class="degrees">${degreeLine(v,c.rootPc)}</div>
+        <div class="degrees">${degreeLine(v,c.rootPc,keyRootPc)}</div>
         <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
         <button class="addmemo">＋ メモへ</button>
       `;
