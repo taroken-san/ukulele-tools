@@ -185,7 +185,7 @@ function canonName(rootPc,q){ return SHARP[rootPc]+q; }
 
 // 品質ごとの構成音(半音interval)
 const QUALITY_TONES={'':[0,4,7], 'm':[0,3,7], '7':[0,4,7,10], 'm7':[0,3,7,10]};
-const QUALITY_LABEL={'':'', 'm':'m', '7':'7', 'm7':'m7', 'maj7':'maj7', 'dim':'dim', 'm7-5':'m7(-5)', 'aug':'aug', 'sus4':'sus4'};
+const QUALITY_LABEL={'':'', 'm':'m', '7':'7', 'm7':'m7', 'maj7':'maj7', 'dim':'dim', 'm7-5':'m7(-5)', 'aug':'aug', 'sus4':'sus4', '6':'6'};
 
 // 実測ボイシング(12ルート×4品質、Ukulele Chord Bible p.10-11より検証済み) [G,C,E,A]
 const SH={
@@ -251,7 +251,7 @@ function toggleHardOverride(name, frets, fingers){
 }
 
 // ===== 理論生成の省略形（設計書§2C） =====
-const QUALITY_TONES_EXT={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'maj7':[0,4,7,11],'m7':[0,3,7,10],'dim':[0,3,6,9],'m7-5':[0,3,6,10],'aug':[0,4,8],'sus4':[0,5,7]};
+const QUALITY_TONES_EXT={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'maj7':[0,4,7,11],'m7':[0,3,7,10],'dim':[0,3,6,9],'m7-5':[0,3,6,10],'aug':[0,4,8],'sus4':[0,5,7],'6':[0,4,7,9]};
 // 各品質: mustKeep=省くと性格が壊れる音, omitOrder=省略してよい順（1個ずつ／可能なら2個同時も試す）
 const OMIT_RULES={
   '':    {mustKeep:[4],     omitOrder:[7,0]},
@@ -399,6 +399,7 @@ const SOLO_POS={
  'G7':[{f:[4,5,3,5],g:[2,3,1,3],sf:3},{f:[7,5,7,5],g:[2,1,2,1],sf:5},{f:[7,7,7,8],g:[1,1,1,2],sf:7},{f:[10,11,10,10],g:[1,2,1,1],sf:10}],
  'Gmaj7':[{f:[4,6,3,5],g:[2,4,1,3],sf:3},{f:[7,6,7,5],g:[3,2,3,1],sf:5},{f:[7,7,7,9],g:[1,1,1,2],sf:7},{f:[12,11,10,9],g:[4,3,2,1],sf:9}],
  'Gm7':[{f:[3,5,3,5],g:[1,2,1,2],sf:3},{f:[7,5,6,5],g:[3,1,2,1],sf:5},{f:[7,7,6,8],g:[2,2,1,3],sf:6},{f:[10,10,10,10],g:[1,1,1,1],sf:10}],
+ 'D7':[{f:[2,2,2,3],g:[1,1,1,2],sf:2}],
 };
 function computeSoloPos(name){ return (SOLO_POS[name]||[]).map(p=>({label:p.sf+'fr型',frets:p.f,fingers:p.g,note:''})); }
 function lookupShape(rootPc,q){
@@ -427,10 +428,10 @@ function getShape(rootPc,q){
 // ===== キー内コード生成 =====
 const KEYS=[['C',0],['D',2],['E',4],['F',5],['G',7],['A',9],['Bb',10],['B',11]];
 const DEG_MAP={
-  'I':{off:0,q:''}, 'I7':{off:0,q:'7'},
-  'ii7':{off:2,q:'m7'}, 'iii7':{off:4,q:'m7'},
+  'I':{off:0,q:''}, 'I7':{off:0,q:'7'}, 'I6':{off:0,q:'6'},
+  'ii7':{off:2,q:'m7'}, 'II7':{off:2,q:'7'}, 'iii7':{off:4,q:'m7'}, 'III7':{off:4,q:'7'},
   'IV':{off:5,q:''}, 'IV7':{off:5,q:'7'}, 'iv':{off:5,q:'m'},
-  'V7':{off:7,q:'7'}, 'vi7':{off:9,q:'m7'}, 'bVII':{off:10,q:''},
+  'V7':{off:7,q:'7'}, 'vi7':{off:9,q:'m7'}, 'VI7':{off:9,q:'7'}, 'bVII':{off:10,q:''},
 };
 function degChord(keyRootPc, sym){
   const d=DEG_MAP[sym]; const rootPc=(keyRootPc+d.off)%12;
@@ -568,6 +569,9 @@ const PROGS=[
  {name:'小室進行', degs:['vi7','IV','V7','I'], songs:['get wild','90年代J-POP']},
  {name:'1・6・2・5', degs:['I','vi7','ii7','V7'], songs:['スタンダード循環コード']},
  {name:'ブルース進行', degs:['I7','IV7','V7'], songs:['12小節ブルース全般']},
+ {name:'ハワイアン・ヴァンプ', degs:['II7','V7'], songs:['ハワイアン曲の前奏/間奏の定番つなぎ']},
+ {name:'ハワイアン循環', degs:['I6','VI7','II7','V7'], songs:['アロハ・オエ','多くのハワイアン']},
+ {name:'ハワイアン基本', degs:['I6','IV','I6','V7'], songs:['パーリーシェルズ 等']},
 ];
 function renderProgs(){
   const keyRootPc=+$('key').value;
