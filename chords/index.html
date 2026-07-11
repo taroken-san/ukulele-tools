@@ -463,7 +463,47 @@ const SOLO_POS={
  'Bm7':[{f:[4,6,5,5],g:[1,3,2,2],sf:4},{f:[7,9,7,9],g:[1,2,1,2],sf:7},{f:[11,9,10,9],g:[3,1,2,1],sf:9},{f:[11,11,10,12],g:[2,2,1,3],sf:10}],
  'B6':[{f:[4,6,4,6],g:[1,2,1,2],sf:4},{f:[8,8,7,9],g:[2,2,1,3],sf:7},{f:[11,8,11,9],g:[3,1,3,2],sf:8},{f:[11,11,11,11],g:[1,1,1,1],sf:11}],
 };
-function computeSoloPos(name){ return (SOLO_POS[name]||[]).map(p=>({label:p.sf+'fr型',frets:p.f,fingers:p.g,note:''})); }
+// 押弦している弦を、その開放音が構成音なら開放にして楽にする「無害型」変化形。
+// 失う音が他弦で必ず鳴っている(構成音セットが変わらない)場合のみ返す。
+function openEasyVariant(rootPc, q, frets){
+  const tones=QUALITY_TONES_EXT[q]; if(!tones) return null;
+  const toneSet=new Set(tones.map(iv=>(rootPc+iv)%12));
+  const pcsOf=fr=>new Set(fr.map((f,s)=>f<0?null:(OPEN()[s]+f)%12).filter(x=>x!=null));
+  const origPcs=pcsOf(frets);
+  const eligible=[]; frets.forEach((f,s)=>{ if(f>0 && toneSet.has(OPEN()[s])) eligible.push(s); });
+  if(!eligible.length) return null;
+  const baseD=difficultyScore(frets, fingersFor(frets));
+  let best=null;
+  for(let mask=1; mask<(1<<eligible.length); mask++){
+    const nv=frets.slice();
+    eligible.forEach((s,i)=>{ if(mask&(1<<i)) nv[s]=0; });
+    const nvPcs=pcsOf(nv);
+    let harmless=true; origPcs.forEach(pc=>{ if(!nvPcs.has(pc)) harmless=false; }); // 元の全構成音が残る
+    if(!harmless) continue;
+    const d=difficultyScore(nv, fingersFor(nv));
+    const openCnt=nv.filter(f=>f===0).length;
+    if(!best || d<best.d || (d===best.d && openCnt>best.openCnt)) best={nv, d, openCnt};
+  }
+  if(!best || best.d>=baseD) return null;
+  return best.nv;
+}
+function computeSoloPos(name, rootPc, q){
+  const positions=SOLO_POS[name]||[];
+  const out=positions.map(p=>({label:p.sf+'fr型',frets:p.f,fingers:p.g,note:''}));
+  if(rootPc==null || q==null) return out;
+  // 無害な開放弦簡略形: 構成音そのまま・明確に楽(難易度が2以上下がる)なものだけ。重複・既存形は除外。
+  const seen=new Set([...positions.map(p=>p.f.join(',')), (SH_ALL[name]?SH_ALL[name].f.join(','):'')]);
+  const opens=[];
+  positions.forEach(p=>{
+    const oe=openEasyVariant(rootPc,q,p.f); if(!oe) return;
+    if(difficultyScore(p.f,p.g)-difficultyScore(oe,fingersFor(oe))<2) return; // 楽さが小さいものは出さない
+    const key=oe.join(','); if(seen.has(key)) return; seen.add(key);
+    const sf=Math.min(...oe.filter(f=>f>0)); // 開始フレット
+    opens.push({label:sf+'fr開放',frets:oe,fingers:fingersFor(oe),note:'開放弦で楽に（構成音は同じ）',_d:difficultyScore(oe,fingersFor(oe))});
+  });
+  opens.sort((a,b)=>a._d-b._d);
+  return out.concat(opens.slice(0,1).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,note:o.note})));
+}
 function lookupShape(rootPc,q){
   const nm=PRIMARY_ROOTS[rootPc]; if(!nm)return null;
   const key=nm+q; return SH[key]?{key,...SH[key]}:null;
@@ -582,7 +622,7 @@ function render(){
     const omissions=computeOmissions(c.rootPc,c.q,cn).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
     const substitutes=computeSubstitutes(c.rootPc,c.q,cn,keyRootPc).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
     const bookAlts=computeBookAlts(cn).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
-    const soloPos=computeSoloPos(cn).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
+    const soloPos=computeSoloPos(cn,c.rootPc,c.q).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
     const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g, type:'base'},
       ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers,type:'custom'})),
       ...omissions, ...substitutes, ...soloPos, ...bookAlts];
@@ -765,7 +805,7 @@ function renderSearch(){
       const omissions=computeOmissions(rootPc,q,name).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
       const substitutes=computeSubstitutes(rootPc,q,name).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
       const bookAlts=computeBookAlts(name).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
-      const soloPos=computeSoloPos(name).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
+      const soloPos=computeSoloPos(name,rootPc,q).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
       const voicings=[{label:'基本', frets:shape.f, fingers:shape.g, type:'base'}, ...omissions, ...substitutes, ...soloPos, ...bookAlts];
       let vi=0;
       const card=document.createElement('div'); card.className='card';
