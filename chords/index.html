@@ -6,9 +6,9 @@
 <title>ウクレレコード帳 | S&Sシニアスマイル音楽教室</title>
 <style>
   :root{
-    --bg:#faf7f2; --card:#fff; --ink:#2f2a26; --sub:#8a8177;
-    --line:#e4ddd2; --accent:#e07a3f; --accent2:#3f7ea0;
-    --root:#e07a3f; --third:#6fae6f; --fifth:#3f7ea0; --ext:#b06fb0;
+    --bg:#faf7f2; --card:#fff; --ink:#2f2a26; --sub:#6b6258;
+    --line:#e4ddd2; --grid:#9c917c; --accent:#d96a2c; --accent2:#356f8f;
+    --root:#d9702f; --third:#4f9a4f; --fifth:#356f8f; --ext:#9c56a0;
     --shadow:0 2px 10px rgba(0,0,0,.06);
   }
   *{box-sizing:border-box}
@@ -25,29 +25,29 @@
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);position:relative}
   .card .name{font-size:22px;font-weight:700;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding-right:80px}
-  .card .voname{font-size:11px;color:var(--sub);font-weight:500}
+  .card .voname{font-size:12.5px;color:var(--sub);font-weight:500}
   .badgecol{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-  .badge{font-size:10px;background:#f0e9dd;color:var(--sub);padding:3px 7px;border-radius:20px;cursor:default}
+  .badge{font-size:11.5px;background:#efe6d7;color:var(--sub);padding:4px 9px;border-radius:20px;cursor:default}
   .badge.custom{background:#fbeadd;color:var(--accent)}
-  .badge.hard{background:#fbe4e0;color:#c1503b;cursor:pointer}
-  .star{cursor:pointer;font-size:15px;color:#ddd6c8;margin-right:2px}
+  .badge.hard{background:#f8d9d2;color:#b8442f;cursor:pointer}
+  .star{cursor:pointer;font-size:20px;color:#d6ccb8;margin-right:2px;padding:2px 4px}
   .star.on{color:#e0a63f}
   svg{display:block;margin:6px auto}
-  .degrees{text-align:center;font-size:12px;color:var(--sub);margin-top:6px}
+  .degrees{text-align:center;font-size:14px;color:var(--ink);margin-top:6px}
   .degrees b{color:var(--ink)}
-  .voicings{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap}
-  .vchip{font-size:11px;padding:4px 9px;border-radius:20px;border:1px solid var(--line);background:var(--bg);cursor:pointer}
+  .voicings{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .vchip{font-size:13px;padding:8px 13px;border-radius:22px;border:1.5px solid var(--line);background:var(--bg);cursor:pointer;min-height:38px;display:inline-flex;align-items:center}
   .vchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .vchip.omit{border-color:#8fbf8f;color:#3f7a3f}
-  .vchip.omit.on{background:#5a9a5a;color:#fff;border-color:#5a9a5a}
-  .vchip.sub{border-color:#b09fd6;color:#6a4fa8}
-  .vchip.sub.on{background:#8a6fc8;color:#fff;border-color:#8a6fc8}
-  .vchip.bookalt{border-color:#9fc2d6;color:#3f6f8a}
+  .vchip.omit{border-color:#6fae6f;color:#2f6f2f}
+  .vchip.omit.on{background:#4f9a4f;color:#fff;border-color:#4f9a4f}
+  .vchip.sub{border-color:#a68fd0;color:#5a3f98}
+  .vchip.sub.on{background:#7a5fb8;color:#fff;border-color:#7a5fb8}
+  .vchip.bookalt{border-color:#7fb0cc;color:#2f5f7a}
   .vchip.bookalt.on{background:#4f88a8;color:#fff;border-color:#4f88a8}
-  .omitnote{text-align:center;font-size:11px;color:#3f7a3f;margin-top:4px}
-  .omitnote.subnote{color:#6a4fa8}
-  .omitnote.booknote{color:#3f6f8a}
-  .addmemo{display:block;width:100%;margin-top:8px;font-size:11px;padding:5px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer}
+  .omitnote{text-align:center;font-size:12.5px;color:#2f6f2f;margin-top:4px}
+  .omitnote.subnote{color:#5a3f98}
+  .omitnote.booknote{color:#2f5f7a}
+  .addmemo{display:block;width:100%;margin-top:8px;font-size:12.5px;padding:8px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer}
   .addmemo:hover{border-color:var(--accent);color:var(--accent)}
   .addcard{border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:14px;min-height:230px;cursor:pointer;border-radius:16px}
   .addcard:hover{border-color:var(--accent);color:var(--accent)}
@@ -440,8 +440,8 @@ function drawChord(shape,rootPc){
   const spans = showNut ? Math.max(4,maxF) : Math.max(4, maxF-offset);
   const fx=(W-padL-padR)/spans, sy=(H-padT-14)/(strs-1);
   let g='',marks='',labels='';
-  for(let f=0;f<=spans;f++){const x=padL+f*fx;g+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+(strs-1)*sy}" stroke="var(--line)" stroke-width="${(f===0&&showNut)?3:1.2}"/>`}
-  for(let r=0;r<strs;r++){const y=padT+r*sy;g+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line)" stroke-width="1.4"/>`}
+  for(let f=0;f<=spans;f++){const x=padL+f*fx;g+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+(strs-1)*sy}" stroke="var(--grid)" stroke-width="${(f===0&&showNut)?3.5:1.6}"/>`}
+  for(let r=0;r<strs;r++){const y=padT+r*sy;g+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--grid)" stroke-width="1.8"/>`}
   if(offset>0){ labels+=`<text x="${padL-6}" y="${padT-3}" font-size="9" fill="var(--sub)">${offset+1}fr</text>`; }
   for(let r=0;r<strs;r++){
     const s=idx[r], y=padT+r*sy, f=shape.frets[s];
