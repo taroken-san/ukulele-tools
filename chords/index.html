@@ -40,7 +40,10 @@
   .vchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .vchip.omit{border-color:#8fbf8f;color:#3f7a3f}
   .vchip.omit.on{background:#5a9a5a;color:#fff;border-color:#5a9a5a}
+  .vchip.sub{border-color:#b09fd6;color:#6a4fa8}
+  .vchip.sub.on{background:#8a6fc8;color:#fff;border-color:#8a6fc8}
   .omitnote{text-align:center;font-size:11px;color:#3f7a3f;margin-top:4px}
+  .omitnote.subnote{color:#6a4fa8}
   .addmemo{display:block;width:100%;margin-top:8px;font-size:11px;padding:5px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer}
   .addmemo:hover{border-color:var(--accent);color:var(--accent)}
   .addcard{border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:14px;min-height:230px;cursor:pointer;border-radius:16px}
@@ -322,6 +325,31 @@ function computeOmissions(rootPc, q, name){
   omissionCache.set(cacheKey,top);
   return top;
 }
+
+// ===== 別コード代用（設計書§2B）=====
+// ★草案・未承認: 講師が実弾きで採否を確認するまでの叩き台。差分注記を必ず表示する。
+const SUBSTITUTE_RULES=[
+  {from:'',    to:'7',   note:'7th(短7度)が加わる。伴奏なら概ね代用可'},
+  {from:'',    to:'maj7',note:'メジャー7thが加わる。響きが明るく変化'},
+  {from:'m7-5',to:'m7',  note:'5度が半音上がる(フラット解消)。伴奏用途限定の代用'},
+  {from:'sus4',to:'',    note:'保留音(4度)を3度に解決。メジャーで代用'},
+  {from:'sus4',to:'m',   note:'保留音(4度)を短3度に解決。マイナーで代用'},
+];
+function computeSubstitutes(rootPc, q, name){
+  const baseShape=SH_ALL[name]; if(!baseShape) return [];
+  const baseScore=difficultyScore(baseShape.f, baseShape.g);
+  const out=[];
+  SUBSTITUTE_RULES.filter(r=>r.from===q).forEach(rule=>{
+    const targetName=spell(7,rootPc)+rule.to; // 表示名はシャープ固定(検索タブと統一)
+    const targetShape=SH_ALL[targetName]; if(!targetShape) return;
+    const targetScore=difficultyScore(targetShape.f, targetShape.g);
+    if(targetScore>=baseScore) return; // 代用後の方が簡単な場合のみ提案
+    out.push({name:targetName, frets:targetShape.f, fingers:targetShape.g,
+      label:'≒'+targetName, note:rule.note+'（草案・未承認）'});
+  });
+  return out;
+}
+const DIM_SYMMETRY_NOTE='dim7は3フレットずつ移動しても同じ構成音（対称構造）。覚えるのは1形でOK';
 function lookupShape(rootPc,q){
   const nm=PRIMARY_ROOTS[rootPc]; if(!nm)return null;
   const key=nm+q; return SH[key]?{key,...SH[key]}:null;
@@ -429,16 +457,18 @@ function render(){
     const base=getShape(c.rootPc,c.q);
     const custom=customVoicings[c.name]||[];
     const omissions=computeOmissions(c.rootPc,c.q,c.name).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
+    const substitutes=computeSubstitutes(c.rootPc,c.q,c.name).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
     const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g, type:'base'},
       ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers,type:'custom'})),
-      ...omissions];
+      ...omissions, ...substitutes];
     let vi=0;
     const card=document.createElement('div'); card.className='card';
     function paint(){
       const v=voicings[vi];
       const isFav=favorites.includes(c.name);
       const hard=isHard(c.name, v.frets, v.fingers);
-      const badgeLabel = v.type==='custom'?'マイ登録':(v.type==='omit'?'省略形':c.sym);
+      const badgeLabel = v.type==='custom'?'マイ登録':(v.type==='omit'?'省略形':(v.type==='sub'?'別コード代用':c.sym));
+      const dimNote = c.q==='dim' ? DIM_SYMMETRY_NOTE : '';
       card.innerHTML=`
         <div class="badgecol">
           <span class="badge ${v.type==='custom'?'custom':''}">${badgeLabel}</span>
@@ -447,8 +477,9 @@ function render(){
         <div class="name"><span class="star ${isFav?'on':''}">★</span>${c.name}<span class="voname">${c.sym} · ${v.label}</span></div>
         ${drawChord(v,c.rootPc)}
         <div class="degrees">${degreeLine(v,c.rootPc,keyRootPc)}</div>
-        ${v.note?`<div class="omitnote">${v.note}</div>`:''}
-        <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
+        ${v.note?`<div class="omitnote ${v.type==='sub'?'subnote':''}">${v.note}</div>`:''}
+        ${dimNote?`<div class="omitnote subnote">${dimNote}</div>`:''}
+        <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${vv.type==='sub'?'sub':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
         <button class="addmemo">＋ メモへ</button>
       `;
       card.querySelector('.star').onclick=()=>{ toggleFav(c.name); paint(); };
@@ -597,23 +628,26 @@ function renderSearch(){
       const shape=SH_ALL[name]; if(!shape) return;
       count++;
       const omissions=computeOmissions(rootPc,q,name).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
-      const voicings=[{label:'基本', frets:shape.f, fingers:shape.g, type:'base'}, ...omissions];
+      const substitutes=computeSubstitutes(rootPc,q,name).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
+      const voicings=[{label:'基本', frets:shape.f, fingers:shape.g, type:'base'}, ...omissions, ...substitutes];
       let vi=0;
       const card=document.createElement('div'); card.className='card';
       card.title=qLabel;
       function paint(){
         const v=voicings[vi];
         const hard=isHard(name, v.frets, v.fingers);
+        const dimNote = q==='dim' ? DIM_SYMMETRY_NOTE : '';
         card.innerHTML=`
           <div class="badgecol">
-            ${v.type==='omit'?'<span class="badge">省略形</span>':''}
+            ${v.type==='omit'?'<span class="badge">省略形</span>':(v.type==='sub'?'<span class="badge">別コード代用</span>':'')}
             ${hard?`<span class="badge hard" data-hardtoggle="1" title="タップで「難」表示を消す">難</span>`:''}
           </div>
           <div class="name">${name}<span class="voname">${QUALITY_LABEL[q]||'メジャー'}</span></div>
           ${drawChord(v,rootPc)}
           <div class="degrees">${degreeLine(v,rootPc,7)}</div>
-          ${v.note?`<div class="omitnote">${v.note}</div>`:''}
-          ${voicings.length>1?`<div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>`:''}
+          ${v.note?`<div class="omitnote ${v.type==='sub'?'subnote':''}">${v.note}</div>`:''}
+          ${dimNote?`<div class="omitnote subnote">${dimNote}</div>`:''}
+          ${voicings.length>1?`<div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${vv.type==='sub'?'sub':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>`:''}
         `;
         const hardBadge=card.querySelector('[data-hardtoggle]');
         if(hardBadge) hardBadge.onclick=()=>{ toggleHardOverride(name, v.frets, v.fingers); paint(); };
