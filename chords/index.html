@@ -239,16 +239,21 @@ function difficultyScore(frets, fingers){
   return score;
 }
 const HARD_THRESHOLD=4;
+// ボイシング単位のキー(コード名+具体的な押弦)。ボイシングを切り替えても
+// 他の形の上書き設定に影響しないようにする。
+function hardKey(name, frets){ return name+'|'+frets.join(','); }
 function isHard(name, frets, fingers){
   const overrides=load(LS_HARD_OVERRIDE,{});
-  if(name in overrides) return overrides[name];
+  const key=hardKey(name,frets);
+  if(key in overrides) return overrides[key];
   return difficultyScore(frets,fingers)>=HARD_THRESHOLD;
 }
 function toggleHardOverride(name, frets, fingers){
   const overrides=load(LS_HARD_OVERRIDE,{});
+  const key=hardKey(name,frets);
   const auto=difficultyScore(frets,fingers)>=HARD_THRESHOLD;
-  const cur = name in overrides ? overrides[name] : auto;
-  overrides[name] = !cur;
+  const cur = key in overrides ? overrides[key] : auto;
+  overrides[key] = !cur;
   save(LS_HARD_OVERRIDE,overrides);
 }
 
