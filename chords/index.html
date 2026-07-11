@@ -296,7 +296,9 @@ function computeOmissions(rootPc, q, name){
   if(!rule){ omissionCache.set(cacheKey,[]); return []; }
   const fullTones=QUALITY_TONES_EXT[q].map(iv=>(rootPc+iv)%12);
   const mustKeepPcs=rule.mustKeep.map(iv=>(rootPc+iv)%12);
-  const baseKey=(SH_ALL[name]?SH_ALL[name].f:[]).join(',');
+  const baseShape=SH_ALL[name];
+  const baseKey=(baseShape?baseShape.f:[]).join(',');
+  const baseDiff=baseShape?difficultyScore(baseShape.f,baseShape.g):99;
   const omitSets=[...rule.omitOrder.map(iv=>[iv]), rule.omitOrder.length>1?rule.omitOrder.slice():null].filter(Boolean);
   const seen=new Set(); const candidates=[];
   omitSets.forEach(omitIvs=>{
@@ -324,17 +326,21 @@ function computeOmissions(rootPc, q, name){
     seen.add(key);
     const fingers=fingersFor(best.frets);
     const sameAs=findSameShape(best.frets,name);
+    const rootSounded=best.frets.some((f,s)=>f>=0 && (OPEN()[s]+f)%12===rootPc);
+    const muteCount=best.frets.filter(f=>f<0).length;
+    const diff=difficultyScore(best.frets,fingers);
     candidates.push({
-      frets:best.frets, fingers, score:best.score,
+      frets:best.frets, fingers, score:best.score, sameAs, rootSounded, muteCount, diff,
       label:(omitIvs.length>1?'省略(複数)':OMIT_LABEL[omitIvs[0]]||'省略形'),
       note:sameAs?`＝${sameAs}と同形`:'',
-      sameAs,
     });
   });
-  // 省略形は「既知のコードと同形になる(異名同音)」ものだけ採用。
-  // 理論上の中途半端な省略形は実用性が低いため出さない(ユーザー方針)。
-  const useful=candidates.filter(c=>c.sameAs).sort((a,b)=>b.score-a.score);
-  const top=useful.slice(0,2);
+  // 採用基準(ユーザー方針):
+  //  (a) 既知のコードと同形になる異名同音(押さえやすくて分かりやすい) → Dm7のルート省略=F 等
+  //  (b) ルートが鳴り、ミュートなしで、基本形より簡単になる省略形 → F7の5度省略[2,3,1,0] 等
+  const useful=candidates.filter(c=>c.sameAs || (c.rootSounded && c.muteCount===0 && c.diff<baseDiff))
+                         .sort((a,b)=>b.score-a.score);
+  const top=useful.slice(0,3);
   omissionCache.set(cacheKey,top);
   return top;
 }
