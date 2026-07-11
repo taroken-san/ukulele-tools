@@ -302,12 +302,17 @@ function computeOmissions(rootPc, q, name){
     if(!mustKeepPcs.every(t=>keepTones.includes(t))) return;
     if(keepTones.length<2) return;
     let best=null;
-    for(let g=0;g<=5;g++)for(let c=0;c<=5;c++)for(let e=0;e<=5;e++)for(let a=0;a<=5;a++){
+    // -1=ミュート(その弦は鳴らさない)も候補に含める。開放弦0〜5フレットで
+    // keepTonesを一切鳴らせない弦がある場合(例: C#メジャーのG弦)に必須
+    for(let g=-1;g<=5;g++)for(let c=-1;c<=5;c++)for(let e=-1;e<=5;e++)for(let a=-1;a<=5;a++){
       const frets=[g,c,e,a];
-      const sounded=frets.map((f,s)=>(OPEN()[s]+f)%12);
+      const sounding=frets.filter(f=>f>=0);
+      if(sounding.length<2) continue; // 最低2本は鳴らす
+      const sounded=frets.map((f,s)=>f<0?null:(OPEN()[s]+f)%12).filter(pc=>pc!==null);
       if(!sounded.every(pc=>keepTones.includes(pc))) continue;
       if(!keepTones.every(t=>sounded.includes(t))) continue;
-      const score=playabilityScore(frets);
+      const muteCount=frets.filter(f=>f<0).length;
+      const score=playabilityScore(frets)-muteCount*3; // 弦が薄くなりすぎないよう強めのペナルティ
       if(!best || score>best.score) best={frets:frets.slice(),score};
     }
     if(!best) return;
