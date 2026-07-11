@@ -24,7 +24,7 @@
   button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);position:relative}
-  .card .name{font-size:22px;font-weight:700;display:flex;align-items:baseline;gap:8px}
+  .card .name{font-size:22px;font-weight:700;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding-right:80px}
   .card .voname{font-size:11px;color:var(--sub);font-weight:500}
   .badgecol{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
   .badge{font-size:10px;background:#f0e9dd;color:var(--sub);padding:3px 7px;border-radius:20px;cursor:default}
@@ -169,16 +169,19 @@ const LS_CUSTOM='ukechords.custom', LS_MEMO='ukechords.memo', LS_FAV='ukechords.
       LS_HARD_OVERRIDE='ukechords.difficulty.overrides';
 
 // ===== 音楽理論まわり =====
-const OPEN_LOW=[7,0,4,9], OPEN_HIGH=[7,0,4,9]; // 押弦パターンはHigh/Lowで変わらない(表示上の最低音のみ違う)
-const OPEN=()=>OPEN_LOW;
+// 押弦パターンはHigh/Lowで変わらない(表示上の最低音のオクターブのみ違う)ため共通
+const OPEN_GCEA=[7,0,4,9];
+const OPEN=()=>OPEN_GCEA;
 const SHARP_KEYS=new Set([7,2,9,4,11]); // G D A E B
 const SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const FLAT =['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 function spell(rootPc,pc){ return (SHARP_KEYS.has(rootPc)?SHARP:FLAT)[pc]; }
 const BOOK={'1':'R','3':'M3','b3':'m3','5':'5','b5':'b5','#5':'#5','7':'M7','b7':'7','9':'9','b9':'b9','11':'S4','6':'6'};
-const DEGCOL={ '1':'var(--root)','3':'var(--third)','b3':'var(--third)','5':'var(--fifth)','b7':'var(--ext)','7':'var(--ext)','9':'var(--ext)','b5':'var(--fifth)','#5':'var(--fifth)' };
+const DEGCOL={ '1':'var(--root)','3':'var(--third)','b3':'var(--third)','5':'var(--fifth)','b7':'var(--ext)','7':'var(--ext)','9':'var(--ext)','b5':'var(--fifth)','#5':'var(--fifth)','11':'var(--fifth)','6':'var(--ext)','b9':'var(--ext)' };
 function noteAt(s,f){ if(f<0)return null; return (OPEN()[s]+f)%12; }
 function degName(rootPc,pc){ const iv=(pc-rootPc+12)%12; return {0:'1',1:'b9',2:'9',3:'b3',4:'3',5:'11',6:'b5',7:'5',8:'#5',9:'6',10:'b7',11:'7'}[iv]; }
+// SH_ALL/BOOK_ALT/キャッシュ照合用の正規名(常にシャープ表記)。表示名(フラット可)とは別に使う
+function canonName(rootPc,q){ return SHARP[rootPc]+q; }
 
 // 品質ごとの構成音(半音interval)
 const QUALITY_TONES={'':[0,4,7], 'm':[0,3,7], '7':[0,4,7,10], 'm7':[0,3,7,10]};
@@ -343,17 +346,18 @@ const SUBSTITUTE_RULES=[
   {from:'sus4',to:'',    note:'保留音(4度)を3度に解決。メジャーで代用'},
   {from:'sus4',to:'m',   note:'保留音(4度)を短3度に解決。マイナーで代用'},
 ];
-function computeSubstitutes(rootPc, q, name){
-  const baseShape=SH_ALL[name]; if(!baseShape) return [];
+function computeSubstitutes(rootPc, q, name, spellCtx){
+  const baseShape=SH_ALL[name]; if(!baseShape) return []; // name はcanonName(シャープ固定)前提
   const baseScore=difficultyScore(baseShape.f, baseShape.g);
   const out=[];
   SUBSTITUTE_RULES.filter(r=>r.from===q).forEach(rule=>{
-    const targetName=spell(7,rootPc)+rule.to; // 表示名はシャープ固定(検索タブと統一)
-    const targetShape=SH_ALL[targetName]; if(!targetShape) return;
+    const lookupName=canonName(rootPc,rule.to);   // SH_ALL照合はシャープ固定
+    const targetShape=SH_ALL[lookupName]; if(!targetShape) return;
     const targetScore=difficultyScore(targetShape.f, targetShape.g);
     if(targetScore>=baseScore) return; // 代用後の方が簡単な場合のみ提案
-    out.push({name:targetName, frets:targetShape.f, fingers:targetShape.g,
-      label:'≒'+targetName, note:rule.note+'（草案・未承認）'});
+    const dispName=spell(spellCtx==null?7:spellCtx,rootPc)+rule.to; // 表示はキー文脈のシャープ/フラット
+    out.push({name:lookupName, frets:targetShape.f, fingers:targetShape.g,
+      label:'≒'+dispName, note:rule.note+'（草案・未承認）'});
   });
   return out;
 }
@@ -423,12 +427,22 @@ function buildKeySet(keyRootPc, cat){
 
 // ===== 描画 =====
 function drawChord(shape,rootPc){
-  const W=200,H=150,padL=24,padR=34,padT=16,frets=4,strs=4;
-  const fx=(W-padL-padR)/frets, sy=(H-padT-14)/(strs-1);
+  const W=200,H=150,padL=24,padR=34,padT=16,strs=4;
   const idx=[3,2,1,0];
+  // 押弦フレット範囲からウィンドウ(表示レンジ)とオフセットを決定
+  const fretted=shape.frets.filter(f=>f>0);
+  const maxF=fretted.length?Math.max(...fretted):0;
+  const minF=fretted.length?Math.min(...fretted):0;
+  const hasOpen=shape.frets.some(f=>f===0);
+  // 開放弦がある/低ポジションはナット表示。開放なしで5フレット以上ならウィンドウをずらす
+  const showNut = hasOpen || maxF<=4 || minF<=1;
+  const offset = showNut ? 0 : minF-1; // 表示上の先頭フレット = offset+1
+  const spans = showNut ? Math.max(4,maxF) : Math.max(4, maxF-offset);
+  const fx=(W-padL-padR)/spans, sy=(H-padT-14)/(strs-1);
   let g='',marks='',labels='';
-  for(let f=0;f<=frets;f++){const x=padL+f*fx;g+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+(strs-1)*sy}" stroke="var(--line)" stroke-width="${f===0?3:1.2}"/>`}
+  for(let f=0;f<=spans;f++){const x=padL+f*fx;g+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+(strs-1)*sy}" stroke="var(--line)" stroke-width="${(f===0&&showNut)?3:1.2}"/>`}
   for(let r=0;r<strs;r++){const y=padT+r*sy;g+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line)" stroke-width="1.4"/>`}
+  if(offset>0){ labels+=`<text x="${padL-6}" y="${padT-3}" font-size="9" fill="var(--sub)">${offset+1}fr</text>`; }
   for(let r=0;r<strs;r++){
     const s=idx[r], y=padT+r*sy, f=shape.frets[s];
     const pc=noteAt(s,f); const deg=pc==null?null:degName(rootPc,pc);
@@ -437,7 +451,7 @@ function drawChord(shape,rootPc){
     if(f<0){ marks+=`<text x="${padL-2}" y="${y+4}" text-anchor="end" font-size="12" fill="#bbb">✕</text>`; }
     else if(f===0){ marks+=`<circle cx="${padL-9}" cy="${y}" r="5" fill="none" stroke="${col}" stroke-width="2"/>`; }
     else{
-      const x=padL+(f-0.5)*fx, fg=shape.fingers[s];
+      const x=padL+(f-offset-0.5)*fx, fg=shape.fingers[s];
       marks+=`<circle cx="${x}" cy="${y}" r="10" fill="${col}"/>`+
              `<text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">${fg||''}</text>`;
     }
@@ -467,8 +481,6 @@ $('key').onchange=()=>{save(LS_KEY,+$('key').value);render();renderProgs();};
 $('type').onchange=()=>{save(LS_TYPE,$('type').value);render();};
 $('tuning').onchange=()=>{save(LS_TUNING,$('tuning').value);render();};
 
-function currentTuningLabel(){ return $('tuning').value==='low'?'Low-G':'High-G'; }
-
 function render(){
   const keyRootPc=+$('key').value, cat=$('type').value;
   let list=buildKeySet(keyRootPc,cat);
@@ -477,11 +489,12 @@ function render(){
 
   const grid=$('grid'); grid.innerHTML='';
   list.forEach(c=>{
+    const cn=canonName(c.rootPc,c.q); // SH_ALL/BOOK_ALT/override照合用の正規名(シャープ固定)
     const base=getShape(c.rootPc,c.q);
     const custom=customVoicings[c.name]||[];
-    const omissions=computeOmissions(c.rootPc,c.q,c.name).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
-    const substitutes=computeSubstitutes(c.rootPc,c.q,c.name).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
-    const bookAlts=computeBookAlts(c.name).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
+    const omissions=computeOmissions(c.rootPc,c.q,cn).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
+    const substitutes=computeSubstitutes(c.rootPc,c.q,cn,keyRootPc).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
+    const bookAlts=computeBookAlts(cn).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
     const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g, type:'base'},
       ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers,type:'custom'})),
       ...omissions, ...substitutes, ...bookAlts];
@@ -490,7 +503,7 @@ function render(){
     function paint(){
       const v=voicings[vi];
       const isFav=favorites.includes(c.name);
-      const hard=isHard(c.name, v.frets, v.fingers);
+      const hard=isHard(cn, v.frets, v.fingers);
       const badgeLabel = v.type==='custom'?'マイ登録':(v.type==='omit'?'省略形':(v.type==='sub'?'別コード代用':(v.type==='bookalt'?'本の別位置':c.sym)));
       const dimNote = c.q==='dim' ? DIM_SYMMETRY_NOTE : '';
       const noteClass = v.type==='sub'?'subnote':(v.type==='bookalt'?'booknote':'');
@@ -509,7 +522,7 @@ function render(){
       `;
       card.querySelector('.star').onclick=()=>{ toggleFav(c.name); paint(); };
       const hardBadge=card.querySelector('[data-hardtoggle]');
-      if(hardBadge) hardBadge.onclick=()=>{ toggleHardOverride(c.name, v.frets, v.fingers); paint(); };
+      if(hardBadge) hardBadge.onclick=()=>{ toggleHardOverride(cn, v.frets, v.fingers); paint(); };
       card.querySelectorAll('.vchip').forEach(ch=>ch.onclick=()=>{vi=+ch.dataset.k;paint();});
       card.querySelector('.addmemo').onclick=()=>{ memo.push(c.name); save(LS_MEMO,memo); renderMemo(); };
     }
@@ -575,9 +588,15 @@ $('importFile').onchange=e=>{
   reader.onload=()=>{
     try{
       const data=JSON.parse(reader.result);
-      if(data.customVoicings){customVoicings=data.customVoicings;save(LS_CUSTOM,customVoicings);}
-      if(data.favorites){favorites=data.favorites;save(LS_FAV,favorites);}
-      if(data.memo){memo=data.memo;save(LS_MEMO,memo);}
+      // 壊れたデータで描画が例外→復旧不能になるのを防ぐため型検証してから反映
+      const validVoicing=v=>v&&Array.isArray(v.frets)&&v.frets.length===4&&Array.isArray(v.fingers)&&v.fingers.length===4;
+      if(data.customVoicings && typeof data.customVoicings==='object'){
+        const clean={};
+        Object.entries(data.customVoicings).forEach(([name,arr])=>{ if(Array.isArray(arr)){ const ok=arr.filter(validVoicing); if(ok.length) clean[name]=ok; } });
+        customVoicings=clean; save(LS_CUSTOM,customVoicings);
+      }
+      if(Array.isArray(data.favorites)){ favorites=data.favorites.filter(x=>typeof x==='string'); save(LS_FAV,favorites); }
+      if(Array.isArray(data.memo)){ memo=data.memo.filter(x=>typeof x==='string'); save(LS_MEMO,memo); }
       render(); renderMemo();
       alert('読み込みました');
     }catch(err){ alert('読み込みに失敗しました: '+err.message); }
