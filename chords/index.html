@@ -26,8 +26,10 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);position:relative}
   .card .name{font-size:22px;font-weight:700;display:flex;align-items:baseline;gap:8px}
   .card .voname{font-size:11px;color:var(--sub);font-weight:500}
-  .badge{position:absolute;top:12px;right:12px;font-size:10px;background:#f0e9dd;color:var(--sub);padding:3px 7px;border-radius:20px}
+  .badgecol{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+  .badge{font-size:10px;background:#f0e9dd;color:var(--sub);padding:3px 7px;border-radius:20px;cursor:default}
   .badge.custom{background:#fbeadd;color:var(--accent)}
+  .badge.hard{background:#fbe4e0;color:#c1503b;cursor:pointer}
   .star{cursor:pointer;font-size:15px;color:#ddd6c8;margin-right:2px}
   .star.on{color:#e0a63f}
   svg{display:block;margin:6px auto}
@@ -36,6 +38,9 @@
   .voicings{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap}
   .vchip{font-size:11px;padding:4px 9px;border-radius:20px;border:1px solid var(--line);background:var(--bg);cursor:pointer}
   .vchip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .vchip.omit{border-color:#8fbf8f;color:#3f7a3f}
+  .vchip.omit.on{background:#5a9a5a;color:#fff;border-color:#5a9a5a}
+  .omitnote{text-align:center;font-size:11px;color:#3f7a3f;margin-top:4px}
   .addmemo{display:block;width:100%;margin-top:8px;font-size:11px;padding:5px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer}
   .addmemo:hover{border-color:var(--accent);color:var(--accent)}
   .addcard{border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:14px;min-height:230px;cursor:pointer;border-radius:16px}
@@ -154,7 +159,8 @@
 <script>
 const $=id=>document.getElementById(id);
 const LS_CUSTOM='ukechords.custom', LS_MEMO='ukechords.memo', LS_FAV='ukechords.favorites',
-      LS_KEY='ukechords.key', LS_TYPE='ukechords.type', LS_TUNING='ukechords.tuning';
+      LS_KEY='ukechords.key', LS_TYPE='ukechords.type', LS_TUNING='ukechords.tuning',
+      LS_HARD_OVERRIDE='ukechords.difficulty.overrides';
 
 // ===== 音楽理論まわり =====
 const OPEN_LOW=[7,0,4,9], OPEN_HIGH=[7,0,4,9]; // 押弦パターンはHigh/Lowで変わらない(表示上の最低音のみ違う)
@@ -206,6 +212,116 @@ const SH_ALL={
 };
 const QUALITY_ALL=[['','メジャー'],['m','マイナー'],['7','セブンス'],['maj7','メジャーセブンス'],['m7','マイナーセブンス'],['dim','ディミニッシュ'],['m7-5','マイナーセブンスフラットファイブ'],['aug','オーギュメント'],['sus4','サスフォー']];
 const ROOT_ALL=[['C',0],['C#',1],['D',2],['D#',3],['E',4],['F',5],['F#',6],['G',7],['G#',8],['A',9],['A#',10],['B',11]];
+
+// ===== 難易度スコア（設計書§3） =====
+function difficultyScore(frets, fingers){
+  const fretted=frets.filter(f=>f>0);
+  let score=0;
+  const counts={}; fretted.forEach(f=>counts[f]=(counts[f]||0)+1);
+  if(Object.values(counts).some(c=>c>=3)) score+=3; // バレー
+  const span=fretted.length?Math.max(...fretted)-Math.min(...fretted):0;
+  if(span>=3) score+=2; // フレットスパン
+  if(fretted.length===4) score+=2; // 開放弦なし
+  const minFret=fretted.length?Math.min(...fretted):0;
+  if(minFret>=4) score+=2; // ハイポジション
+  if(fingers && fingers.includes(4)) score+=1; // 小指使用
+  return score;
+}
+const HARD_THRESHOLD=4;
+function isHard(name, frets, fingers){
+  const overrides=load(LS_HARD_OVERRIDE,{});
+  if(name in overrides) return overrides[name];
+  return difficultyScore(frets,fingers)>=HARD_THRESHOLD;
+}
+function toggleHardOverride(name, frets, fingers){
+  const overrides=load(LS_HARD_OVERRIDE,{});
+  const auto=difficultyScore(frets,fingers)>=HARD_THRESHOLD;
+  const cur = name in overrides ? overrides[name] : auto;
+  overrides[name] = !cur;
+  save(LS_HARD_OVERRIDE,overrides);
+}
+
+// ===== 理論生成の省略形（設計書§2C） =====
+const QUALITY_TONES_EXT={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'maj7':[0,4,7,11],'m7':[0,3,7,10],'dim':[0,3,6,9],'m7-5':[0,3,6,10],'aug':[0,4,8],'sus4':[0,5,7]};
+// 各品質: mustKeep=省くと性格が壊れる音, omitOrder=省略してよい順（1個ずつ／可能なら2個同時も試す）
+const OMIT_RULES={
+  '':    {mustKeep:[4],     omitOrder:[7,0]},
+  'm':   {mustKeep:[3],     omitOrder:[7,0]},
+  '7':   {mustKeep:[4,10],  omitOrder:[7,0]},
+  'maj7':{mustKeep:[4,11],  omitOrder:[7,0]},
+  'm7':  {mustKeep:[3,10],  omitOrder:[7,0]},
+  'dim': {mustKeep:[3,6],   omitOrder:[9,0]},
+  'm7-5':{mustKeep:[3,6],   omitOrder:[10,0]},
+  'aug': {mustKeep:[4,8],   omitOrder:[0]},
+  'sus4':{mustKeep:[5],     omitOrder:[7,0]},
+};
+const OMIT_LABEL={0:'ルート省略',4:'3度省略',3:'m3度省略',7:'5度省略',10:'7度省略',11:'M7度省略',9:'6度省略',6:'b5度省略',8:'#5度省略',5:'4度省略'};
+function playabilityScore(frets){
+  const fretted=frets.filter(f=>f>0);
+  const openCount=frets.filter(f=>f===0).length;
+  const span=fretted.length?Math.max(...fretted)-Math.min(...fretted):0;
+  const minFret=fretted.length?Math.min(...fretted):0;
+  const counts={}; fretted.forEach(f=>counts[f]=(counts[f]||0)+1);
+  let barrePenalty=0; Object.values(counts).forEach(c=>{if(c>=3)barrePenalty+=2;});
+  const lowBonus=(fretted.length && minFret<=2)?1:0;
+  return openCount*2 + (3-fretted.length) + (2-Math.min(span,2)) + lowBonus - barrePenalty;
+}
+function fingersFor(frets){
+  const nz=frets.map((f,i)=>({f,i})).filter(o=>o.f>0).sort((a,b)=>a.f-b.f);
+  const map={}; let n=0; nz.forEach(o=>{ if(!(o.f in map)){n++;map[o.f]=n;} });
+  return frets.map(f=>f>0?map[f]:0);
+}
+function findSameShape(frets, excludeName){
+  const key=frets.join(',');
+  for(const [nm,sh] of Object.entries(SH_ALL)){
+    if(nm===excludeName) continue;
+    if(sh.f.join(',')===key) return nm;
+  }
+  return null;
+}
+const omissionCache=new Map();
+function computeOmissions(rootPc, q, name){
+  const cacheKey=name;
+  if(omissionCache.has(cacheKey)) return omissionCache.get(cacheKey);
+  const rule=OMIT_RULES[q];
+  if(!rule){ omissionCache.set(cacheKey,[]); return []; }
+  const fullTones=QUALITY_TONES_EXT[q].map(iv=>(rootPc+iv)%12);
+  const mustKeepPcs=rule.mustKeep.map(iv=>(rootPc+iv)%12);
+  const baseKey=(SH_ALL[name]?SH_ALL[name].f:[]).join(',');
+  const omitSets=[...rule.omitOrder.map(iv=>[iv]), rule.omitOrder.length>1?rule.omitOrder.slice():null].filter(Boolean);
+  const seen=new Set(); const candidates=[];
+  omitSets.forEach(omitIvs=>{
+    const omitPcs=omitIvs.map(iv=>(rootPc+iv)%12);
+    const keepTones=fullTones.filter(t=>!omitPcs.includes(t));
+    if(!mustKeepPcs.every(t=>keepTones.includes(t))) return;
+    if(keepTones.length<2) return;
+    let best=null;
+    for(let g=0;g<=5;g++)for(let c=0;c<=5;c++)for(let e=0;e<=5;e++)for(let a=0;a<=5;a++){
+      const frets=[g,c,e,a];
+      const sounded=frets.map((f,s)=>(OPEN()[s]+f)%12);
+      if(!sounded.every(pc=>keepTones.includes(pc))) continue;
+      if(!keepTones.every(t=>sounded.includes(t))) continue;
+      const score=playabilityScore(frets);
+      if(!best || score>best.score) best={frets:frets.slice(),score};
+    }
+    if(!best) return;
+    const key=best.frets.join(',');
+    if(key===baseKey || seen.has(key)) return;
+    seen.add(key);
+    const fingers=fingersFor(best.frets);
+    const sameAs=findSameShape(best.frets,name);
+    candidates.push({
+      frets:best.frets, fingers, score:best.score,
+      label:(omitIvs.length>1?'省略(複数)':OMIT_LABEL[omitIvs[0]]||'省略形'),
+      note:sameAs?`＝${sameAs}と同形`:'',
+      sameAs,
+    });
+  });
+  candidates.sort((a,b)=>b.score-a.score);
+  const top=candidates.slice(0,3);
+  omissionCache.set(cacheKey,top);
+  return top;
+}
 function lookupShape(rootPc,q){
   const nm=PRIMARY_ROOTS[rootPc]; if(!nm)return null;
   const key=nm+q; return SH[key]?{key,...SH[key]}:null;
@@ -312,21 +428,32 @@ function render(){
   list.forEach(c=>{
     const base=getShape(c.rootPc,c.q);
     const custom=customVoicings[c.name]||[];
-    const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g}, ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers}))];
+    const omissions=computeOmissions(c.rootPc,c.q,c.name).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
+    const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g, type:'base'},
+      ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers,type:'custom'})),
+      ...omissions];
     let vi=0;
     const card=document.createElement('div'); card.className='card';
     function paint(){
       const v=voicings[vi];
       const isFav=favorites.includes(c.name);
+      const hard=isHard(c.name, v.frets, v.fingers);
+      const badgeLabel = v.type==='custom'?'マイ登録':(v.type==='omit'?'省略形':c.sym);
       card.innerHTML=`
-        <span class="badge ${vi>0?'custom':''}">${vi>0?'マイ登録':c.sym}</span>
+        <div class="badgecol">
+          <span class="badge ${v.type==='custom'?'custom':''}">${badgeLabel}</span>
+          ${hard?`<span class="badge hard" data-hardtoggle="1" title="タップで「難」表示を消す">難</span>`:''}
+        </div>
         <div class="name"><span class="star ${isFav?'on':''}">★</span>${c.name}<span class="voname">${c.sym} · ${v.label}</span></div>
         ${drawChord(v,c.rootPc)}
         <div class="degrees">${degreeLine(v,c.rootPc,keyRootPc)}</div>
-        <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
+        ${v.note?`<div class="omitnote">${v.note}</div>`:''}
+        <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
         <button class="addmemo">＋ メモへ</button>
       `;
       card.querySelector('.star').onclick=()=>{ toggleFav(c.name); paint(); };
+      const hardBadge=card.querySelector('[data-hardtoggle]');
+      if(hardBadge) hardBadge.onclick=()=>{ toggleHardOverride(c.name, v.frets, v.fingers); paint(); };
       card.querySelectorAll('.vchip').forEach(ch=>ch.onclick=()=>{vi=+ch.dataset.k;paint();});
       card.querySelector('.addmemo').onclick=()=>{ memo.push(c.name); save(LS_MEMO,memo); renderMemo(); };
     }
@@ -469,13 +596,30 @@ function renderSearch(){
       if(tf && !name.toLowerCase().includes(tf)) return;
       const shape=SH_ALL[name]; if(!shape) return;
       count++;
+      const omissions=computeOmissions(rootPc,q,name).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
+      const voicings=[{label:'基本', frets:shape.f, fingers:shape.g, type:'base'}, ...omissions];
+      let vi=0;
       const card=document.createElement('div'); card.className='card';
       card.title=qLabel;
-      card.innerHTML=`
-        <div class="name">${name}<span class="voname">${QUALITY_LABEL[q]||'メジャー'}</span></div>
-        ${drawChord({frets:shape.f,fingers:shape.g},rootPc)}
-        <div class="degrees">${degreeLine({frets:shape.f,fingers:shape.g},rootPc,7)}</div>
-      `;
+      function paint(){
+        const v=voicings[vi];
+        const hard=isHard(name, v.frets, v.fingers);
+        card.innerHTML=`
+          <div class="badgecol">
+            ${v.type==='omit'?'<span class="badge">省略形</span>':''}
+            ${hard?`<span class="badge hard" data-hardtoggle="1" title="タップで「難」表示を消す">難</span>`:''}
+          </div>
+          <div class="name">${name}<span class="voname">${QUALITY_LABEL[q]||'メジャー'}</span></div>
+          ${drawChord(v,rootPc)}
+          <div class="degrees">${degreeLine(v,rootPc,7)}</div>
+          ${v.note?`<div class="omitnote">${v.note}</div>`:''}
+          ${voicings.length>1?`<div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>`:''}
+        `;
+        const hardBadge=card.querySelector('[data-hardtoggle]');
+        if(hardBadge) hardBadge.onclick=()=>{ toggleHardOverride(name, v.frets, v.fingers); paint(); };
+        card.querySelectorAll('.vchip').forEach(ch=>ch.onclick=()=>{vi=+ch.dataset.k;paint();});
+      }
+      paint();
       grid.appendChild(card);
     });
   });
