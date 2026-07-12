@@ -47,6 +47,7 @@
   .omitnote{text-align:center;font-size:12.5px;color:#2f6f2f;margin-top:4px}
   .omitnote.subnote{color:#5a3f98}
   .omitnote.booknote{color:#2f5f7a}
+  .omitnote.trivianote{color:var(--sub);font-style:italic}
   .addmemo{display:block;width:100%;margin-top:8px;font-size:12.5px;padding:8px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--sub);cursor:pointer}
   .addmemo:hover{border-color:var(--accent);color:var(--accent)}
   .addcard{border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:14px;min-height:230px;cursor:pointer;border-radius:16px}
@@ -294,6 +295,11 @@ function findSameShape(frets, excludeName){
     if(sh.f.join(',')===key) return nm;
   }
   return null;
+}
+// 今表示中のボイシングが、別のコード名の標準形と全く同じ押弦かどうか(異名同号の小さな注記用)
+function sameShapeTrivia(name, frets){
+  const other=findSameShape(frets,name);
+  return other?`＝${other}と同形`:'';
 }
 const omissionCache=new Map();
 function computeOmissions(rootPc, q, name){
@@ -614,6 +620,28 @@ $('key').onchange=()=>{save(LS_KEY,+$('key').value);render();renderProgs();};
 $('type').onchange=()=>{save(LS_TYPE,$('type').value);render();};
 $('tuning').onchange=()=>{save(LS_TUNING,$('tuning').value);render();};
 
+// ===== コード生成タブ・全コード検索タブ共通のボイシング構築/表示ヘルパー =====
+// 省略形・代用・本の別位置・ソロポジションを組み立てる(render/renderSearch共通)
+function buildAltVoicings(rootPc, q, cn, keyRootPc){
+  const omissions=computeOmissions(rootPc,q,cn).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
+  const substitutes=computeSubstitutes(rootPc,q,cn,keyRootPc).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
+  const soloPos=computeSoloPos(cn,rootPc,q).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
+  const bookAlts=computeBookAlts(cn).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
+  return {omissions,substitutes,soloPos,bookAlts};
+}
+// vchipに付けるタイプ別の追加クラス
+function chipExtraClass(type){
+  return type==='omit'?'omit':(type==='sub'?'sub':((type==='bookalt'||type==='solopos')?'bookalt':''));
+}
+// 注記(v.note)の色分けクラス
+function noteExtraClass(type){
+  return type==='sub'?'subnote':((type==='bookalt'||type==='solopos')?'booknote':'');
+}
+// バッジに出すラベル(base以外の各タイプ共通の日本語名)
+function altTypeBadge(type){
+  return type==='omit'?'省略形':(type==='sub'?'代用':(type==='bookalt'?'別位置':(type==='solopos'?'ソロ':null)));
+}
+
 function render(){
   const keyRootPc=+$('key').value, cat=$('type').value;
   let list=buildKeySet(keyRootPc,cat);
@@ -625,10 +653,7 @@ function render(){
     const cn=canonName(c.rootPc,c.q); // SH_ALL/BOOK_ALT/override照合用の正規名(シャープ固定)
     const base=getShape(c.rootPc,c.q);
     const custom=customVoicings[c.name]||[];
-    const omissions=computeOmissions(c.rootPc,c.q,cn).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
-    const substitutes=computeSubstitutes(c.rootPc,c.q,cn,keyRootPc).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
-    const bookAlts=computeBookAlts(cn).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
-    const soloPos=computeSoloPos(cn,c.rootPc,c.q).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
+    const {omissions,substitutes,soloPos,bookAlts}=buildAltVoicings(c.rootPc,c.q,cn,keyRootPc);
     const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g, type:'base'},
       ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers,type:'custom'})),
       ...omissions, ...substitutes, ...soloPos, ...bookAlts];
@@ -638,9 +663,10 @@ function render(){
       const v=voicings[vi];
       const isFav=favorites.includes(c.name);
       const hard=isHard(cn, v.frets, v.fingers);
-      const badgeLabel = v.type==='custom'?'マイ登録':(v.type==='omit'?'省略形':(v.type==='sub'?'代用':(v.type==='bookalt'?'別位置':(v.type==='solopos'?'ソロ':c.sym))));
+      const badgeLabel = v.type==='custom'?'マイ登録':(altTypeBadge(v.type)||c.sym);
       const dimNote = c.q==='dim' ? DIM_SYMMETRY_NOTE : '';
-      const noteClass = v.type==='sub'?'subnote':(v.type==='bookalt'||v.type==='solopos'?'booknote':'');
+      const noteClass = noteExtraClass(v.type);
+      const noteText = v.note || sameShapeTrivia(cn, v.frets);
       card.innerHTML=`
         <div class="badgecol">
           <span class="badge ${v.type==='custom'?'custom':''}">${badgeLabel}</span>
@@ -649,9 +675,9 @@ function render(){
         <div class="name"><span class="star ${isFav?'on':''}">★</span>${c.name}<span class="voname">${c.sym} · ${v.label}</span></div>
         ${drawChord(v,c.rootPc)}
         <div class="degrees">${degreeLine(v,c.rootPc,keyRootPc)}</div>
-        ${v.note?`<div class="omitnote ${noteClass}">${v.note}</div>`:''}
+        ${noteText?`<div class="omitnote ${v.note?noteClass:'trivianote'}">${noteText}</div>`:''}
         ${dimNote?`<div class="omitnote subnote">${dimNote}</div>`:''}
-        <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${vv.type==='sub'?'sub':''} ${(vv.type==='bookalt'||vv.type==='solopos')?'bookalt':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
+        <div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${chipExtraClass(vv.type)} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>
         <button class="addmemo">＋ メモへ</button>
       `;
       card.querySelector('.star').onclick=()=>{ toggleFav(c.name); paint(); };
@@ -809,10 +835,7 @@ function renderSearch(){
       if(tf && !name.toLowerCase().includes(tf)) return;
       const shape=SH_ALL[name]; if(!shape) return;
       count++;
-      const omissions=computeOmissions(rootPc,q,name).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
-      const substitutes=computeSubstitutes(rootPc,q,name).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
-      const bookAlts=computeBookAlts(name).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
-      const soloPos=computeSoloPos(name,rootPc,q).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
+      const {omissions,substitutes,soloPos,bookAlts}=buildAltVoicings(rootPc,q,name,7);
       const voicings=[{label:'基本', frets:shape.f, fingers:shape.g, type:'base'}, ...omissions, ...substitutes, ...soloPos, ...bookAlts];
       let vi=0;
       const card=document.createElement('div'); card.className='card';
@@ -821,18 +844,20 @@ function renderSearch(){
         const v=voicings[vi];
         const hard=isHard(name, v.frets, v.fingers);
         const dimNote = q==='dim' ? DIM_SYMMETRY_NOTE : '';
-        const noteClass = v.type==='sub'?'subnote':(v.type==='bookalt'||v.type==='solopos'?'booknote':'');
+        const noteClass = noteExtraClass(v.type);
+        const badgeLabel = altTypeBadge(v.type);
+        const noteText = v.note || sameShapeTrivia(name, v.frets);
         card.innerHTML=`
           <div class="badgecol">
-            ${v.type==='omit'?'<span class="badge">省略形</span>':(v.type==='sub'?'<span class="badge">代用</span>':(v.type==='bookalt'?'<span class="badge">別位置</span>':(v.type==='solopos'?'<span class="badge">ソロ</span>':'')))}
+            ${badgeLabel?`<span class="badge">${badgeLabel}</span>`:''}
             ${hard?`<span class="badge hard" data-hardtoggle="1" title="タップで「難」表示を消す">難</span>`:''}
           </div>
           <div class="name">${name}<span class="voname">${QUALITY_LABEL[q]||'メジャー'}</span></div>
           ${drawChord(v,rootPc)}
           <div class="degrees">${degreeLine(v,rootPc,7)}</div>
-          ${v.note?`<div class="omitnote ${noteClass}">${v.note}</div>`:''}
+          ${noteText?`<div class="omitnote ${v.note?noteClass:'trivianote'}">${noteText}</div>`:''}
           ${dimNote?`<div class="omitnote subnote">${dimNote}</div>`:''}
-          ${voicings.length>1?`<div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${vv.type==='omit'?'omit':''} ${vv.type==='sub'?'sub':''} ${(vv.type==='bookalt'||vv.type==='solopos')?'bookalt':''} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>`:''}
+          ${voicings.length>1?`<div class="voicings">${voicings.map((vv,k)=>`<span class="vchip ${chipExtraClass(vv.type)} ${k===vi?'on':''}" data-k="${k}">${vv.label}</span>`).join('')}</div>`:''}
         `;
         const hardBadge=card.querySelector('[data-hardtoggle]');
         if(hardBadge) hardBadge.onclick=()=>{ toggleHardOverride(name, v.frets, v.fingers); paint(); };
