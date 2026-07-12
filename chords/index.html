@@ -566,9 +566,9 @@ function drawChord(shape,rootPc){
   const fretted=shape.frets.filter(f=>f>0);
   const maxF=fretted.length?Math.max(...fretted):0;
   const minF=fretted.length?Math.min(...fretted):0;
-  const hasOpen=shape.frets.some(f=>f===0);
-  // 開放弦がある/低ポジションはナット表示。開放なしで5フレット以上ならウィンドウをずらす
-  const showNut = hasOpen || maxF<=4 || minF<=1;
+  // 低ポジション(最高フレットが4以下)ならナット表示。開放弦の有無は無関係
+  // (開放弦が混ざっていても高いフレットがあれば位置が分からなくなるため判定に使わない)
+  const showNut = maxF<=4 || minF<=1;
   const offset = showNut ? 0 : minF-1; // 表示上の先頭フレット = offset+1
   const spans = showNut ? Math.max(4,maxF) : Math.max(4, maxF-offset);
   const fx=(W-padL-padR)/spans, sy=(H-padT-14)/(strs-1);

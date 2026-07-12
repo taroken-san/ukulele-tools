@@ -101,8 +101,8 @@ function draw(name,rootPc){
   // 5フレット以上を含む場合はウィンドウをずらして「Nfr」表記(index.htmlのdrawChordと同じ方式)
   const fretted=c.f.filter(f=>f>0);
   const maxF=fretted.length?Math.max(...fretted):0, minF=fretted.length?Math.min(...fretted):0;
-  const hasOpen=c.f.some(f=>f===0);
-  const showNut=hasOpen||maxF<=4||minF<=1;
+  // 開放弦の有無は無関係(混在時に高フレットの位置が分からなくなるため)
+  const showNut=maxF<=4||minF<=1;
   const offset=showNut?0:minF-1;
   const spans=showNut?Math.max(4,maxF):Math.max(4,maxF-offset);
   const b=grid(spans,showNut);let s=b.s;const idx=[3,2,1,0];
