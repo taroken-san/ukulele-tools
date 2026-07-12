@@ -103,6 +103,7 @@
     <label>種類
       <select id="type">
         <option value="triad">主要三和音（I・IV・V7）</option>
+        <option value="diatonicTriad">ダイアトニック（トライアド）</option>
         <option value="diatonic">ダイアトニック7コード</option>
         <option value="common" selected>よく使うコード（ノンダイア含む）</option>
       </select>
@@ -543,9 +544,11 @@ function getShape(rootPc,q){
 const KEYS=[['C',0],['D',2],['E',4],['F',5],['G',7],['A',9],['Bb',10],['B',11]];
 const DEG_MAP={
   'I':{off:0,q:''}, 'I7':{off:0,q:'7'}, 'I6':{off:0,q:'6'},
-  'ii7':{off:2,q:'m7'}, 'II7':{off:2,q:'7'}, 'iii7':{off:4,q:'m7'}, 'III7':{off:4,q:'7'},
+  'ii':{off:2,q:'m'}, 'ii7':{off:2,q:'m7'}, 'II7':{off:2,q:'7'},
+  'iii':{off:4,q:'m'}, 'iii7':{off:4,q:'m7'}, 'III7':{off:4,q:'7'},
   'IV':{off:5,q:''}, 'IV7':{off:5,q:'7'}, 'iv':{off:5,q:'m'},
-  'V7':{off:7,q:'7'}, 'vi7':{off:9,q:'m7'}, 'VI7':{off:9,q:'7'}, 'bVII':{off:10,q:''},
+  'V':{off:7,q:''}, 'V7':{off:7,q:'7'},
+  'vi':{off:9,q:'m'}, 'vi7':{off:9,q:'m7'}, 'VI7':{off:9,q:'7'}, 'bVII':{off:10,q:''},
 };
 function degChord(keyRootPc, sym){
   const d=DEG_MAP[sym]; const rootPc=(keyRootPc+d.off)%12;
@@ -554,6 +557,7 @@ function degChord(keyRootPc, sym){
 function buildKeySet(keyRootPc, cat){
   let syms;
   if(cat==='triad') syms=['I','IV','V7'];
+  else if(cat==='diatonicTriad') syms=['I','ii','iii','IV','V','vi'];
   else if(cat==='diatonic') syms=['I','ii7','iii7','IV','V7','vi7'];
   else{ // common
     syms=['I','ii7','iii7','IV','iv','V7','vi7','bVII'];
