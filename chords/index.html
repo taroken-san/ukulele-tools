@@ -701,6 +701,7 @@ function renderProgs(){
 let dragIdx=null;
 function renderMemo(){
   const el=$('memo'); el.innerHTML='';
+  if(memo.length===0){ el.innerHTML='<span style="color:var(--sub);font-size:13px">まだ空です。コードの「＋メモへ」や進行集の「＋メモへ」で追加してください</span>'; return; }
   memo.forEach((c,i)=>{
     const chip=document.createElement('span'); chip.className='memochip'; chip.draggable=true; chip.textContent=c;
     chip.ondragstart=()=>{dragIdx=i;chip.classList.add('drag');};
@@ -842,6 +843,7 @@ function renderSearch(){
     });
   });
   $('searchCount').textContent = count+'件';
+  if(count===0){ grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:24px 0">該当するコードがありません。ルート・種類・検索文字を変えてみてください。</div>'; }
 }
 $('searchRoot').onchange=renderSearch;
 $('searchQuality').onchange=renderSearch;
