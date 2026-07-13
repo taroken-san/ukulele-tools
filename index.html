@@ -445,6 +445,9 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
     const played=[];bt.slots.forEach((s,i)=>{if(s.type!=='rest')played.push(i);});
     const span=k=>{const idx=played.indexOf(k);const nxt=played[idx+1]!==undefined?played[idx+1]:div;return nxt-k;};
     const beams=(d,sp)=> d===1?0 : d===2?(sp>=2?0:1) : d===3?1 : (sp>=4?0:sp===3?1:sp===2?1:2);
+    // 付点音符（span===3）が伸びてカバーする分の休符マス＝実際は無音でないので「・」を出さない
+    const dotCovered=new Set();
+    played.forEach(i=>{if(beams(div,span(i))>=1&&span(i)===3){for(let k=i+1;k<i+span(i);k++)dotCovered.add(k);}});
     // ステム（4分音価＝連桁なしには付けない）
     played.forEach(i=>{if(beams(div,span(i))>=1){const x=xOf(i);
       g+=`<line x1="${x}" y1="${beamTop}" x2="${x}" y2="${stemBase}" stroke="${P.stem}" stroke-width="1.3"/>`;}});
@@ -498,7 +501,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
           for(let k=0;k<6;k++)d+=` q ${(k%2===0?-3.5:3.5)},${seg/2} 0,${seg}`;
           g+=`<path d="${d}" fill="none" stroke="${P.stem}" stroke-width="1.3"/>`;}
         fk.forEach(st=>{g+=noteNum(x,yOf(st),s.frets[st],P,st);});
-      }else{ // 休符：4分＝「ー」／8分以下＝「・」
+      }else if(!dotCovered.has(i)){ // 休符：4分＝「ー」／8分以下＝「・」（付点音符が伸びてカバーする分は無音でないので出さない）
         const rsym=div===1?'ー':'・';
         g+=`<text x="${x}" y="${(yOf(1)+yOf(N))/2+5}" text-anchor="middle" font-size="${div===1?13:18}" fill="${P.mut}">${rsym}</text>`;}
       // アクセント＝数字／スラッシュの上に「＞」
@@ -611,6 +614,9 @@ function exportJSON(){
   return '[\n'+song.map(m=>`  {chords:'${chordsOf(m)}',beats:${m.beats.length},seq:'${seqOf(m)}',lyric:'${m.lyric}'},`).join('\n')+'\n]';}
 
 // ===== seqテキスト読み込み（貼り付け→曲データ）＝tokenOfの逆変換 =====
+// 工工四の漢字（合・乙・老…）も1トークンとして受け付ける（kunkunshiマップの逆引き）
+const KUNKU_REV={};
+if(INST.kunkunshi)for(const st in INST.kunkunshi)for(const f in INST.kunkunshi[st])KUNKU_REV[INST.kunkunshi[st][f]]=st+'.'+f;
 function parseToken(tokRaw){
   let tok=tokRaw.trim(), acc=false, tie=false, roll=false;
   // 表記ゆれ吸収：「休み」「休」「rest」「-」「ー」→休符、「弦」「string」を区切りとして許容
@@ -622,6 +628,7 @@ function parseToken(tokRaw){
   if(tok===''||tok==='0')return {type:'rest',stroke:'d',acc,tie,roll:false,frets:{}};
   if(/^(D|down|ダウン|↓)$/i.test(tok))return {type:'strum',stroke:'d',acc,tie,roll:false,frets:{}};
   if(/^(U|up|アップ|↑|∧)$/i.test(tok))return {type:'strum',stroke:'u',acc,tie,roll:false,frets:{}};
+  if(KUNKU_REV[tok])tok=KUNKU_REV[tok]; // 工工四漢字→「弦.フレット」
   const frets={};
   // 「2.3」「2弦3」「2弦.3」「2弦3フレット」「2-3」など弦とフレットの区切りを広く許容
   tok.split(/[+、,]/).forEach(part=>{
