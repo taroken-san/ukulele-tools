@@ -519,7 +519,8 @@ const PracticeTools = {
       lastAnalyzeAt:0,
       buffer:null,
       levelPeak:0,
-      lastMessageWasRef:false
+      lastMessageWasRef:false,
+      manualStop:false
     },
     els:{
       micBtn:document.getElementById("micBtn"),
@@ -548,7 +549,10 @@ const PracticeTools = {
 
     init(){
       const els = this.els;
-      els.micBtn.addEventListener("click", () => this.state.running ? this.stopMic() : this.startMic());
+      els.micBtn.addEventListener("click", () => {
+        if(this.state.running){ this.state.manualStop = true; this.stopMic(); }
+        else this.startMic();
+      });
       els.instrument.addEventListener("change", () => {
         this.state.instrument = els.instrument.value;
         this.updateSanshin();
@@ -690,11 +694,13 @@ const PracticeTools = {
         els.status.innerHTML = '<span class="error">LINEやInstagramなどアプリ内ブラウザではマイクが使えません。メニュー（···）から「Safariで開く」「ブラウザで開く」を選んでから、もう一度お試しください。</span>';
         return;
       }
+      if(this.state.running) return;
+      this.state.manualStop = false;
       try{
         this.state.audio = this.state.audio || new (window.AudioContext || window.webkitAudioContext)();
         const resumeP = this.state.audio.state === "suspended" ? this.state.audio.resume() : Promise.resolve();
         this.state.stream = await navigator.mediaDevices.getUserMedia({
-          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}
+          audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}
         });
         await resumeP;
         if(this.state.audio.state === "suspended"){ try{ await this.state.audio.resume(); }catch(e){} }
@@ -773,7 +779,7 @@ const PracticeTools = {
         }
         previous = corr;
       }
-      if(best <= 0 || max < 0.35) return null;
+      if(best <= 0 || max < 0.28) return null;
 
       const x1 = corrs.get(best - 1) ?? corrs.get(best);
       const x2 = corrs.get(best);
@@ -1551,7 +1557,7 @@ PracticeTools.looper = {
     const resumeP = st.audio.state === "suspended" ? st.audio.resume() : Promise.resolve();
     if(needMic && !st.stream){
       st.stream = await navigator.mediaDevices.getUserMedia({
-        audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}
+        audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}
       });
     }
     await resumeP;
@@ -1862,6 +1868,8 @@ function showTab(which){
   if(which !== "tuner"){
     if(PracticeTools.tuner.state.running) PracticeTools.tuner.stopMic();
     PracticeTools.tuner.stopReference();
+  }else if(!PracticeTools.tuner.state.running && !PracticeTools.tuner.state.manualStop){
+    PracticeTools.tuner.startMic();
   }
   if(which !== "looper"){
     PracticeTools.looper.stopAll();
@@ -1879,6 +1887,16 @@ window.addEventListener("pagehide", () => {
 PracticeTools.tuner.init();
 PracticeTools.metronome.init();
 PracticeTools.looper.init();
+
+PracticeTools.tuner.startMic();
+function unlockAudioOnce(){
+  const t = PracticeTools.tuner.state.audio;
+  if(t && t.state === "suspended") t.resume();
+  window.removeEventListener("pointerdown", unlockAudioOnce);
+  window.removeEventListener("touchend", unlockAudioOnce);
+}
+window.addEventListener("pointerdown", unlockAudioOnce);
+window.addEventListener("touchend", unlockAudioOnce);
 </script>
 </body>
 </html>
