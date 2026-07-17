@@ -1,0 +1,32 @@
+{
+  "name": "ウクレレコード帳",
+  "short_name": "コード帳",
+  "description": "キー×種類でウクレレのコードを自動生成。ドレミ・鍵盤・音つきの拡大表示で生徒に見せられます。",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#faf8f4",
+  "background_color": "#faf8f4",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

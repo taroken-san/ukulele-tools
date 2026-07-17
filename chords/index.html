@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ウクレレコード帳 | S&Sシニアスマイル音楽教室</title>
+<!-- ホーム画面アプリ(PWA) -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#faf8f4">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="コード帳">
 <style>
   :root{
     --bg:#faf7f2; --card:#fff; --ink:#2f2a26; --sub:#6b6258;
@@ -1073,6 +1081,14 @@ function renderPresent(){
   ov.querySelector('.play-chord').onclick=function(){ playChordFrets(v.frets,present.inst); };
   ov.querySelectorAll('.pvchip').forEach(function(b){ b.onclick=function(){ present.vi=+b.dataset.k; renderPresent(); }; });
   ov.querySelectorAll('.present-kbd .key').forEach(function(k){ k.onclick=function(){ playMidi(+k.dataset.midi); }; });
+}
+
+// --- ホーム画面アプリ(PWA): Service Worker登録 ---
+// file://直開きやhttp非対応環境では登録しない(エラーを出さないため)
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(){ /* 失敗しても通常のWebページとして動く */ });
+  });
 }
 
 // --- 生成: オーバーレイ要素と導線(両タブのダイアグラムをタップ) ---
