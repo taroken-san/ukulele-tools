@@ -357,6 +357,14 @@
         </div>
         <div id="autoStatus" style="font-size:12px;color:var(--sub);min-height:16px;"></div>
       </div>
+
+      <div class="field">
+        <label class="row" style="justify-content:space-between;color:var(--txt);">
+          <span>1小節ごとに休み（交互に無音）</span>
+          <input type="checkbox" id="silentBars">
+        </label>
+        <div id="silentStatus" style="font-size:12px;color:var(--sub);min-height:16px;"></div>
+      </div>
     </aside>
 
     <div class="panel" style="grid-column:1/-1;padding:16px;display:grid;gap:12px;">
@@ -927,6 +935,8 @@ PracticeTools.metronome = {
     autoMax:160,
     barCount:0,
     barStarted:false,
+    silentBars:false,
+    muteBar:false,
     currentStep:0,
     nextNoteTime:0,
     timer:0,
@@ -968,7 +978,9 @@ PracticeTools.metronome = {
     autoStep:document.getElementById("autoStep"),
     autoMax:document.getElementById("autoMax"),
     autoMaxText:document.getElementById("autoMaxText"),
-    autoStatus:document.getElementById("autoStatus")
+    autoStatus:document.getElementById("autoStatus"),
+    silentBars:document.getElementById("silentBars"),
+    silentStatus:document.getElementById("silentStatus")
   },
 
   init(){
@@ -1019,6 +1031,11 @@ PracticeTools.metronome = {
       this.updateAutoStatus();
     });
     els.autoBars.addEventListener("change", () => { this.state.autoBars = Number(els.autoBars.value); this.state.barCount = 0; this.updateAutoStatus(); });
+    els.silentBars.addEventListener("change", () => {
+      this.state.silentBars = els.silentBars.checked;
+      this.state.muteBar = false;
+      this.updateSilentStatus();
+    });
     els.autoStep.addEventListener("change", () => this.state.autoStep = Number(els.autoStep.value));
     els.autoMax.addEventListener("input", () => {
       this.state.autoMax = Number(els.autoMax.value);
@@ -1042,6 +1059,12 @@ PracticeTools.metronome = {
     const pos = (s.barCount % s.autoBars) + 1;
     const cap = s.bpm >= s.autoMax ? "上限到達" : `上限 ${s.autoMax}`;
     this.els.autoStatus.textContent = `小節 ${pos}/${s.autoBars}・${cap}`;
+  },
+
+  updateSilentStatus(){
+    const s = this.state;
+    if(!s.silentBars){ this.els.silentStatus.textContent = ""; return; }
+    this.els.silentStatus.textContent = (s.running && s.muteBar) ? "この小節: 休み（頭の中で数える）" : "この小節: 鳴る";
   },
 
   tempoName(bpm){
@@ -1415,12 +1438,14 @@ PracticeTools.metronome = {
           if(s.autoUp && s.bpm < s.autoMax && s.barCount % s.autoBars === 0){
             this.setBpm(Math.min(s.autoMax, s.bpm + s.autoStep));
           }
+          if(s.silentBars) s.muteBar = !s.muteBar;
         }
         s.barStarted = true;
         this.updateAutoStatus();
+        this.updateSilentStatus();
       }
       const v = s.steps[idx];
-      if(v > 0) this.scheduleClick(s.nextNoteTime, v);
+      if(v > 0 && !(s.silentBars && s.muteBar)) this.scheduleClick(s.nextNoteTime, v);
       s.queue.push({step:idx, time:s.nextNoteTime});
       s.nextNoteTime += (60 / s.bpm) / s.res;
       s.currentStep = (idx + 1) % s.steps.length;
@@ -1452,11 +1477,13 @@ PracticeTools.metronome = {
     s.currentStep = 0;
     s.barCount = 0;
     s.barStarted = false;
+    s.muteBar = false;
     s.queue = [];
     s.nextNoteTime = s.audio.currentTime + 0.06;
     this.els.metroBtn.textContent = "ストップ";
     this.els.metroStatus.textContent = "再生中です。";
     this.updateFab();
+    this.updateSilentStatus();
     this.scheduler();
     this.draw();
   },
@@ -1472,6 +1499,7 @@ PracticeTools.metronome = {
     this.els.metroBtn.textContent = "スタート";
     this.els.metroStatus.textContent = "停止中です。";
     this.updateFab();
+    this.updateSilentStatus();
   },
 
   tap(){
