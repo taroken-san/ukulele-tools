@@ -160,6 +160,10 @@
   .stu-edit.withdrawn{flex-wrap:wrap;}
   .stu-edit.withdrawn input[data-i]{color:#888;background:#fafafa;}
   .stu-edit .leftdate{flex:0 0 auto;width:130px;font-size:12px;padding:6px;border:1px solid var(--line);border-radius:7px;}
+  .stu-edit-row{margin-bottom:7px;}
+  .move-panel{display:flex;gap:8px;align-items:center;margin:4px 0 10px;padding-left:2px;}
+  .move-panel select{flex:1;padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;}
+  .move-panel button{font-size:12px;padding:6px 10px;border-radius:7px;border:1px solid var(--accent);background:var(--accent);color:#fff;white-space:nowrap;}
   .class-pick{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
   .class-pick select{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;}
   .section-div{border-top:1px solid var(--line);margin:14px 0 12px;padding-top:12px;font-weight:700;font-size:14px;color:var(--accent);}
@@ -422,6 +426,43 @@ function ensure(classId, year, month, session){
   r[classId][year][month][session] = r[classId][year][month][session] ||
     {att:{}, pay:{}, memo:{songs:'',comment:'',next:''}};
   return r[classId][year][month][session];
+}
+
+// 生徒を別クラスへ移動。出席/月謝/施設費受領日の記録もすべて付け替える(makeups/note/suspended等は生徒オブジェクト自体に付いているので自動で一緒に移動)
+function moveStudentToClass(studentId, fromClassId, toClassId){
+  const fromC = store.classes.find(c=>c.id===fromClassId);
+  const toC = store.classes.find(c=>c.id===toClassId);
+  if(!fromC || !toC || fromClassId===toClassId) return;
+  const idx = fromC.students.findIndex(s=>s.id===studentId);
+  if(idx<0) return;
+  const [s] = fromC.students.splice(idx,1);
+  toC.students.push(s);
+
+  const fromRec = store.records[fromClassId];
+  if(fromRec){
+    Object.keys(fromRec).forEach(year=>{
+      const yearData = fromRec[year];
+      if(yearData._facility && yearData._facility[studentId]!==undefined){
+        const toYear = (store.records[toClassId] = store.records[toClassId]||{})[year] = store.records[toClassId][year] || {};
+        toYear._facility = toYear._facility || {};
+        toYear._facility[studentId] = yearData._facility[studentId];
+        delete yearData._facility[studentId];
+      }
+      Object.keys(yearData).forEach(month=>{
+        if(!/^\d+$/.test(month)) return;
+        Object.keys(yearData[month]).forEach(session=>{
+          const rec = yearData[month][session];
+          const hasAtt = rec.att && rec.att[studentId]!==undefined;
+          const hasPay = rec.pay && rec.pay[studentId]!==undefined;
+          if(!hasAtt && !hasPay) return;
+          const toRec = ensure(toClassId, year, month, session);
+          if(hasAtt){ toRec.att[studentId] = rec.att[studentId]; delete rec.att[studentId]; }
+          if(hasPay){ toRec.pay[studentId] = rec.pay[studentId]; delete rec.pay[studentId]; }
+        });
+      });
+    });
+  }
+  markDirty();
 }
 
 /* ====== 描画 ====== */
@@ -979,16 +1020,28 @@ function renderClassEditArea(){
   renderStuEdit();
 }
 function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+let moveOpen = new Set(); // 「他クラスへ移動」パネルを開いている生徒ID
 function renderStuEdit(){
   const c = curEditClass();
+  const otherClasses = store.classes.filter(x=>x.id!==c.id);
   const el=document.getElementById('stuEditList'); el.innerHTML='';
   const withdrawn=[];
   c.students.forEach((s,i)=>{
     if(!s.active){ withdrawn.push({s,i}); return; }
+    const wrap=document.createElement('div'); wrap.className='stu-edit-row';
     const row=document.createElement('div'); row.className='stu-edit';
+    const moveBtnHtml = otherClasses.length ? `<button class="tgl" data-moveopen="${s.id}">移動</button>` : '';
     row.innerHTML=`<input value="${escapeHtml(s.name)}" placeholder="生徒名" data-i="${i}">
+      ${moveBtnHtml}
       <button class="tgl" data-leavestu="${i}">退会</button>`;
-    el.appendChild(row);
+    wrap.appendChild(row);
+    if(moveOpen.has(s.id) && otherClasses.length){
+      const panel=document.createElement('div'); panel.className='move-panel';
+      panel.innerHTML=`<select data-movesel="${s.id}">${otherClasses.map(oc=>`<option value="${oc.id}">${escapeHtml(oc.name||'クラス')}</option>`).join('')}</select>
+        <button data-movego="${s.id}">この生徒を移動</button>`;
+      wrap.appendChild(panel);
+    }
+    el.appendChild(wrap);
   });
   if(withdrawn.length){
     const head=document.createElement('div'); head.className='withdrawn-head';
@@ -1013,6 +1066,28 @@ function renderStuEdit(){
   });
   el.querySelectorAll('button[data-rejoin]').forEach(b=>{
     b.onclick=()=>{ const s=c.students[+b.dataset.rejoin]; s.active=true; s.leftDate=''; renderStuEdit(); };
+  });
+  el.querySelectorAll('button[data-moveopen]').forEach(b=>{
+    b.onclick=()=>{
+      const id=b.dataset.moveopen;
+      if(moveOpen.has(id)) moveOpen.delete(id); else moveOpen.add(id);
+      renderStuEdit();
+    };
+  });
+  el.querySelectorAll('button[data-movego]').forEach(b=>{
+    b.onclick=()=>{
+      const sid=b.dataset.movego;
+      const sel=el.querySelector(`select[data-movesel="${sid}"]`);
+      const toClassId=sel.value;
+      const toClass=store.classes.find(x=>x.id===toClassId);
+      const s=c.students.find(x=>x.id===sid);
+      if(!confirm(`${s.name||'この生徒'}さんを「${toClass.name||'クラス'}」へ移動しますか？\n出席・受領日などの記録もすべて移動します。`)) return;
+      moveStudentToClass(sid, c.id, toClassId);
+      moveOpen.delete(sid);
+      renderStuEdit();
+      renderAll();
+      toast(`「${toClass.name||'クラス'}」へ移動しました`);
+    };
   });
 }
 function commitEditName(){ // 編集中フォームの値をオブジェクトに反映
