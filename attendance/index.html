@@ -745,9 +745,13 @@ function renderContent(){
   let html = '';
 
   // 「今日の予定・やった内容」の初期値として前回の「次回予定」を入れておく(1回だけ)
+  // 前回の次回予定がまだ書かれていない(prev.txtが空)うちに間違って開いてもロックしない。
+  // 実際にコピー元が存在した時だけ_seededを立て、以後の再コピー/復活を防ぐ
   const prev = prevSessionPlan();
-  if(prev.txt && !rec.memo.songs && !rec.memo._seeded){ rec.memo.songs = prev.txt; }
-  rec.memo._seeded = true;
+  if(prev.txt){
+    if(!rec.memo.songs && !rec.memo._seeded){ rec.memo.songs = prev.txt; }
+    rec.memo._seeded = true;
+  }
 
   const sd = sessionDate(curYear, curMonth, curSession);
   html += `<div class="card"><div class="card-h"><span>出席・受領記録</span>
