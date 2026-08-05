@@ -469,7 +469,8 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
         g+=`<line x1="${xj}" y1="${beamTop}" x2="${xj}" y2="${yEnd}" stroke="${P.stem}" stroke-width="1.3"/>`; j=j2;
       }else j++; }
     }else if(prim.length>=2){
-      const x1=prim[0]>0?stemX(0):stemX(prim[0]);   // 拍頭に休符があれば連桁をそこまで伸ばして拍のまとまりを見せる
+      // 拍頭に休符があれば連桁をそこまで伸ばして拍のまとまりを見せる（休符は1個にまとめて表示するので、その中心に合わせる）
+      const x1=prim[0]>0?(xOf(0)+xOf(prim[0]-1))/2:stemX(prim[0]);
       g+=`<line x1="${x1}" y1="${beamTop}" x2="${stemX(prim[prim.length-1])}" y2="${beamTop}" stroke="${P.stem}" stroke-width="3"/>`;
       // 2次ビーム（16分）＝隣接は全幅、孤立はスタブ
       played.forEach((i,idx)=>{ if(beams(div,span(i))>=2){
@@ -480,18 +481,17 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
         else if(!leftAdj){const dir=(idx>0)?-1:1;
           g+=`<line x1="${stemX(i)}" y1="${beamTop+4}" x2="${stemX(i)+dir*7}" y2="${beamTop+4}" stroke="${P.stem}" stroke-width="3"/>`;}
       }});
-      // 拍頭の休符（・）へも、連桁から縦線を下ろす。休符は1個にまとめて表示するので縦線も1本だけ（休符マスの数だけ引かない）
+      // 拍頭の休符（・）へも、連桁から縦線を下ろす（連桁の端＝休符の中心と同じx1を使う）
       if(prim[0]>0){const yEnd=(yOf(1)+yOf(N))/2-8;
-        const xj=(xOf(0)+xOf(prim[0]-1))/2;
-        g+=`<line x1="${xj}" y1="${beamTop}" x2="${xj}" y2="${yEnd}" stroke="${P.stem}" stroke-width="1.3"/>`;}
+        g+=`<line x1="${x1}" y1="${beamTop}" x2="${x1}" y2="${yEnd}" stroke="${P.stem}" stroke-width="1.3"/>`;}
     }else if(prim.length===1){   // 単独の8分以下：手前の休符(・)まで連桁＋各・へ縦線
       const i=prim[0], x=stemX(i), nb=beams(div,span(i));
-      const x2=i>0?stemX(0):stemX(i+1);     // 裏拍なら拍頭まで連桁を伸ばす
+      // 裏拍なら拍頭まで連桁を伸ばす（休符は1個にまとめて表示するので、その中心に合わせる）
+      const x2=i>0?(xOf(0)+xOf(i-1))/2:stemX(i+1);
       g+=`<line x1="${x}" y1="${beamTop}" x2="${x2}" y2="${beamTop}" stroke="${P.stem}" stroke-width="3"/>`;
       if(nb>=2)g+=`<line x1="${x}" y1="${beamTop+4}" x2="${x2}" y2="${beamTop+4}" stroke="${P.stem}" stroke-width="3"/>`;
-      // 手前の休符（・）へ縦線を下ろす。休符は1個にまとめて表示するので縦線も1本だけ
-      if(i>0){const yEnd=(yOf(1)+yOf(N))/2-8;
-        const xj=(xOf(0)+xOf(i-1))/2;
+      // 手前の休符（・）へ縦線を下ろす（連桁の端＝休符の中心と同じx2を使う）
+      if(i>0){const yEnd=(yOf(1)+yOf(N))/2-8; const xj=x2;
         g+=`<line x1="${xj}" y1="${beamTop}" x2="${xj}" y2="${yEnd}" stroke="${P.stem}" stroke-width="1.3"/>`;}
     }
     // 3連符（実際の音符位置に合わせた角丸ブラケット＋中央の「3」）
