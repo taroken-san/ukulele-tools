@@ -489,8 +489,8 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
       // 裏拍なら拍頭まで連桁を伸ばす（休符は1個にまとめて表示するので、その中心に合わせる）
       const x2=i>0?(xOf(0)+xOf(i-1))/2:stemX(i+1);
       g+=`<line x1="${x}" y1="${beamTop}" x2="${x2}" y2="${beamTop}" stroke="${P.stem}" stroke-width="3"/>`;
-      // 2次ビーム（16分）は孤立音符なので休符側まで全幅で伸ばさず、音符側の短いフック（旗の断片）にする
-      if(nb>=2){const dir=x2<x?1:-1;
+      // 2次ビーム（16分）は孤立音符なので全幅で伸ばさず、連桁が伸びている側（休符側）へ短いフック（旗の断片）を出す
+      if(nb>=2){const dir=x2<x?-1:1;
         g+=`<line x1="${x}" y1="${beamTop+4}" x2="${x+dir*7}" y2="${beamTop+4}" stroke="${P.stem}" stroke-width="3"/>`;}
       // 手前の休符（・）へ縦線を下ろす（連桁の端＝休符の中心と同じx2を使う）
       if(i>0){const yEnd=(yOf(1)+yOf(N))/2-8; const xj=x2;
