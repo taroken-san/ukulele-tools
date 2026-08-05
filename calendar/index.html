@@ -180,7 +180,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0705g</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0705h</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -559,7 +559,10 @@ function init(){
   $("eventDate").value=today;$("eventStart").value="10:00";$("eventEnd").value="11:10";$("recurringStart").value="10:00";$("recurringEnd").value="11:10";
   $("availDate").value=today;$("availStart").value="10:00";$("availEnd").value="11:10";
   $("gasUrl").value=localStorage.getItem(URL_KEY)||DEFAULT_GAS_URL;
-  fillSelectors();bind();loginAs(state.teachers[0]);render();
+  if(!state.teachers||!state.teachers.length||!state.rooms||!state.rooms.length){state=seedData();saveLocal();}
+  fillSelectors();bind();
+  if(state.teachers[0])loginAs(state.teachers[0]);
+  render();
   if($("gasUrl").value.trim())loadRemote(true);
 }
 function fillSelectors(){
