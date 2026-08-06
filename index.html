@@ -267,9 +267,9 @@
     <span><label>数字</label>
       <select id="numstyle"><option value="fill">塗り丸</option><option value="outline">白地丸</option><option value="none" selected>囲みなし</option></select></span>
     <span><label>数字サイズ</label>
-      <select id="numsize"><option value="0.85">小</option><option value="1" selected>標準</option><option value="1.2">大</option><option value="1.45">特大</option></select></span>
+      <select id="numsize"><option value="1">小</option><option value="1.2" selected>標準</option><option value="1.45">大</option><option value="1.75">特大</option></select></span>
     <span><label>表示サイズ</label>
-      <select id="zoom"><option value="0.8">小</option><option value="1" selected>中</option><option value="1.25">大</option><option value="1.5">特大</option></select></span>
+      <select id="zoom"><option value="1">小</option><option value="1.25" selected>中</option><option value="1.5">大</option><option value="1.75">特大</option></select></span>
     <button id="print">🖨 印刷 / PDF保存</button>
     <span style="font-size:12px;color:var(--mut);">A4・1ページ目安：16〜24小節</span>
   </div>
@@ -382,7 +382,7 @@ function buildEditGrid(){
 }
 
 // ===== 配色 =====
-let COLOR=true, NUMSTYLE='none', PRINTING=false, SCALE=1, NUMSCALE=1, NOTATION='num';
+let COLOR=true, NUMSTYLE='none', PRINTING=false, SCALE=1.25, NUMSCALE=1.2, NOTATION='num';
 function pal(){return COLOR
   ?{tabline:'#cfcdc3',bar:'#23241f',stem:'#3a3a36',down:'#0c447c',up:'#993c1d',acc:'#a32d2d',pick:'#534ab7',ink:'#23241f',mut:'#6b6a63'}
   :{tabline:'#9a9a9a',bar:'#000',stem:'#000',down:'#000',up:'#000',acc:'#000',pick:'#000',ink:'#000',mut:'#333'};}
@@ -577,7 +577,8 @@ function drawScore(){
       }
       k++;}
   });
-  const scoreW=W+40, Z=SCALE;
+  // 印刷時は「表示サイズ」の設定に関わらず常に安全な等倍で出力し、A4からはみ出さないようにする（画面表示だけ好みのサイズにできる）
+  const scoreW=W+40, Z=PRINTING?1:SCALE;
   document.getElementById('svgHost').innerHTML=
     `<svg width="${scoreW*Z}" height="${H*Z}" viewBox="0 0 ${scoreW} ${H}">${g}</svg>`;
   document.querySelectorAll('.mhit').forEach(r=>r.onclick=()=>{cur=+r.dataset.k;SEL=null;render();});
