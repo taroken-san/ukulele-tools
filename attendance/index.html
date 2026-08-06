@@ -149,6 +149,22 @@
   .dlg-h{padding:14px 16px;font-weight:700;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
   .dlg-b{padding:14px 16px;max-height:64vh;overflow:auto;}
   .dlg-f{padding:12px 16px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--line);}
+  /* 使い方ダイアログ（セクション開閉式） */
+  .help-sec{border-bottom:1px solid var(--line);}
+  .help-sec:last-child{border-bottom:none;}
+  .help-sec-h{width:100%;text-align:left;background:var(--bg);border:none;padding:13px 16px;font-size:15px;font-weight:700;
+    display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--txt);font-family:inherit;}
+  .help-sec-h .chev{margin-left:auto;color:var(--sub);font-size:13px;transition:transform .15s;}
+  .help-sec.open .help-sec-h .chev{transform:rotate(90deg);}
+  .help-sec-b{display:none;padding:4px 16px 14px;}
+  .help-sec.open .help-sec-b{display:block;}
+  .help-row{display:flex;gap:9px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px;line-height:1.55;}
+  .help-row:last-child{border-bottom:none;}
+  .help-row .ico{flex:0 0 auto;width:20px;text-align:center;}
+  .help-row .txt{flex:1;min-width:0;}
+  .help-row b{color:#8a5a00;}
+  .help-note{font-size:12px;color:var(--sub);margin-top:3px;}
+  .help-tip{background:var(--accent-soft);border-radius:8px;padding:9px 11px;font-size:13px;margin-top:10px;color:#7a4d0d;}
   .field{margin-bottom:12px;}
   .field label{display:block;font-size:13px;color:var(--sub);margin-bottom:4px;font-weight:600;}
   .field input,.field select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;}
@@ -204,23 +220,52 @@
 
 <!-- 使い方ダイアログ -->
 <dialog id="dlgHelp">
-  <div class="dlg-h"><span>かんたん使い方</span></div>
-  <div class="dlg-b">
-    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;">
-      <li>👆 出席は <b>○ ✕</b> をタップ（もう一度タップで取消）</li>
-      <li>💤 長くお休みの生徒は <b>「休」</b> をタップ＝休会中（カードが畳まれます）。戻ったらもう一度「休」で復帰</li>
-      <li>💴 月謝・施設費は <b>受領日</b> を入力。消すときは右の <b>「✕」</b>（日付を空に戻す）</li>
-      <li>↩️ <b>振替</b>：名前の右の <b>「↔ 振替」</b> を押すと履歴が開きます。<b>「＋振替を追加」</b>で休んだ日を記録（既定は今のコマ日付）。あとで<b>振替日</b>を入れると「予定」→「済み」に変わります。未消化はカードに件数表示</li>
-      <li>📅 タブの日付がずれた月は <b>「実施日（ずれた時に変更）」</b> で直せます（「自動に戻す」で元に戻る）</li>
-      <li>📝 <b>「今日の予定・やった内容」</b> には前回決めた予定が入ります。実際の内容に追記・修正を（前回の「次回予定」を<b>初回1回だけコピー</b>。消しても前回側は残り、開いた後の前回修正は自動反映されません）</li>
-      <li>📌 名前の右の <b>「✎」</b> で、その生徒のメモ（特徴・注意。例：難聴）を書けます。書くと名前の下にずっと表示されます</li>
-      <li>🕘 右上 <b>「履歴」</b> で、これまでのレッスン記録を新しい順に一覧（行をタップでそのコマへ）</li>
-      <li>💾 入力したら <b>必ず下の「保存」</b> をタップ</li>
-      <li>🔄 別の端末の入力は <b>「再読込」</b> で取り込む</li>
-      <li>🗓️ 来年の記録は年の欄の <b>「＋年を追加」</b></li>
-      <li>⚙️ クラスの<b>曜日</b>を設定すると、タブに日付（例：6/8）が出ます（右上「設定」）</li>
-      <li>📞 「保存に失敗」など困ったら <b>川瀬へ連絡</b></li>
-    </ul>
+  <div class="dlg-h"><span>使い方</span></div>
+  <div class="dlg-b" style="padding:0;">
+    <div class="help-sec open">
+      <button class="help-sec-h" data-helpsec>📝 毎回のレッスンで <span class="chev">›</span></button>
+      <div class="help-sec-b">
+        <div class="help-row"><span class="ico">👆</span><span class="txt">出席は <b>○ ✕</b> をタップ<div class="help-note">もう一度タップで取り消し</div></span></div>
+        <div class="help-row"><span class="ico">💴</span><span class="txt">月謝・施設費は<b>受け取った日</b>を入力<div class="help-note">消すときは右の「✕」</div></span></div>
+        <div class="help-row"><span class="ico">📝</span><span class="txt"><b>今日の予定・やった内容</b>には前回の「次回予定」が自動で入ります<div class="help-note">実際にやった内容に書き直してOK</div></span></div>
+        <div class="help-row"><span class="ico">💾</span><span class="txt">最後に必ず <b>「保存」</b> をタップ</span></div>
+        <div class="help-tip">⚠️ 保存を押さないと記録が残りません</div>
+      </div>
+    </div>
+    <div class="help-sec">
+      <button class="help-sec-h" data-helpsec>👥 生徒のこと <span class="chev">›</span></button>
+      <div class="help-sec-b">
+        <div class="help-row"><span class="ico">💤</span><span class="txt">長くお休みの人は <b>「休」</b><div class="help-note">カードが畳まれます。戻ったらもう一度「休」</div></span></div>
+        <div class="help-row"><span class="ico">↩️</span><span class="txt">振替は名前の右の <b>「↔ 振替」</b><div class="help-note">「＋振替を追加」で休んだ日を記録 → あとで振替日をカレンダーで選ぶと「済み」に</div></span></div>
+        <div class="help-row"><span class="ico">📌</span><span class="txt">名前の右の <b>「✎」</b> で生徒メモ<div class="help-note">特徴・注意（例：難聴）を書くと名前の下にずっと表示</div></span></div>
+      </div>
+    </div>
+    <div class="help-sec">
+      <button class="help-sec-h" data-helpsec>⚙️ 設定でできること <span class="chev">›</span></button>
+      <div class="help-sec-b">
+        <div class="help-row"><span class="ico">🙋</span><span class="txt"><b>あなたは誰？</b>で自分の名前を選ぶ<div class="help-note">最初の1回だけ。これで保存先がつながります</div></span></div>
+        <div class="help-row"><span class="ico">🏫</span><span class="txt"><b>クラスの管理</b>でクラス追加・クラス名・教室・開催パターン</span></div>
+        <div class="help-row"><span class="ico">📅</span><span class="txt"><b>曜日</b>を設定するとタブに日付が出ます（例：6/8）</span></div>
+        <div class="help-row"><span class="ico">➕</span><span class="txt">生徒一覧で <b>「＋生徒を追加」</b>／辞めた人は <b>「退会」</b><div class="help-note">退会しても記録は残ります。戻ったら「復会」</div></span></div>
+        <div class="help-row"><span class="ico">🔀</span><span class="txt">生徒が別のクラスへ移るときは <b>「移動」</b><div class="help-note">出席・受領日の記録ごと移ります</div></span></div>
+      </div>
+    </div>
+    <div class="help-sec">
+      <button class="help-sec-h" data-helpsec>🔍 記録を見る・直す <span class="chev">›</span></button>
+      <div class="help-sec-b">
+        <div class="help-row"><span class="ico">🕘</span><span class="txt">右上 <b>「履歴」</b> でこれまでの記録を新しい順に一覧<div class="help-note">行をタップでそのコマへ</div></span></div>
+        <div class="help-row"><span class="ico">📆</span><span class="txt">日付がずれた月は <b>「実施日（ずれた時に変更）」</b><div class="help-note">「自動に戻す」で元に戻ります</div></span></div>
+        <div class="help-row"><span class="ico">🗓️</span><span class="txt">来年の記録は年の欄の <b>「＋年を追加」</b></span></div>
+      </div>
+    </div>
+    <div class="help-sec">
+      <button class="help-sec-h" data-helpsec>❓ こまったとき <span class="chev">›</span></button>
+      <div class="help-sec-b">
+        <div class="help-row"><span class="ico">🔄</span><span class="txt">別の端末で入れた分が見えない → <b>「再読込」</b></span></div>
+        <div class="help-row"><span class="ico">⏳</span><span class="txt">保存に10秒ほどかかることがあります<div class="help-note">ボタンの秒数が動いていれば正常です</div></span></div>
+        <div class="help-row"><span class="ico">📞</span><span class="txt">「保存に失敗」など直らないときは <b>川瀬へ連絡</b></span></div>
+      </div>
+    </div>
   </div>
   <div class="dlg-f">
     <button class="btn-save" id="btnHelpClose">閉じる</button>
@@ -1135,6 +1180,9 @@ function init(){
   document.getElementById('btnChangeTeacher').onclick=(e)=>{ e.preventDefault(); teacherEditMode=true; renderTeacherSel(); };
   document.getElementById('btnHelp').onclick=()=>document.getElementById('dlgHelp').showModal();
   document.getElementById('btnHelpClose').onclick=()=>document.getElementById('dlgHelp').close();
+  document.querySelectorAll('button[data-helpsec]').forEach(b=>{
+    b.onclick=()=>b.parentElement.classList.toggle('open');
+  });
   document.getElementById('btnHistory').onclick=()=>{ renderHistory(); document.getElementById('dlgHistory').showModal(); };
   document.getElementById('btnHistClose').onclick=()=>document.getElementById('dlgHistory').close();
   document.getElementById('btnMkClose').onclick=()=>document.getElementById('dlgMakeup').close();
