@@ -165,6 +165,34 @@
   .help-row b{color:#8a5a00;}
   .help-note{font-size:12px;color:var(--sub);margin-top:3px;}
   .help-tip{background:var(--accent-soft);border-radius:8px;padding:9px 11px;font-size:13px;margin-top:10px;color:#7a4d0d;}
+  /* 今日の教材（コース設定クラスのみ） */
+  .mat-box{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;}
+  .mat-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .mat-course{font-size:12px;font-weight:700;color:#8a5a00;background:var(--accent-soft);border-radius:20px;padding:3px 10px;}
+  .mat-prog{margin-left:auto;font-size:11px;color:var(--sub);}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#e6f5ee;border:1px solid #a9ddc6;
+    color:#0f6e56;border-radius:8px;padding:5px 8px;font-size:13px;}
+  .chip .no{font-size:11px;color:#4c9b83;font-weight:700;}
+  .chip .x{background:none;border:none;color:#5aa791;font-size:14px;cursor:pointer;padding:0 1px;line-height:1;}
+  .mat-add{width:100%;margin-top:8px;font-size:13px;padding:9px;border:1px dashed var(--line);
+    border-radius:9px;background:#fff;color:var(--sub);cursor:pointer;font-family:inherit;}
+  .mat-empty{font-size:13px;color:var(--sub);padding:3px 1px 1px;}
+  .dlg-search{padding:10px 15px;border-bottom:1px solid var(--line);}
+  .dlg-search input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;}
+  .mrow{display:flex;align-items:center;gap:9px;padding:10px 15px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .mrow:last-child{border-bottom:none;}
+  .mrow.picked{background:#e6f5ee;}
+  .mrow.done{opacity:.55;}
+  .mrow .ck{flex:0 0 auto;width:19px;height:19px;border:1.5px solid var(--line);border-radius:5px;
+    display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;}
+  .mrow.picked .ck{background:var(--ok);border-color:var(--ok);}
+  .mrow .num{flex:0 0 auto;font-size:11px;color:var(--sub);min-width:22px;}
+  .mrow .body{flex:1;min-width:0;}
+  .mrow .nm{font-size:14px;font-weight:600;}
+  .mrow .msub{font-size:11px;color:var(--sub);margin-top:1px;}
+  .mrow .tag{flex:0 0 auto;font-size:10px;border-radius:5px;padding:2px 6px;background:var(--bg);color:var(--sub);}
+  .mrow .dn{flex:0 0 auto;font-size:10px;color:#4c9b83;}
   .field{margin-bottom:12px;}
   .field label{display:block;font-size:13px;color:var(--sub);margin-bottom:4px;font-weight:600;}
   .field input,.field select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;}
@@ -284,6 +312,14 @@
   <div class="dlg-b" id="mkBody"></div>
 </dialog>
 
+<!-- 教材選択ダイアログ -->
+<dialog id="dlgMaterial">
+  <div class="dlg-h"><span id="matTitle">教材</span><button class="btn-ghost" id="btnMatClose">閉じる</button></div>
+  <div class="dlg-search"><input id="matSearch" placeholder="🔍 名前・国などでしぼりこむ"></div>
+  <div class="dlg-b" id="matBody" style="padding:0;"></div>
+  <div class="dlg-f"><button class="btn-save" id="btnMatDone">決定</button></div>
+</dialog>
+
 <!-- 設定ダイアログ -->
 <dialog id="dlgSettings">
   <div class="dlg-h"><span>設定</span></div>
@@ -346,6 +382,11 @@
           <option value="6">土曜</option>
         </select>
       </div>
+      <div class="field" id="courseField">
+        <label>コース（英会話などの教材シリーズ）</label>
+        <select id="setCourse"></select>
+        <div style="font-size:11px;color:var(--sub);margin-top:4px;">設定すると記録画面に「今日の教材」が出ます。音楽クラスは「設定しない」のままでOK。</div>
+      </div>
       <div class="field">
         <label>生徒一覧（最大12名）</label>
         <div id="stuEditList"></div>
@@ -387,6 +428,7 @@ let curSession = 1;
 let dirty = false;
 let noteOpen = new Set(); // 生徒メモを編集中(開いている)生徒ID
 let editClassId = null; // 設定ダイアログ内で編集中のクラス
+let materials = {}; // {コース名:[{no,name,sub,tag}]} 起動時にGASから取得。教材シートが無ければ空のまま
 
 /* ====== ユーティリティ ====== */
 function uid(p){ return (p||'') + Math.random().toString(36).slice(2,8); }
@@ -439,6 +481,16 @@ async function fetchTeachers(){
   if(!res.ok) throw new Error('HTTP '+res.status);
   const j = await res.json();
   return (j && j.teachers) || [];
+}
+// 教材マスタ取得。マスター対応表に「教材」シートが無ければ {} が返る＝コース機能オフ
+async function fetchMaterials(){
+  const url = effectiveUrl(); if(!url) return {};
+  try{
+    const res = await fetch(url + '?action=materials', {method:'GET'});
+    if(!res.ok) return {};
+    const j = await res.json();
+    return (j && j.courses) || {};
+  }catch(e){ return {}; } // 取れなくても通常利用は続行できる
 }
 async function fetchAll(){
   const url = effectiveUrl();
@@ -508,6 +560,87 @@ function moveStudentToClass(studentId, fromClassId, toClassId){
     });
   }
   markDirty();
+}
+
+/* ====== 今日の教材（コースが設定されたクラスのみ） ====== */
+// そのクラスが過去に消化した教材No → 実施日(ISO)。今開いているコマ自身は除く
+function doneMaterialsFor(classId, exceptKey){
+  const out = {};
+  const rec = store.records[classId] || {};
+  Object.keys(rec).forEach(year=>{
+    if(!/^\d{4}$/.test(year)) return;
+    Object.keys(rec[year]).forEach(month=>{
+      if(!/^\d+$/.test(month)) return;
+      Object.keys(rec[year][month]).forEach(session=>{
+        if(`${year}-${month}-${session}` === exceptKey) return;
+        const r = rec[year][month][session];
+        if(!r || !Array.isArray(r.materials)) return;
+        const sd = sessionDate(+year, +month, +session);
+        r.materials.forEach(no=>{ out[String(no)] = r.date || (sd ? sd.iso : ''); });
+      });
+    });
+  });
+  return out;
+}
+function materialBlockHtml(cls, rec){
+  const course = (cls.course||'').trim();
+  const list = course ? (materials[course]||[]) : null;
+  if(!course || !list || !list.length) return ''; // コース未設定＝従来どおり何も出さない
+  const picked = Array.isArray(rec.materials) ? rec.materials : [];
+  const done = doneMaterialsFor(cls.id, `${curYear}-${curMonth}-${curSession}`);
+  const doneCount = Object.keys(done).length + picked.filter(n=>!done[String(n)]).length;
+  const chips = picked.map(no=>{
+    const m = list.find(x=>String(x.no)===String(no));
+    return `<span class="chip"><span class="no">${escapeHtml(String(no))}</span>${escapeHtml(m?m.name:'（不明な教材）')}<button class="x" data-matdel="${escapeHtml(String(no))}" aria-label="外す">✕</button></span>`;
+  }).join('');
+  return `<label>今日の教材</label>
+    <div class="mat-box">
+      <div class="mat-head">
+        <span class="mat-course">${escapeHtml(course)}</span>
+        <span class="mat-prog">このクラス ${doneCount} / ${list.length} 消化</span>
+      </div>
+      ${picked.length ? `<div class="chips">${chips}</div>` : `<div class="mat-empty">まだ選ばれていません</div>`}
+      <button class="mat-add" id="btnMatAdd">＋ 教材を選ぶ</button>
+    </div>`;
+}
+let matPick = new Set(); // 選択ダイアログで選択中の教材No
+function openMaterial(){
+  const cls = curClass(); if(!cls) return;
+  const rec = ensure(curClassId, curYear, curMonth, curSession);
+  matPick = new Set((rec.materials||[]).map(String));
+  document.getElementById('matTitle').textContent = (cls.course||'教材') + ' から選ぶ';
+  document.getElementById('matSearch').value = '';
+  renderMaterialList();
+  document.getElementById('dlgMaterial').showModal();
+}
+function renderMaterialList(){
+  const cls = curClass(); if(!cls) return;
+  const list = materials[(cls.course||'').trim()] || [];
+  const q = (document.getElementById('matSearch').value||'').trim().toLowerCase();
+  const done = doneMaterialsFor(cls.id, `${curYear}-${curMonth}-${curSession}`);
+  const shown = q ? list.filter(m=>[m.no,m.name,m.sub,m.tag].join(' ').toLowerCase().includes(q)) : list;
+  const body = document.getElementById('matBody');
+  if(!shown.length){ body.innerHTML = `<div class="mat-empty" style="padding:18px 15px;">見つかりませんでした</div>`; return; }
+  body.innerHTML = shown.map(m=>{
+    const key = String(m.no);
+    const on = matPick.has(key);
+    const d = done[key];
+    return `<div class="mrow${on?' picked':''}${d?' done':''}" data-matpick="${escapeHtml(key)}">
+      <span class="ck">${on?'✓':''}</span>
+      <span class="num">${escapeHtml(key)}</span>
+      <span class="body"><div class="nm">${escapeHtml(m.name)}</div>${m.sub?`<div class="msub">${escapeHtml(m.sub)}</div>`:''}</span>
+      ${d ? `<span class="dn">${fmtDate(d)} 済</span>` : (m.tag?`<span class="tag">${escapeHtml(m.tag)}</span>`:'')}
+    </div>`;
+  }).join('');
+  body.querySelectorAll('div[data-matpick]').forEach(row=>{
+    row.onclick=()=>{
+      const k = row.dataset.matpick;
+      if(matPick.has(k)) matPick.delete(k); else matPick.add(k);
+      renderMaterialList();
+      document.getElementById('btnMatDone').textContent = matPick.size ? `${matPick.size}件を決定` : '決定';
+    };
+  });
+  document.getElementById('btnMatDone').textContent = matPick.size ? `${matPick.size}件を決定` : '決定';
 }
 
 /* ====== 描画 ====== */
@@ -865,6 +998,7 @@ function renderContent(){
 
   html += `<div class="card"><div class="card-h">進行メモ（このコマ）</div>
     <div class="memo-field">
+      ${materialBlockHtml(cls, rec)}
       <label>今日の予定・やった内容</label>
       <textarea class="ta-songs" data-memo="songs" placeholder="前回の予定が入ります。実際にやった内容に追記・修正してください">${escapeHtml(rec.memo.songs)}</textarea>
       <label>講師コメント</label>
@@ -900,6 +1034,14 @@ function renderContent(){
   });
   root.querySelectorAll('textarea[data-note]').forEach(t=>{
     t.oninput=()=>{ const stu=cls.students.find(x=>x.id===t.dataset.note); if(stu){ stu.note=t.value; markDirty(); } };
+  });
+  const matAdd = document.getElementById('btnMatAdd');
+  if(matAdd) matAdd.onclick = openMaterial;
+  root.querySelectorAll('button[data-matdel]').forEach(b=>{
+    b.onclick=()=>{
+      rec.materials = (rec.materials||[]).filter(n=>String(n)!==b.dataset.matdel);
+      markDirty(); renderContent();
+    };
   });
   const sdInput = document.getElementById('sessionDateInput');
   if(sdInput){ sdInput.onchange=()=>{ if(sdInput.value){ rec.date=sdInput.value; } else { delete rec.date; } markDirty(); renderSessionTabs(); renderContent(); }; }
@@ -1063,6 +1205,17 @@ function renderClassEditArea(){
   document.getElementById('setStudio').value = c.studio||'';
   document.getElementById('setSchedule').value = c.schedule||'第1・第3';
   document.getElementById('setWeekday').value = c.weekday||'';
+  // コース選択。教材シートが無い(materialsが空)ときは欄ごと隠す＝音楽のみ運用では見えない
+  const courseNames = Object.keys(materials);
+  const cf = document.getElementById('courseField');
+  const cs = document.getElementById('setCourse');
+  if(!courseNames.length){ cf.style.display='none'; }
+  else{
+    cf.style.display='';
+    cs.innerHTML = `<option value="">（設定しない）</option>` +
+      courseNames.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    cs.value = c.course||'';
+  }
   // 既存の教室名を候補(datalist)に集約
   const studios = [...new Set(store.classes.map(x=>(x.studio||'').trim()).filter(Boolean))].sort();
   document.getElementById('studioList').innerHTML = studios.map(s=>`<option value="${escapeHtml(s)}">`).join('');
@@ -1145,6 +1298,7 @@ function commitEditName(){ // 編集中フォームの値をオブジェクト�
   c.studio = document.getElementById('setStudio').value.trim();
   c.schedule = document.getElementById('setSchedule').value;
   c.weekday = document.getElementById('setWeekday').value;
+  if(Object.keys(materials).length) c.course = document.getElementById('setCourse').value;
 }
 
 /* ====== 初期化 ====== */
@@ -1157,6 +1311,7 @@ function init(){
   renderAll();
   if(effectiveUrl()){
     fetchTeachers().then(list=>{ teacherList=list; }).catch(()=>{});
+    fetchMaterials().then(m=>{ materials=m; if(Object.keys(m).length) renderContent(); }).catch(()=>{});
     if(store.teacherId){ doReload(); } else { updateStatus('設定で講師を選択してください'); }
   } else { updateStatus('ローカル保存モード'); }
 
@@ -1186,6 +1341,18 @@ function init(){
   document.getElementById('btnHistory').onclick=()=>{ renderHistory(); document.getElementById('dlgHistory').showModal(); };
   document.getElementById('btnHistClose').onclick=()=>document.getElementById('dlgHistory').close();
   document.getElementById('btnMkClose').onclick=()=>document.getElementById('dlgMakeup').close();
+  document.getElementById('btnMatClose').onclick=()=>document.getElementById('dlgMaterial').close();
+  document.getElementById('matSearch').oninput=renderMaterialList;
+  document.getElementById('btnMatDone').onclick=()=>{
+    const rec = ensure(curClassId, curYear, curMonth, curSession);
+    // 教材リストの並び順を保って保存する
+    const cls = curClass();
+    const list = materials[(cls.course||'').trim()] || [];
+    rec.materials = list.filter(m=>matPick.has(String(m.no))).map(m=>String(m.no));
+    markDirty();
+    document.getElementById('dlgMaterial').close();
+    renderContent();
+  };
 
   // 設定ダイアログ：クラス切替
   document.getElementById('editClassSel').onchange=e=>{
