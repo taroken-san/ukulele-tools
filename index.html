@@ -555,34 +555,42 @@ function drawScore(){
   if(rowCounts.length>=2&&rowCounts[rowCounts.length-1]===1){
     rowCounts.pop(); rowCounts[rowCounts.length-1]+=1;
   }
-  const rows=rowCounts.length, rowH=(hasLyric?150:124)+13, padTop=8;
+  const rowH=(hasLyric?150:124)+13, padTop=8;
   const esc=s=>(''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const title=(document.getElementById('songTitle').value||'').trim();
   const lyricist=(document.getElementById('lyricist').value||'').trim();
   const composer=(document.getElementById('composer').value||'').trim();
   const credits=[lyricist?'作詞　'+lyricist:'',composer?'作曲　'+composer:''].filter(Boolean).join('　　');
   const headerH=(title?28:0)+(credits?18:0)+((title||credits)?10:0);
-  const H=padTop+headerH+rows*rowH+8;
   const PH=pal();
-  let g='';
-  if(title)g+=`<text x="${(W+40)/2}" y="${padTop+21}" text-anchor="middle" font-size="20" font-weight="bold" fill="${PH.ink}">${esc(title)}</text>`;
-  if(credits)g+=`<text x="${W+20}" y="${padTop+headerH-6}" text-anchor="end" font-size="12" fill="${PH.mut}">${esc(credits)}</text>`;
-  let k=0;
-  rowCounts.forEach((cnt,r)=>{const mw=W/cnt;
-    for(let c=0;c<cnt;c++){const m=song[k],mx=20+c*mw,my=padTop+headerH+r*rowH;
-      g+=drawMeasure(mx,my,mw,m,k===cur,rowH,k);
-      if(!PRINTING){
-        g+=`<rect class="mhit" data-k="${k}" x="${mx-2}" y="${my+2}" width="${mw}" height="${Math.round(rowH-8)}" fill="transparent" style="cursor:pointer"/>`;
-        // 歌詞ゾーン（drawMeasureのlyricBaselineYと一致）。mhitより後に描くのでこの帯は歌詞編集が優先
-        const lyY=lyricBaselineY(my);
-        g+=`<rect class="lhit" data-k="${k}" x="${mx}" y="${lyY-13}" width="${mw}" height="24" fill="transparent" style="cursor:text"/>`;
-      }
-      k++;}
-  });
   // 印刷時は「表示サイズ」の設定に関わらず常に安全な等倍で出力し、A4からはみ出さないようにする（画面表示だけ好みのサイズにできる）
   const scoreW=W+40, Z=PRINTING?1:SCALE;
-  document.getElementById('svgHost').innerHTML=
-    `<svg width="${scoreW*Z}" height="${H*Z}" viewBox="0 0 ${scoreW} ${H}">${g}</svg>`;
+  // 全曲を1枚の巨大なSVGにせず、行(段)ごとに別々のSVGブロックへ分割する。
+  // 各ブロックに「ページの途中で分割しない」指定を付け、改ページで1行の途中(数字と歌詞の間など)が
+  // ちぎれて別ページに飛ばないようにする。
+  let html='';
+  if(title||credits){
+    const hH=padTop+headerH;
+    let hg='';
+    if(title)hg+=`<text x="${scoreW/2}" y="${padTop+21}" text-anchor="middle" font-size="20" font-weight="bold" fill="${PH.ink}">${esc(title)}</text>`;
+    if(credits)hg+=`<text x="${scoreW-20}" y="${hH-6}" text-anchor="end" font-size="12" fill="${PH.mut}">${esc(credits)}</text>`;
+    html+=`<div style="break-inside:avoid;page-break-inside:avoid;"><svg width="${scoreW*Z}" height="${hH*Z}" viewBox="0 0 ${scoreW} ${hH}">${hg}</svg></div>`;
+  }
+  let k=0;
+  rowCounts.forEach((cnt,r)=>{const mw=W/cnt;
+    let rg='';
+    for(let c=0;c<cnt;c++){const m=song[k],mx=20+c*mw,my=padTop;
+      rg+=drawMeasure(mx,my,mw,m,k===cur,rowH,k);
+      if(!PRINTING){
+        rg+=`<rect class="mhit" data-k="${k}" x="${mx-2}" y="${my+2}" width="${mw}" height="${Math.round(rowH-8)}" fill="transparent" style="cursor:pointer"/>`;
+        // 歌詞ゾーン（drawMeasureのlyricBaselineYと一致）。mhitより後に描くのでこの帯は歌詞編集が優先
+        const lyY=lyricBaselineY(my);
+        rg+=`<rect class="lhit" data-k="${k}" x="${mx}" y="${lyY-13}" width="${mw}" height="24" fill="transparent" style="cursor:text"/>`;
+      }
+      k++;}
+    html+=`<div style="break-inside:avoid;page-break-inside:avoid;"><svg width="${scoreW*Z}" height="${rowH*Z}" viewBox="0 0 ${scoreW} ${rowH}">${rg}</svg></div>`;
+  });
+  document.getElementById('svgHost').innerHTML=html;
   document.querySelectorAll('.mhit').forEach(r=>r.onclick=()=>{cur=+r.dataset.k;SEL=null;render();});
   document.querySelectorAll('.lhit').forEach(r=>r.onclick=()=>openLyricEditor(+r.dataset.k));
   if(LYRICEDIT!=null)positionLyricEditor(); // 再描画後もフローティング入力欄を追従させる
