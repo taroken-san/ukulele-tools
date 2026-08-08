@@ -1388,7 +1388,12 @@ function init(){
     if(!curClass()) curClassId = store.classes[0]?.id;
     saveLocal(); document.getElementById('dlgSettings').close();
     if(teacherChanged && effectiveUrl() && newTeacher){
-      curClassId=null; doReload(); // 選んだ講師のデータを取得
+      // 【重要】別講師に切り替えたら、前の講師のデータを絶対に引きずらない。
+      // 以前はここでdoReload()だけ呼んでいたが、dirty時の確認をキャンセルすると
+      // 「講師名だけ新しい・中身は前の講師」の状態で保存でき、別講師のシートを汚染していた。
+      store.classes = []; store.records = {}; curClassId = null; dirty = false;
+      saveLocal(); renderAll();
+      doReload(); // 選んだ講師のデータを取得
     } else {
       renderAll(); markDirty();
     }
