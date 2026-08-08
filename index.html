@@ -233,7 +233,9 @@
     <button id="accBtn" disabled>＞ アクセント</button>
     <button id="tieBtn" disabled>🔗 タイ</button>
     <button id="rollBtn" disabled>〜 ロール</button>
-    <span class="hint" style="margin:0;">マスを選んで「アクセント」「タイ」「ロール」を付与（タイはPCは T キーでも可）。ロールはコード弾き（複数弦）に付けると低音弦から高音弦へ素早くかき鳴らす「ポロロン」表記に。</span>
+    <button id="shuffleBtn" disabled title="選択中の拍をシャッフル表記（1・4マス目のみの16分）に一発変換">🎵 シャッフル</button>
+    <button id="shuffleUpBtn" disabled title="シャッフルの4マス目のストローク方向を↓/↑で切替">↓/↑ 切替</button>
+    <span class="hint" style="margin:0;">マスを選んで「アクセント」「タイ」「ロール」を付与（タイはPCは T キーでも可）。ロールはコード弾き（複数弦）に付けると低音弦から高音弦へ素早くかき鳴らす「ポロロン」表記に。「シャッフル」は選択中のマスがある拍を1・4マス目だけの16分（付点なし）に一発変換、「↓/↑切替」で4マス目の向きを変更。</span>
   </div>
   <div class="ctrls" id="numpad" style="margin-top:8px;gap:5px;">
     <span class="hint" style="margin:0 4px 0 0;">フレット入力（弦のマスを選んで押す）▶</span>
@@ -323,7 +325,7 @@ document.title=INST.name+'譜エディタ';
 const SUB={1:[''],2:['','&'],3:['','・','・'],4:['','e','&','a']};
 
 function newSlot(){return {type:'rest',stroke:'d',acc:false,tie:false,roll:false,frets:{}};}
-function newBeat(div){return {div,chord:'',slots:Array.from({length:div},newSlot)};}
+function newBeat(div){return {div,chord:'',shuffle:false,slots:Array.from({length:div},newSlot)};}
 function newMeasure(meter,div){return {meter,chord:'',lyric:'',mark:'',beats:Array.from({length:meter},()=>newBeat(div))};}
 // メロディ（ピック音符）を含む小節か。ストロークのみの小節では歌詞を音符ごとに割り振らず、流れるテキストとして扱う
 function hasMelody(m){return m.beats.some(bt=>bt.slots.some(s=>s.type==='pick'));}
@@ -525,7 +527,7 @@ function drawMeasure(mx,my,mw,m,isCur,rowH,idx){
     }
     // 音符・付点・歌詞
     bt.slots.forEach((s,i)=>{const x=xOf(i);
-      const dotted=(s.type!=='rest')&&beams(div,span(i))>=1&&span(i)===3; // 付点8分
+      const dotted=(s.type!=='rest')&&beams(div,span(i))>=1&&span(i)===3&&!bt.shuffle; // 付点8分（シャッフル表記時は丸を出さない）
       if(s.type==='strum'){const col=s.stroke==='d'?P.down:P.up;
         g+=`<line x1="${x-5}" y1="${baseY-4}" x2="${x+5}" y2="${yOf(1)+4}" stroke="${col}" stroke-width="2.2"/>`;
         if(s.stroke==='u')g+=`<text x="${x}" y="${baseY+18}" text-anchor="middle" font-size="12" fill="${col}" font-weight="bold">∧</text>`;
@@ -860,6 +862,15 @@ function render(){
   rb.disabled=!rollOK;
   rb.style.background=rollOK&&ss.roll?'#3a7bd5':'';
   rb.style.color=rollOK&&ss.roll?'#fff':'';
+  const shb=document.getElementById('shuffleBtn'), sub=document.getElementById('shuffleUpBtn');
+  const curBeat=SEL&&cm().beats[SEL.b];
+  shb.disabled=!SEL;
+  shb.style.background=curBeat&&curBeat.shuffle?'#3a7bd5':'';
+  shb.style.color=curBeat&&curBeat.shuffle?'#fff':'';
+  const upOK=curBeat&&curBeat.shuffle&&curBeat.slots[3]&&curBeat.slots[3].type==='strum';
+  sub.disabled=!upOK;
+  sub.style.background=upOK&&curBeat.slots[3].stroke==='u'?'#993c1d':'';
+  sub.style.color=upOK&&curBeat.slots[3].stroke==='u'?'#fff':'';
   // 数字パッドの状態（弦のマス＝pickかつ弦選択時のみ有効）
   const fretOK=ss&&ss.type==='pick'&&SEL.s!=null&&(SEL.s in ss.frets);
   document.querySelectorAll('.npd').forEach(b=>b.disabled=!fretOK);
@@ -895,6 +906,22 @@ document.getElementById('rollBtn').onclick=()=>{
   if(!SEL)return;const s=cm().beats[SEL.b].slots[SEL.i];
   if(!s||s.type!=='pick')return;
   s.roll=!s.roll;render();
+};
+document.getElementById('shuffleBtn').onclick=()=>{
+  if(!SEL)return;
+  const bt=cm().beats[SEL.b], ch=bt.chord;
+  const keepUp=bt.shuffle&&bt.slots[3]&&bt.slots[3].stroke==='u'; // 既にシャッフルなら4マス目の向きを引き継ぐ
+  const nb=newBeat(4);
+  nb.chord=ch; nb.shuffle=true;
+  nb.slots[0]={type:'strum',stroke:'d',acc:false,tie:false,roll:false,frets:{}};
+  nb.slots[3]={type:'strum',stroke:keepUp?'u':'d',acc:false,tie:false,roll:false,frets:{}};
+  const b=SEL.b;
+  cm().beats[b]=nb; SEL={b,i:3,s:null}; render(); // 4マス目を選択状態のまま残し、続けて↓/↑切替を押せるようにする
+};
+document.getElementById('shuffleUpBtn').onclick=()=>{
+  if(!SEL)return;const bt=cm().beats[SEL.b];
+  if(!bt.shuffle||!bt.slots[3]||bt.slots[3].type!=='strum')return;
+  bt.slots[3].stroke=bt.slots[3].stroke==='u'?'d':'u';render();
 };
 
 // ===== キーボードだけでマス移動＋テンキー入力（PC専用） =====
@@ -954,7 +981,7 @@ document.getElementById('next').onclick=()=>{if(cur<song.length-1){cur++;SEL=nul
 document.getElementById('add').onclick=()=>{song.splice(cur+1,0,newMeasure(cm().meter,+document.getElementById('alldiv').value));cur++;render();};
 document.getElementById('dup').onclick=()=>{const src=cm();
   const copy={meter:src.meter,lyric:src.lyric,mark:'', // マークは複製先に引き継がない(区間の目印なので重複を避ける)
-    beats:src.beats.map(bt=>({div:bt.div,chord:bt.chord,slots:bt.slots.map(s=>({type:s.type,stroke:s.stroke,acc:s.acc,tie:s.tie,roll:s.roll,frets:{...s.frets}}))}))};
+    beats:src.beats.map(bt=>({div:bt.div,chord:bt.chord,shuffle:bt.shuffle,slots:bt.slots.map(s=>({type:s.type,stroke:s.stroke,acc:s.acc,tie:s.tie,roll:s.roll,frets:{...s.frets}}))}))};
   song.splice(cur+1,0,copy);cur++;render();};
 document.getElementById('del').onclick=()=>{if(song.length>1){song.splice(cur,1);if(cur>=song.length)cur=song.length-1;render();}};
 document.getElementById('meter').onchange=e=>{const meter=+e.target.value;const m=cm();
@@ -1043,7 +1070,7 @@ function normalize(doc){
           if([1,2,3,4].includes(st)&&Number.isFinite(fr))frets[st]=Math.min(24,Math.max(0,Math.round(fr)));}
         return {type,stroke:(s&&s.stroke==='u')?'u':'d',acc:!!(s&&s.acc),tie:!!(s&&s.tie),roll:!!(s&&s.roll),frets};
       });
-      return {div,chord:(bt&&bt.chord!=null)?''+bt.chord:'',slots};
+      return {div,chord:(bt&&bt.chord!=null)?''+bt.chord:'',shuffle:!!(bt&&bt.shuffle),slots};
     });
     return {meter,chord:'',lyric:(m&&m.lyric!=null)?''+m.lyric:'',mark:(m&&m.mark!=null)?''+m.mark:'',beats};
   });
