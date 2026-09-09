@@ -80,6 +80,7 @@
   .status-badge.cancelled{background:#dfe3db;color:#4b5346}
   .status-badge.tentative{background:#fde68a;color:#92620a}
   .status-badge.makeup{background:#bfdbfe;color:#1e40af}
+  .status-badge.trial{background:#fce7f3;color:#9d174d}
   .sync-status{font-size:11px;padding:6px 8px;border-radius:7px;margin:6px 2px 0;text-align:center;font-weight:700}
   .sync-status.synced{background:rgba(255,255,255,.08);color:#9db3a5}
   .sync-status.dirty{background:#3d2e1a;color:#f0c987}
@@ -199,7 +200,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0910b</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0910c</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -500,7 +501,7 @@ const SCHED_PIN="7015";
 const TEACHER_PINS=["8459", "7549", "7144", "1796", "5941", "2130", "3497", "1973", "6788", "6726", "4890", "4304", "1430", "4273", "6673", "8565", "1950", "6418", "4313", "5907", "9328", "8130"];
 const timeRows=["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00"];
 const weekdays=["日","月","火","水","木","金","土"];
-const statuses={tentative:"仮",confirmed:"確定",cancelled:"休講",makeup:"振替"};
+const statuses={tentative:"仮",confirmed:"確定",cancelled:"休講",makeup:"振替",trial:"体験"};
 const PATTERNS={
   first_third:{weeks:[1,3],label:"第1・第3",short:"1・3週"},
   second_fourth:{weeks:[2,4],label:"第2・第4",short:"2・4週"},
@@ -692,7 +693,7 @@ function dayEventChips(evs,labelFn){
   const cap=isNarrowScreen()?2:evs.length;
   const shown=evs.slice(0,cap);
   const rest=evs.length-shown.length;
-  let html=shown.map(e=>`<div class="event ${categoryForEvent(e)}${e.status==="cancelled"?" cancelled":""}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${labelFn(e)}${e.status==="cancelled"?`<span class="status-badge cancelled">休講</span>`:""}</small></div>`).join("");
+  let html=shown.map(e=>`<div class="event ${categoryForEvent(e)}${e.status==="cancelled"?" cancelled":""}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${labelFn(e)}${e.status==="cancelled"?`<span class="status-badge cancelled">休講</span>`:e.status==="trial"?`<span class="status-badge trial">体験</span>`:""}</small></div>`).join("");
   if(rest>0)html+=`<div class="event" style="background:#eef0ec;color:#596156;text-align:center;font-weight:800">+${rest}件</div>`;
   return html;
 }
@@ -762,7 +763,7 @@ function renderEventTimelineGrid(containerId,columns,mode,confIds){
       const border=cancelled?"#b3b8ae":conflict?"#ef4444":(catBorder[catId]||"#9ca3af");
       const txt=cancelled?"#4b5346":conflict?"#7f1d1d":(catText[catId]||"#111");
       const laneW=100/maxLanes,left=lane*laneW;
-      const statusBadge=cancelled?`<span class="status-badge cancelled">休講</span>`:e.status==="tentative"?`<span class="status-badge tentative">仮</span>`:e.status==="makeup"?`<span class="status-badge makeup">振替</span>`:"";
+      const statusBadge=cancelled?`<span class="status-badge cancelled">休講</span>`:e.status==="tentative"?`<span class="status-badge tentative">仮</span>`:e.status==="makeup"?`<span class="status-badge makeup">振替</span>`:e.status==="trial"?`<span class="status-badge trial">体験</span>`:"";
       return `<div onclick="editEvent('${e.id}')" title="${cancelled?"休講／":""}${eventBlockLabel(e,mode)}／${e.start}-${e.end}" style="position:absolute;top:${top}px;left:calc(${left}% + 2px);width:calc(${laneW}% - 4px);height:${h}px;background:${bg};border-left:3px solid ${border};border-radius:3px;padding:2px 4px;box-sizing:border-box;cursor:pointer;overflow:hidden;color:${txt};font-size:11px;line-height:1.3">
         <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.start} ${eventBlockLabel(e,mode)}${statusBadge}</b>
         <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-size:10px;opacity:.85">${eventSub(e)}</span>
@@ -827,7 +828,8 @@ function renderMonth(){
     $("weekList").innerHTML=rows.length?rows.map(({date,e})=>{
       const cancelled=e.status==="cancelled";
       const label=`${byId(state.rooms,e.roomId).name} ${classType(e.classTypeId).name}${e.status==="tentative"?"（仮）":e.status==="makeup"?"（振替）":""}`;
-      return `<div class="item" style="cursor:pointer" onclick="editEvent('${e.id}')"><b>${date.getMonth()+1}/${date.getDate()}(${weekdays[date.getDay()]}) ${e.start}-${e.end}${cancelled?`<span class="status-badge cancelled">休講</span>`:""}</b><br>${label}</div>`;
+      const badge=cancelled?`<span class="status-badge cancelled">休講</span>`:e.status==="trial"?`<span class="status-badge trial">体験</span>`:"";
+      return `<div class="item" style="cursor:pointer" onclick="editEvent('${e.id}')"><b>${date.getMonth()+1}/${date.getDate()}(${weekdays[date.getDay()]}) ${e.start}-${e.end}${badge}</b><br>${label}</div>`;
     }).join(""):`<div class="item">今週の予定はありません。</div>`;
   }
 }
