@@ -48,6 +48,7 @@
   #navBackdrop{display:none}
   h1{font-size:22px;margin:0}
   .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .toolbar-filters{display:contents}
   .chip,.tool-btn,.primary,.ghost{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 11px;min-height:38px}
   .primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:800}
   .ghost{color:var(--text)}
@@ -59,6 +60,7 @@
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px;box-shadow:var(--shadow)}
   .stat span{color:var(--muted);font-size:12px}.stat b{display:block;font-size:22px;margin-top:2px}
   .layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px}
+  #recurringLayout{grid-template-columns:minmax(0,1fr) 360px}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
   .panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:800}
   .panel-b{padding:14px}
@@ -68,11 +70,16 @@
   th{position:sticky;top:0;background:#f8faf7;z-index:1;padding:9px;white-space:nowrap;text-align:left;font-size:12px;color:#596156}
   td{height:76px;background:#fff;padding:6px;min-width:112px}
   .time{width:64px;background:#f8faf7;font-weight:800;color:#596156;text-align:center}
-  .event{border-left:4px solid var(--green);background:#eef7f2;border-radius:7px;padding:6px 7px;margin-bottom:5px;line-height:1.35}
+  .event{border-left:4px solid var(--green);background:#eef7f2;border-radius:7px;padding:6px 7px;margin-bottom:5px;line-height:1.35;cursor:pointer;transition:filter .12s}
+  .event:hover{filter:brightness(.97)}
   .event.music{border-color:var(--blue);background:#edf5fb}.event.english{border-color:var(--green);background:#edf7f1}
   .event.health{border-color:var(--purple);background:#f5f0fb}.event.rental{border-color:var(--amber);background:#fff3e7}
   .event.conflict{border-color:var(--red);background:#fff0ef}
-  .event.cancelled,.event-cancelled{border-color:#b3b8ae!important;background:#eef0ec!important;color:#8a9084!important;text-decoration:line-through;opacity:.75}
+  .event.cancelled,.event-cancelled{border-color:#b3b8ae!important;background:#eef0ec!important;color:#4b5346!important}
+  .status-badge{border-radius:6px;padding:0 4px;font-size:9px;font-weight:800;margin-left:3px;vertical-align:1px;white-space:nowrap}
+  .status-badge.cancelled{background:#dfe3db;color:#4b5346}
+  .status-badge.tentative{background:#fde68a;color:#92620a}
+  .status-badge.makeup{background:#bfdbfe;color:#1e40af}
   .sync-status{font-size:11px;padding:6px 8px;border-radius:7px;margin:6px 2px 0;text-align:center;font-weight:700}
   .sync-status.synced{background:rgba(255,255,255,.08);color:#9db3a5}
   .sync-status.dirty{background:#3d2e1a;color:#f0c987}
@@ -88,7 +95,7 @@
   .field input,.field select,.field textarea{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fff;width:100%}
   textarea{min-height:72px;resize:vertical}
   .month{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .day{min-height:116px;background:#fff;padding:8px}.day b{display:block;margin-bottom:6px}
+  .day{min-height:116px;background:#fff;padding:8px;cursor:pointer;transition:background .12s}.day:hover{background:#faf7f0}.day b{display:block;margin-bottom:6px}
   .student-sheet{background:#fff;color:#111;padding:10px;border-radius:8px;border:1px solid var(--line)}
   .student-sheet.compact{padding:6px}
   .student-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;border-bottom:2px solid #222;padding-bottom:8px;margin-bottom:8px}
@@ -127,7 +134,7 @@
   .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(10px);background:#20231f;color:#fff;padding:13px 22px;border-radius:12px;font-weight:800;font-size:15px;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:.2s;z-index:20}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   @media(max-width:900px){
-    .app{display:block}.layout,.form-grid,.student-calendars,.settings-grid{grid-template-columns:1fr}
+    .app{display:block}.layout,.form-grid,.student-calendars,.settings-grid,#recurringLayout{grid-template-columns:1fr}
     .summary{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
     .stat{padding:9px 10px}
     .stat span{font-size:11px}.stat b{font-size:18px;margin-top:1px}
@@ -192,7 +199,7 @@
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0910a</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0910b</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -202,9 +209,10 @@
           <div class="date-nav"><button class="tool-btn" id="prevDay">‹</button><span class="date-label" id="dateLabel"></span><button class="tool-btn" id="nextDay">›</button></div>
         </div>
         <div class="toolbar">
-          <input class="chip" id="currentDate" type="date" title="日付を選ぶ">
-          <select class="chip" id="roomFilter"></select>
-          <select class="chip" id="categoryFilter"></select>
+          <span class="toolbar-filters" id="toolbarFilters">
+            <input class="chip" id="currentDate" type="date" title="日付を選ぶ">
+            <select class="chip" id="roomFilter"></select>
+          </span>
           <button class="primary" id="btnQuickAdd">＋ 予定追加</button>
         </div>
       </div>
@@ -222,7 +230,7 @@
         <div class="stat"><span>この日の予定</span><b id="statEvents">0</b></div>
         <div class="stat" title="その日に一度も予定が入っていない教室の数です。時間帯ごとの空きは「空き教室検索」で確認してください。"><span>空き教室(終日)</span><b id="statRooms">0</b></div>
         <div class="stat"><span>未確定</span><b id="statTentative">0</b></div>
-        <div class="stat"><span>重複警告</span><b id="statConflicts" style="color:var(--red)">0</b></div>
+        <div class="stat"><span>重複警告</span><b id="statConflicts">0</b></div>
       </section>
 
       <section class="view active" id="rooms">
@@ -345,6 +353,18 @@
 
       <section class="view" id="recurring">
         <div id="recurringLayout" class="layout">
+          <div class="panel" id="recurringListPanel">
+            <div class="panel-h">
+              <span>登録済み</span>
+              <div class="toolbar">
+                <select class="chip" id="recurringRoomFilter"></select>
+                <label style="display:flex;align-items:center;gap:5px;font-weight:700"><input type="checkbox" id="recurringOnlyEmpty" style="width:auto">未割当のみ</label>
+                <button class="chip" id="btnRecurringViewList" onclick="setRecurringView('list')" style="font-weight:700">リスト</button>
+                <button class="chip" id="btnRecurringViewGrid" onclick="setRecurringView('grid')">グリッド</button>
+              </div>
+            </div>
+            <div class="panel-b list" id="recurringList"></div>
+          </div>
           <div class="panel" id="recurringFormPanel">
             <div class="panel-h">基本スケジュール</div>
             <div class="panel-b">
@@ -361,24 +381,16 @@
               </div>
               <div class="row-actions">
                 <button class="primary" id="btnSaveRecurring">基本スケジュール保存</button>
+              </div>
+              <div class="row-actions" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
                 <button class="ghost" id="btnGenerateMonth">表示月の予定を作成</button>
                 <button class="ghost" id="btnGenerateYear">年度予定を作成</button>
                 <button class="ghost" id="btnRebuildEvents">予定を作り直す</button>
-                <button class="ghost" id="btnDeleteRecurring">削除</button>
+              </div>
+              <div class="row-actions" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+                <button class="ghost" id="btnDeleteRecurring" style="border-color:var(--red);color:var(--red)">このクラスを削除</button>
               </div>
             </div>
-          </div>
-          <div class="panel" id="recurringListPanel">
-            <div class="panel-h">
-              <span>登録済み</span>
-              <div class="toolbar">
-                <select class="chip" id="recurringRoomFilter"></select>
-                <label style="display:flex;align-items:center;gap:5px;font-weight:700"><input type="checkbox" id="recurringOnlyEmpty" style="width:auto">未割当のみ</label>
-                <button class="chip" id="btnRecurringViewList" onclick="setRecurringView('list')" style="font-weight:700">リスト</button>
-                <button class="chip" id="btnRecurringViewGrid" onclick="setRecurringView('grid')">グリッド</button>
-              </div>
-            </div>
-            <div class="panel-b list" id="recurringList"></div>
           </div>
         </div>
         <!-- グリッドビュー：全幅表示 -->
@@ -595,7 +607,6 @@ function fillSelectors(){
   $("eventTeacher").innerHTML=teacherOpts;$("recurringTeacher").innerHTML=`<option value="">未設定</option>${teacherOpts}`;
   $("eventCategory").innerHTML=state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
   $("masterClassTypeCategory").innerHTML=state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
-  $("categoryFilter").innerHTML=`<option value="all">全カテゴリ</option>${state.categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join("")}`;
   $("eventStatus").innerHTML=Object.keys(statuses).map(k=>`<option value="${k}">${statuses[k]}</option>`).join("");
   $("studentRoomFilter").innerHTML=`<option value="">全教室</option>${roomOpts}`;
   $("studentTypeFilter").innerHTML=`<option value="">全種別</option>`+state.classTypes.filter(ct=>ct.active!==false&&ct.categoryId!=="rental").map(ct=>`<option value="${ct.id}">${ct.name}</option>`).join("");
@@ -632,7 +643,6 @@ function bind(){
   $("navToggle").onclick=()=>document.body.classList.toggle("nav-open");
   $("navBackdrop").onclick=()=>document.body.classList.remove("nav-open");
   document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");selectedCategory=b.dataset.cat;render();});
-  $("categoryFilter").onchange=()=>{selectedCategory=$("categoryFilter").value;renderTabs();render();};
   $("roomFilter").onchange=render;$("currentDate").onchange=()=>{$("eventDate").value=$("currentDate").value;render();};
   $("prevDay").onclick=()=>shiftPeriod(-1);$("nextDay").onclick=()=>shiftPeriod(1);$("btnQuickAdd").onclick=()=>{clearForm();showView("input");};
   $("btnSwitchUser").onclick=()=>{$("loginForm").classList.remove("hidden");$("loginCompact").classList.add("hidden");$("loginBox").classList.remove("signedin");};
@@ -659,12 +669,12 @@ function bind(){
   $("btnSaveClassTypeMaster").onclick=saveClassTypeMaster;$("btnNewClassTypeMaster").onclick=clearClassTypeMaster;
 }
 function loginAs(u){currentUser=u;$("loginUser").value=u.id;$("loginPin").value="";$("loginStatus").textContent=`${u.name}でログイン中`;$("loginForm").classList.add("hidden");$("loginCompact").classList.remove("hidden");$("loginBox").classList.add("signedin");document.querySelectorAll(".manager-only").forEach(el=>el.classList.toggle("hidden",!isManager()));document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!isAdmin()));if(!isManager()&&["teachers","recurring"].includes(currentView))showView("rooms");if(!isAdmin()&&currentView==="settings")showView("rooms");$("eventTeacher").disabled=!isManager();if(!isManager())$("eventTeacher").value=currentUser.id;render();}
-function showView(v){currentView=v;document.querySelectorAll(".nav-btn,.view").forEach(el=>el.classList.remove("active"));document.querySelector(`.nav-btn[data-view="${v}"]`)?.classList.add("active");$(v).classList.add("active");$("title").textContent={rooms:"教室使用表",teachers:"講師スケジュール",input:"予定入力",availability:"空き教室検索",month:"講師カレンダー",student:"生徒向け予定",recurring:"基本スケジュール",settings:"設定",share:"共有用まとめ"}[v];$("summaryBar").classList.toggle("hidden",!["rooms","teachers"].includes(v));render();}
+function showView(v){currentView=v;document.querySelectorAll(".nav-btn,.view").forEach(el=>el.classList.remove("active"));document.querySelector(`.nav-btn[data-view="${v}"]`)?.classList.add("active");$(v).classList.add("active");$("title").textContent={rooms:"教室使用表",teachers:"講師スケジュール",input:"予定入力",availability:"空き教室検索",month:"講師カレンダー",student:"生徒向け予定",recurring:"基本スケジュール",settings:"設定",share:"共有用まとめ"}[v];$("summaryBar").classList.toggle("hidden",!["rooms","teachers"].includes(v));$("toolbarFilters").classList.toggle("hidden",["input","availability"].includes(v));render();}
 function shiftPeriod(n){const d=new Date($("currentDate").value+"T00:00:00");if(isMonthlyView())d.setMonth(d.getMonth()+n);else d.setDate(d.getDate()+n);$("currentDate").value=ymd(d);$("eventDate").value=$("currentDate").value;render();}
 function renderDateLabel(){const d=new Date($("currentDate").value+"T00:00:00");$("dateLabel").textContent=isMonthlyView()?`${d.getFullYear()}年${d.getMonth()+1}月`:`${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;}
 function render(){fillSelectors();renderTabs();renderDateLabel();renderStats();renderRooms();renderTeachers();renderConflicts();renderMonth();renderStudentSchedule();renderRecurring();renderFormCheck();renderAvailability();renderMasters();renderShareText();renderSyncStatus();saveLocal();}
-function renderTabs(){document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.cat===selectedCategory));$("categoryFilter").value=selectedCategory;}
-function renderStats(){const all=filteredEvents();const evs=all.filter(e=>e.status!=="cancelled");const used=new Set(evs.map(e=>e.roomId));const conf=conflictsFor(state.events.filter(e=>e.date===$("currentDate").value));$("statEvents").textContent=evs.length;$("statRooms").textContent=Math.max(0,state.rooms.filter(r=>r.active).length-used.size);$("statTentative").textContent=evs.filter(e=>e.status==="tentative").length;$("statConflicts").textContent=conf.length;}
+function renderTabs(){document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.cat===selectedCategory));}
+function renderStats(){const all=filteredEvents();const evs=all.filter(e=>e.status!=="cancelled");const used=new Set(evs.map(e=>e.roomId));const conf=conflictsFor(state.events.filter(e=>e.date===$("currentDate").value));$("statEvents").textContent=evs.length;$("statRooms").textContent=Math.max(0,state.rooms.filter(r=>r.active).length-used.size);$("statTentative").textContent=evs.filter(e=>e.status==="tentative").length;$("statConflicts").textContent=conf.length;$("statConflicts").style.color=conf.length?"var(--red)":"";}
 function renderRooms(){
   const monthMode=roomsMode==="month";
   $("roomsDayWrap").classList.toggle("hidden",monthMode);
@@ -682,7 +692,7 @@ function dayEventChips(evs,labelFn){
   const cap=isNarrowScreen()?2:evs.length;
   const shown=evs.slice(0,cap);
   const rest=evs.length-shown.length;
-  let html=shown.map(e=>`<div class="event ${categoryForEvent(e)}${e.status==="cancelled"?" cancelled":""}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.status==="cancelled"?"休講 ":""}${e.start} ${labelFn(e)}</small></div>`).join("");
+  let html=shown.map(e=>`<div class="event ${categoryForEvent(e)}${e.status==="cancelled"?" cancelled":""}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${labelFn(e)}${e.status==="cancelled"?`<span class="status-badge cancelled">休講</span>`:""}</small></div>`).join("");
   if(rest>0)html+=`<div class="event" style="background:#eef0ec;color:#596156;text-align:center;font-weight:800">+${rest}件</div>`;
   return html;
 }
@@ -728,9 +738,9 @@ function renderEventTimelineGrid(containerId,columns,mode,confIds){
   const START_MIN=9*60,END_MIN=20*60+30;
   const PX_PER_MIN=1.3;
   const totalH=(END_MIN-START_MIN)*PX_PER_MIN;
-  const catColor={music:"#dbeafe",english:"#dcfce7",health:"#ede9fe",rental:"#fef9c3"};
-  const catBorder={music:"#3b82f6",english:"#22c55e",health:"#a855f7",rental:"#eab308"};
-  const catText={music:"#1e3a5f",english:"#14532d",health:"#4a044e",rental:"#713f12"};
+  const catColor={music:"#dbeafe",english:"#dcfce7",health:"#ede9fe",rental:"#fff3e7"};
+  const catBorder={music:"#3b82f6",english:"#22c55e",health:"#a855f7",rental:"var(--amber)"};
+  const catText={music:"#1e3a5f",english:"#14532d",health:"#4a044e",rental:"#7a3f10"};
   const timeAxis=[];
   for(let m=START_MIN;m<=END_MIN;m+=30){
     const top=(m-START_MIN)*PX_PER_MIN;
@@ -750,11 +760,11 @@ function renderEventTimelineGrid(containerId,columns,mode,confIds){
       const catId=categoryForEvent(e);
       const bg=cancelled?"#eef0ec":conflict?"#fee2e2":(catColor[catId]||"#f3f4f6");
       const border=cancelled?"#b3b8ae":conflict?"#ef4444":(catBorder[catId]||"#9ca3af");
-      const txt=cancelled?"#8a9084":conflict?"#7f1d1d":(catText[catId]||"#111");
+      const txt=cancelled?"#4b5346":conflict?"#7f1d1d":(catText[catId]||"#111");
       const laneW=100/maxLanes,left=lane*laneW;
-      const statusBadge=e.status==="tentative"?`<span style="background:#fde68a;color:#92620a;border-radius:7px;padding:0 4px;font-size:9px;font-weight:800;margin-left:3px;vertical-align:1px">仮</span>`:e.status==="makeup"?`<span style="background:#bfdbfe;color:#1e40af;border-radius:7px;padding:0 4px;font-size:9px;font-weight:800;margin-left:3px;vertical-align:1px">振替</span>`:"";
-      return `<div onclick="editEvent('${e.id}')" title="${cancelled?"休講／":""}${eventBlockLabel(e,mode)}／${e.start}-${e.end}" style="position:absolute;top:${top}px;left:calc(${left}% + 2px);width:calc(${laneW}% - 4px);height:${h}px;background:${bg};border-left:3px solid ${border};border-radius:3px;padding:2px 4px;box-sizing:border-box;cursor:pointer;overflow:hidden;color:${txt};font-size:11px;line-height:1.3${cancelled?";text-decoration:line-through":""}">
-        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cancelled?"休講 ":""}${e.start} ${eventBlockLabel(e,mode)}${statusBadge}</b>
+      const statusBadge=cancelled?`<span class="status-badge cancelled">休講</span>`:e.status==="tentative"?`<span class="status-badge tentative">仮</span>`:e.status==="makeup"?`<span class="status-badge makeup">振替</span>`:"";
+      return `<div onclick="editEvent('${e.id}')" title="${cancelled?"休講／":""}${eventBlockLabel(e,mode)}／${e.start}-${e.end}" style="position:absolute;top:${top}px;left:calc(${left}% + 2px);width:calc(${laneW}% - 4px);height:${h}px;background:${bg};border-left:3px solid ${border};border-radius:3px;padding:2px 4px;box-sizing:border-box;cursor:pointer;overflow:hidden;color:${txt};font-size:11px;line-height:1.3">
+        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.start} ${eventBlockLabel(e,mode)}${statusBadge}</b>
         <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-size:10px;opacity:.85">${eventSub(e)}</span>
         ${conflict?`<span style="color:#ef4444;font-weight:700">⚠重複</span>`:""}
       </div>`;
@@ -817,7 +827,7 @@ function renderMonth(){
     $("weekList").innerHTML=rows.length?rows.map(({date,e})=>{
       const cancelled=e.status==="cancelled";
       const label=`${byId(state.rooms,e.roomId).name} ${classType(e.classTypeId).name}${e.status==="tentative"?"（仮）":e.status==="makeup"?"（振替）":""}`;
-      return `<div class="item" style="cursor:pointer${cancelled?";opacity:.6;text-decoration:line-through":""}" onclick="editEvent('${e.id}')"><b>${date.getMonth()+1}/${date.getDate()}(${weekdays[date.getDay()]}) ${e.start}-${e.end}</b><br>${cancelled?"休講 ":""}${label}</div>`;
+      return `<div class="item" style="cursor:pointer" onclick="editEvent('${e.id}')"><b>${date.getMonth()+1}/${date.getDate()}(${weekdays[date.getDay()]}) ${e.start}-${e.end}${cancelled?`<span class="status-badge cancelled">休講</span>`:""}</b><br>${label}</div>`;
     }).join(""):`<div class="item">今週の予定はありません。</div>`;
   }
 }
@@ -1224,9 +1234,9 @@ function renderRecurringWeekGrid(){
   else if(gridWeekMode==="24")list=list.filter(r=>PATTERN_24.includes(r.weekPattern));
 
   // カテゴリ色
-  const catColor={music:"#dbeafe",english:"#dcfce7",health:"#ede9fe",rental:"#fef9c3"};
-  const catBorder={music:"#3b82f6",english:"#22c55e",health:"#a855f7",rental:"#eab308"};
-  const catText={music:"#1e3a5f",english:"#14532d",health:"#4a044e",rental:"#713f12"};
+  const catColor={music:"#dbeafe",english:"#dcfce7",health:"#ede9fe",rental:"#fff3e7"};
+  const catBorder={music:"#3b82f6",english:"#22c55e",health:"#a855f7",rental:"var(--amber)"};
+  const catText={music:"#1e3a5f",english:"#14532d",health:"#4a044e",rental:"#7a3f10"};
 
   // 時間軸：8:00〜21:00
   const START_MIN=8*60, END_MIN=21*60;
@@ -1304,6 +1314,7 @@ function renderRecurringWeekGrid(){
       <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#dbeafe;border-left:3px solid #3b82f6;display:inline-block;border-radius:2px"></span>音楽</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#dcfce7;border-left:3px solid #22c55e;display:inline-block;border-radius:2px"></span>英会話</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#ede9fe;border-left:3px solid #a855f7;display:inline-block;border-radius:2px"></span>健康</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#fff3e7;border-left:3px solid var(--amber);display:inline-block;border-radius:2px"></span>レンタル</span>
       <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#fee2e2;border-left:3px solid #ef4444;display:inline-block;border-radius:2px"></span>重複あり</span>
     </div>`;
 }
