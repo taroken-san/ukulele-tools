@@ -72,6 +72,10 @@
   .event.music{border-color:var(--blue);background:#edf5fb}.event.english{border-color:var(--green);background:#edf7f1}
   .event.health{border-color:var(--purple);background:#f5f0fb}.event.rental{border-color:var(--amber);background:#fff3e7}
   .event.conflict{border-color:var(--red);background:#fff0ef}
+  .event.cancelled,.event-cancelled{border-color:#b3b8ae!important;background:#eef0ec!important;color:#8a9084!important;text-decoration:line-through;opacity:.75}
+  .sync-status{font-size:11px;padding:6px 8px;border-radius:7px;margin:6px 2px 0;text-align:center;font-weight:700}
+  .sync-status.synced{background:rgba(255,255,255,.08);color:#9db3a5}
+  .sync-status.dirty{background:#3d2e1a;color:#f0c987}
   .event .title{font-weight:800}.event small{display:block;color:#5e665b}
   .event.event-cont{padding:6px 7px;margin-bottom:5px;min-height:34px;cursor:pointer;display:flex;align-items:center}
   .list{display:flex;flex-direction:column;gap:10px}.item,.warn{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff}
@@ -165,6 +169,7 @@
       <button class="switch" id="btnQuickLoad">読み込み ↓</button>
       <button class="switch" id="btnQuickSave">保存 ↑</button>
     </div>
+    <div class="sync-status" id="syncStatus"></div>
     <nav>
       <div class="nav-group">日々の確認</div>
       <button class="nav-btn active" data-view="rooms">教室使用表</button>
@@ -174,13 +179,13 @@
       <button class="nav-btn" data-view="input">予定入力</button>
       <button class="nav-btn" data-view="availability">空き教室検索</button>
       <div class="nav-group">マスタ・配布</div>
-      <button class="nav-btn admin-only" data-view="recurring">基本スケジュール</button>
+      <button class="nav-btn manager-only" data-view="recurring">基本スケジュール</button>
       <button class="nav-btn" data-view="student">生徒向け予定</button>
       <div class="nav-group">管理</div>
       <button class="nav-btn admin-only" data-view="settings">設定</button>
       <button class="nav-btn" data-view="share">共有用まとめ</button>
     </nav>
-    <div class="side-note">MVP版 <b>build 0805b</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
+    <div class="side-note">MVP版 <b>build 0909a</b>（講師22人）。GAS URLを設定するとスプレッドシートに保存します。</div>
   </aside>
 
   <main>
@@ -534,9 +539,10 @@ function inferSeedTeacher(roomId,classTypeId){
 function uid(){return "id_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);}
 function $(id){return document.getElementById(id);}
 function saveLocal(){const raw=JSON.stringify(state);try{localStorage.setItem(STORE_KEY,raw);}catch(err){toast("端末への保存に失敗しました（容量超過の可能性）。スプレッドシートへ保存↑してください");}if(raw.length>3500000)toast("保存データがかなり大きくなっています。古い年度の整理を検討してください");}
-function markDirty(){try{localStorage.setItem(DIRTY_KEY,"1");}catch(e){}}
-function clearDirty(){try{localStorage.removeItem(DIRTY_KEY);}catch(e){}}
+function markDirty(){try{localStorage.setItem(DIRTY_KEY,"1");}catch(e){}renderSyncStatus();}
+function clearDirty(){try{localStorage.removeItem(DIRTY_KEY);}catch(e){}renderSyncStatus();}
 function isDirty(){return localStorage.getItem(DIRTY_KEY)==="1";}
+function renderSyncStatus(){const el=$("syncStatus");if(!el)return;if(isDirty()){el.textContent="● 未共有の変更あり（保存↑してください）";el.className="sync-status dirty";}else{el.textContent="✓ 共有済み";el.className="sync-status synced";}}
 function loadLocal(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"null")}catch(e){return null}}
 function toast(msg){$("toast").textContent=msg;$("toast").classList.add("show");clearTimeout(window._toastT);window._toastT=setTimeout(()=>$("toast").classList.remove("show"),2600)}
 function byId(list,id){return list.find(x=>x.id===id)||{}}
@@ -548,7 +554,7 @@ function canSeeDetail(e){return isManager()||e.teacherId===currentUser?.id}
 function minutes(t){const [h,m]=t.split(":").map(Number);return h*60+m}
 function overlaps(a,b){return a.date===b.date&&a.status!=="cancelled"&&b.status!=="cancelled"&&minutes(a.start)<minutes(b.end)&&minutes(b.start)<minutes(a.end)}
 function conflictsFor(events=state.events){const by={};events.forEach(e=>{(by[e.date]=by[e.date]||[]).push(e);});const out=[];Object.values(by).forEach(list=>{for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const a=list[i],b=list[j];if(!overlaps(a,b))continue;if(a.roomId===b.roomId)out.push({type:"room",a,b});if(a.teacherId&&b.teacherId&&a.teacherId===b.teacherId)out.push({type:"teacher",a,b});}});return out}
-function filteredEvents(date=$("currentDate").value){return state.events.filter(e=>e.date===date&&e.status!=="cancelled").filter(e=>selectedCategory==="all"||categoryForEvent(e)===selectedCategory).filter(e=>!$("roomFilter").value||e.roomId===$("roomFilter").value)}
+function filteredEvents(date=$("currentDate").value){return state.events.filter(e=>e.date===date).filter(e=>selectedCategory==="all"||categoryForEvent(e)===selectedCategory).filter(e=>!$("roomFilter").value||e.roomId===$("roomFilter").value)}
 function eventLabel(e){if(!canSeeDetail(e))return "使用中";const ct=classType(e.classTypeId).name||"";const teacher=byId(state.teachers,e.teacherId).name||"";return `${ct} ${teacher}`.trim();}
 function eventSub(e){if(!canSeeDetail(e))return `${e.start}-${e.end}`;return `${e.className||""} / ${statuses[e.status]||e.status}`;}
 
@@ -638,13 +644,13 @@ function bind(){
   $("btnSaveRoomMaster").onclick=saveRoomMaster;$("btnNewRoomMaster").onclick=clearRoomMaster;
   $("btnSaveClassTypeMaster").onclick=saveClassTypeMaster;$("btnNewClassTypeMaster").onclick=clearClassTypeMaster;
 }
-function loginAs(u){currentUser=u;$("loginUser").value=u.id;$("loginPin").value="";$("loginStatus").textContent=`${u.name}でログイン中`;$("loginForm").classList.add("hidden");$("loginCompact").classList.remove("hidden");$("loginBox").classList.add("signedin");document.querySelectorAll(".manager-only").forEach(el=>el.classList.toggle("hidden",!isManager()));document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!isAdmin()));if(!isManager()&&currentView==="teachers")showView("rooms");if(!isAdmin()&&["recurring","settings"].includes(currentView))showView("rooms");render();}
+function loginAs(u){currentUser=u;$("loginUser").value=u.id;$("loginPin").value="";$("loginStatus").textContent=`${u.name}でログイン中`;$("loginForm").classList.add("hidden");$("loginCompact").classList.remove("hidden");$("loginBox").classList.add("signedin");document.querySelectorAll(".manager-only").forEach(el=>el.classList.toggle("hidden",!isManager()));document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!isAdmin()));if(!isManager()&&["teachers","recurring"].includes(currentView))showView("rooms");if(!isAdmin()&&currentView==="settings")showView("rooms");render();}
 function showView(v){currentView=v;document.querySelectorAll(".nav-btn,.view").forEach(el=>el.classList.remove("active"));document.querySelector(`.nav-btn[data-view="${v}"]`)?.classList.add("active");$(v).classList.add("active");$("title").textContent={rooms:"教室使用表",teachers:"講師スケジュール",input:"予定入力",availability:"空き教室検索",month:"講師カレンダー",student:"生徒向け予定",recurring:"基本スケジュール",settings:"設定",share:"共有用まとめ"}[v];render();}
 function shiftPeriod(n){const d=new Date($("currentDate").value+"T00:00:00");if(isMonthlyView())d.setMonth(d.getMonth()+n);else d.setDate(d.getDate()+n);$("currentDate").value=ymd(d);$("eventDate").value=$("currentDate").value;render();}
 function renderDateLabel(){const d=new Date($("currentDate").value+"T00:00:00");$("dateLabel").textContent=isMonthlyView()?`${d.getFullYear()}年${d.getMonth()+1}月`:`${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;}
-function render(){fillSelectors();renderTabs();renderDateLabel();renderStats();renderRooms();renderTeachers();renderConflicts();renderMonth();renderStudentSchedule();renderRecurring();renderFormCheck();renderAvailability();renderMasters();renderShareText();saveLocal();}
+function render(){fillSelectors();renderTabs();renderDateLabel();renderStats();renderRooms();renderTeachers();renderConflicts();renderMonth();renderStudentSchedule();renderRecurring();renderFormCheck();renderAvailability();renderMasters();renderShareText();renderSyncStatus();saveLocal();}
 function renderTabs(){document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.cat===selectedCategory));$("categoryFilter").value=selectedCategory;}
-function renderStats(){const evs=filteredEvents();const used=new Set(evs.map(e=>e.roomId));const conf=conflictsFor(state.events.filter(e=>e.date===$("currentDate").value));$("statEvents").textContent=evs.length;$("statRooms").textContent=Math.max(0,state.rooms.filter(r=>r.active).length-used.size);$("statTentative").textContent=evs.filter(e=>e.status==="tentative").length;$("statConflicts").textContent=conf.length;}
+function renderStats(){const all=filteredEvents();const evs=all.filter(e=>e.status!=="cancelled");const used=new Set(evs.map(e=>e.roomId));const conf=conflictsFor(state.events.filter(e=>e.date===$("currentDate").value));$("statEvents").textContent=evs.length;$("statRooms").textContent=Math.max(0,state.rooms.filter(r=>r.active).length-used.size);$("statTentative").textContent=evs.filter(e=>e.status==="tentative").length;$("statConflicts").textContent=conf.length;}
 function renderRooms(){
   const monthMode=roomsMode==="month";
   $("roomsDayWrap").classList.toggle("hidden",monthMode);
@@ -668,8 +674,8 @@ function renderRoomMonth(){
   let html=weekdays.map(w=>`<div class="day" style="min-height:34px;background:#f8faf7"><b>${w}</b></div>`).join("");
   for(let i=0;i<offset+days;i++){const d=i-offset+1;if(d<1){html+=`<div class="day"></div>`;continue}
     const date=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const evs=state.events.filter(e=>e.roomId===roomId&&e.date===date&&e.status!=="cancelled"&&(selectedCategory==="all"||categoryForEvent(e)===selectedCategory)).sort((a,b)=>minutes(a.start)-minutes(b.start));
-    html+=`<div class="day" onclick="pickDate('${date}')"><b>${d}</b>${evs.map(e=>`<div class="event ${categoryForEvent(e)}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${canSeeDetail(e)?classType(e.classTypeId).name:"使用中"}</small></div>`).join("")}</div>`;
+    const evs=state.events.filter(e=>e.roomId===roomId&&e.date===date&&(selectedCategory==="all"||categoryForEvent(e)===selectedCategory)).sort((a,b)=>minutes(a.start)-minutes(b.start));
+    html+=`<div class="day" onclick="pickDate('${date}')"><b>${d}</b>${evs.map(e=>`<div class="event ${categoryForEvent(e)}${e.status==="cancelled"?" cancelled":""}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.status==="cancelled"?"休講 ":""}${e.start} ${canSeeDetail(e)?classType(e.classTypeId).name:"使用中"}</small></div>`).join("")}</div>`;
   }
   $("roomMonthGrid").innerHTML=html;
 }
@@ -717,13 +723,14 @@ function renderEventTimelineGrid(containerId,columns,mode,confIds){
       const top=(s-START_MIN)*PX_PER_MIN;
       const h=Math.max((en-s)*PX_PER_MIN,18);
       const conflict=confIds.has(e.id);
+      const cancelled=e.status==="cancelled";
       const catId=categoryForEvent(e);
-      const bg=conflict?"#fee2e2":(catColor[catId]||"#f3f4f6");
-      const border=conflict?"#ef4444":(catBorder[catId]||"#9ca3af");
-      const txt=conflict?"#7f1d1d":(catText[catId]||"#111");
+      const bg=cancelled?"#eef0ec":conflict?"#fee2e2":(catColor[catId]||"#f3f4f6");
+      const border=cancelled?"#b3b8ae":conflict?"#ef4444":(catBorder[catId]||"#9ca3af");
+      const txt=cancelled?"#8a9084":conflict?"#7f1d1d":(catText[catId]||"#111");
       const laneW=100/maxLanes,left=lane*laneW;
-      return `<div onclick="editEvent('${e.id}')" title="${eventBlockLabel(e,mode)}／${e.start}-${e.end}" style="position:absolute;top:${top}px;left:calc(${left}% + 2px);width:calc(${laneW}% - 4px);height:${h}px;background:${bg};border-left:3px solid ${border};border-radius:3px;padding:2px 4px;box-sizing:border-box;cursor:pointer;overflow:hidden;color:${txt};font-size:10px;line-height:1.25">
-        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.start} ${eventBlockLabel(e,mode)}</b>
+      return `<div onclick="editEvent('${e.id}')" title="${cancelled?"休講／":""}${eventBlockLabel(e,mode)}／${e.start}-${e.end}" style="position:absolute;top:${top}px;left:calc(${left}% + 2px);width:calc(${laneW}% - 4px);height:${h}px;background:${bg};border-left:3px solid ${border};border-radius:3px;padding:2px 4px;box-sizing:border-box;cursor:pointer;overflow:hidden;color:${txt};font-size:10px;line-height:1.25${cancelled?";text-decoration:line-through":""}">
+        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cancelled?"休講 ":""}${e.start} ${eventBlockLabel(e,mode)}</b>
         <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${eventSub(e)}</span>
         ${conflict?`<span style="color:#ef4444;font-weight:700">⚠重複</span>`:""}
       </div>`;
@@ -773,7 +780,7 @@ function renderMonth(){
   $("monthTitle").textContent=teacher.id?`${teacher.name} の月予定`:"講師カレンダー";
   const base=new Date($("currentDate").value+"T00:00:00");const y=base.getFullYear(),m=base.getMonth();const first=new Date(y,m,1);const offset=first.getDay();const days=new Date(y,m+1,0).getDate();
   let html=weekdays.map(w=>`<div class="day" style="min-height:34px;background:#f8faf7"><b>${w}</b></div>`).join("");
-  for(let i=0;i<offset+days;i++){const d=i-offset+1;if(d<1){html+=`<div class="day"></div>`;continue}const date=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;const evs=state.events.filter(e=>e.teacherId===teacherId&&e.date===date&&e.status!=="cancelled").sort((a,b)=>minutes(a.start)-minutes(b.start));html+=`<div class="day" onclick="pickDate('${date}')"><b>${d}</b>${evs.map(e=>`<div class="event ${categoryForEvent(e)}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.start} ${byId(state.rooms,e.roomId).name} ${classType(e.classTypeId).name}</small></div>`).join("")}</div>`;}
+  for(let i=0;i<offset+days;i++){const d=i-offset+1;if(d<1){html+=`<div class="day"></div>`;continue}const date=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;const evs=state.events.filter(e=>e.teacherId===teacherId&&e.date===date).sort((a,b)=>minutes(a.start)-minutes(b.start));html+=`<div class="day" onclick="pickDate('${date}')"><b>${d}</b>${evs.map(e=>`<div class="event ${categoryForEvent(e)}${e.status==="cancelled"?" cancelled":""}" onclick="event.stopPropagation();editEvent('${e.id}')"><small>${e.status==="cancelled"?"休講 ":""}${e.start} ${byId(state.rooms,e.roomId).name} ${classType(e.classTypeId).name}</small></div>`).join("")}</div>`;}
   $("monthGrid").innerHTML=html;
 }
 let studentMakeupIds=null, studentMakeupForId=null;
@@ -1323,24 +1330,29 @@ function renderFormCheck(){
 function formEvent(){return {id:$("eventId").value||uid(),date:$("eventDate").value,start:$("eventStart").value,end:$("eventEnd").value,roomId:$("eventRoom").value,teacherId:$("eventTeacher").value,categoryId:$("eventCategory").value,classTypeId:$("eventClassType").value,status:$("eventStatus").value,className:$("eventClassName").value,memo:$("eventMemo").value};}
 function clearForm(){$("eventId").value="";$("formTitle").textContent="予定入力";$("eventDate").value=$("currentDate").value;$("eventStart").value="10:00";$("eventEnd").value="11:10";$("eventStatus").value="tentative";$("eventClassName").value="";$("eventMemo").value="";if(!isManager())$("eventTeacher").value=currentUser.id;renderFormCheck();}
 function editEvent(id){const e=byId(state.events,id);if(!canSeeDetail(e)){toast("他講師の予定詳細は表示しません");return}showView("input");$("eventId").value=e.id;$("formTitle").textContent="予定編集";$("eventDate").value=e.date;$("eventRoom").value=e.roomId;$("eventStart").value=e.start;$("eventEnd").value=e.end;$("eventTeacher").value=e.teacherId;$("eventCategory").value=categoryForEvent(e);fillClassTypeSelectors();$("eventClassType").value=e.classTypeId;$("eventStatus").value=e.status;$("eventClassName").value=e.className||"";$("eventMemo").value=e.memo||"";renderFormCheck();}
-function saveEvent(){const e=formEvent();if(!e.date)return toast("日付を選んでください");if(!e.roomId)return toast("教室を選んでください");if(!e.teacherId)return toast("講師を選んでください");if(!e.classTypeId)return toast("クラス種別を選んでください");if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ保存できます");if(minutes(e.start)>=minutes(e.end))return toast("終了時刻を開始より後にしてください");const i=state.events.findIndex(x=>x.id===e.id);e.updatedAt=new Date().toISOString();if(i>=0)state.events[i]=e;else state.events.push(e);markDirty();saveLocal();render();toast("予定を保存しました");}
-function deleteEvent(){const id=$("eventId").value;if(!id)return;const e=byId(state.events,id);if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ削除できます");state.events=state.events.filter(x=>x.id!==id);clearForm();markDirty();saveLocal();render();toast("削除しました");}
-function saveRecurring(){const id=$("recurringId").value||uid();const classTypeId=$("recurringClassType").value;const r={id,className:$("recurringName").value||suggestClassName(),weekPattern:$("recurringPattern").value,weekday:Number($("recurringWeekday").value),roomId:$("recurringRoom").value,teacherId:$("recurringTeacher").value,classTypeId,categoryId:classType(classTypeId).categoryId,start:$("recurringStart").value,end:$("recurringEnd").value,active:true};const i=state.recurringClasses.findIndex(x=>x.id===id);if(i>=0)state.recurringClasses[i]=r;else state.recurringClasses.push(r);markDirty();saveLocal();render();toast("基本スケジュールを保存しました");}
+function saveEvent(){if(syncBusy)return toast("通信中です。少し待ってから操作してください");const e=formEvent();if(!e.date)return toast("日付を選んでください");if(!e.roomId)return toast("教室を選んでください");if(!e.teacherId)return toast("講師を選んでください");if(!e.classTypeId)return toast("クラス種別を選んでください");if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ保存できます");if(minutes(e.start)>=minutes(e.end))return toast("終了時刻を開始より後にしてください");const i=state.events.findIndex(x=>x.id===e.id);e.updatedAt=new Date().toISOString();if(i>=0)state.events[i]=e;else state.events.push(e);$("eventId").value=e.id;$("formTitle").textContent="予定編集";markDirty();saveLocal();render();toast("予定を保存しました（端末内・共有は保存↑で）");}
+function deleteEvent(){const id=$("eventId").value;if(!id)return;if(syncBusy)return toast("通信中です。少し待ってから操作してください");const e=byId(state.events,id);if(!isManager()&&e.teacherId!==currentUser.id)return toast("自分の予定だけ削除できます");const label=`${e.date} ${e.start}-${e.end} ${eventLabel(e)}`;if(!confirm(`この予定を削除します。\n${label}\nよろしいですか？`))return;state.events=state.events.filter(x=>x.id!==id);clearForm();markDirty();saveLocal();render();toast("削除しました");}
+function saveRecurring(){if(syncBusy)return toast("通信中です。少し待ってから操作してください");const id=$("recurringId").value||uid();const classTypeId=$("recurringClassType").value;const r={id,className:$("recurringName").value||suggestClassName(),weekPattern:$("recurringPattern").value,weekday:Number($("recurringWeekday").value),roomId:$("recurringRoom").value,teacherId:$("recurringTeacher").value,classTypeId,categoryId:classType(classTypeId).categoryId,start:$("recurringStart").value,end:$("recurringEnd").value,active:true};const i=state.recurringClasses.findIndex(x=>x.id===id);if(i>=0)state.recurringClasses[i]=r;else state.recurringClasses.push(r);markDirty();saveLocal();render();toast("基本スケジュールを保存しました");}
 function editRecurring(id){const r=byId(state.recurringClasses,id);$("recurringId").value=r.id;$("recurringName").value=r.className;$("recurringPattern").value=r.weekPattern;$("recurringWeekday").value=r.weekday;$("recurringRoom").value=r.roomId;$("recurringTeacher").value=r.teacherId;$("recurringClassType").value=r.classTypeId;$("recurringStart").value=r.start;$("recurringEnd").value=r.end;if(recurringViewMode==="grid")setRecurringView("list");$("recurringFormPanel").scrollIntoView({behavior:"smooth"});}
-function deleteRecurring(){const id=$("recurringId").value;if(!id)return toast("削除する基本スケジュールを選んでください");if(!confirm("この基本スケジュールを削除しますか？生成済み予定は残ります。"))return;state.recurringClasses=state.recurringClasses.filter(r=>r.id!==id);$("recurringId").value="";$("recurringName").value="";markDirty();saveLocal();render();toast("基本スケジュールを削除しました");}
+function deleteRecurring(){const id=$("recurringId").value;if(!id)return toast("削除する基本スケジュールを選んでください");if(syncBusy)return toast("通信中です。少し待ってから操作してください");if(!confirm("この基本スケジュールを削除しますか？生成済み予定は残ります。"))return;state.recurringClasses=state.recurringClasses.filter(r=>r.id!==id);$("recurringId").value="";$("recurringName").value="";markDirty();saveLocal();render();toast("基本スケジュールを削除しました");}
 function timeLabel(time){const [h,m]=time.split(":");if(m==="00")return `${Number(h)}時`;if(m==="30")return `${Number(h)}時半`;return `${Number(h)}時${m}`;}
 function suggestClassNameFrom(pattern,weekday,start){return `${patternShort(pattern)}${weekdays[weekday]}曜${timeLabel(start)}クラス`;}
 function suggestClassName(){return suggestClassNameFrom($("recurringPattern").value,Number($("recurringWeekday").value),$("recurringStart").value);}
 function generateMonthEvents(){const base=new Date($("currentDate").value+"T00:00:00");generateEventsForRange(base,1);}
 function generateYearEvents(){generateEventsForRange(schoolYearStart($("currentDate").value),12);}
 function rebuildEvents(){
-  if(!confirm("基本スケジュールから予定を作り直します。\n・仮の自動予定 → 最新に置き換え\n・確定/休講/振替・メモ付き・手動追加 → そのまま残す\nよろしいですか？"))return;
+  if(syncBusy)return toast("通信中です。少し待ってから操作してください");
+  const rangeStart=schoolYearStart($("currentDate").value);
+  const rangeEndExclusive=new Date(rangeStart.getFullYear(),rangeStart.getMonth()+12,1);
+  const rangeLabel=`${rangeStart.getFullYear()}年${rangeStart.getMonth()+1}月〜${new Date(rangeEndExclusive-1).getFullYear()}年${new Date(rangeEndExclusive-1).getMonth()+1}月`;
+  if(!confirm(`基本スケジュールから予定を作り直します（対象期間：${rangeLabel}）。\n・対象期間内の仮の自動予定 → 最新に置き換え\n・対象期間外／確定/休講/振替・メモ付き・手動追加 → そのまま残す\nよろしいですか？`))return;
+  const inRange=d=>{const dt=new Date(d+"T00:00:00");return dt>=rangeStart&&dt<rangeEndExclusive;};
   const before=state.events.length;
-  const kept=state.events.filter(e=>e.status!=="tentative"||e.memo||!e.sourceRecurringClassId);
+  const kept=state.events.filter(e=>e.status!=="tentative"||e.memo||!e.sourceRecurringClassId||!inRange(e.date));
   const removed=before-kept.length;
   state.events=kept;
-  generateEventsForRange(schoolYearStart($("currentDate").value),12);
-  toast(`予定を作り直しました（仮${removed}件を更新・手入力は保持）`);
+  generateEventsForRange(rangeStart,12);
+  toast(`予定を作り直しました（対象期間の仮${removed}件を更新・それ以外は保持）`);
 }
 function generateEventsForRange(base,months){let count=0;for(let i=0;i<months;i++){const d=new Date(base.getFullYear(),base.getMonth()+i,1);state.recurringClasses.filter(r=>r.active!==false).forEach(r=>datesForPattern(d.getFullYear(),d.getMonth(),r.weekday,r.weekPattern).forEach(date=>{const exists=state.events.some(e=>e.sourceRecurringClassId===r.id&&e.date===date);if(exists)return;state.events.push({id:uid(),date,start:r.start,end:r.end,roomId:r.roomId,teacherId:r.teacherId,categoryId:r.categoryId||classType(r.classTypeId).categoryId,classTypeId:r.classTypeId,status:"tentative",className:r.className,memo:"",sourceRecurringClassId:r.id,updatedAt:new Date().toISOString()});count++;}));}markDirty();saveLocal();render();toast(`${count}件作成しました`);}
 function datesForPattern(y,m,weekday,pattern){const target=patternWeeks(pattern);const out=[];for(let d=1;d<=31;d++){const dt=new Date(y,m,d);if(dt.getMonth()!==m)break;if(dt.getDay()===Number(weekday)){const nth=Math.floor((d-1)/7)+1;if(target.includes(nth))out.push(ymd(dt));}}return out;}
@@ -1364,29 +1376,44 @@ async function loadRemote(auto,btn){
   finally{syncBusy=false;if(done)done();}
 }
 function getSaveToken(){let t=localStorage.getItem(TOKEN_KEY)||"";if(!t){t=(prompt("保存用の合言葉を入力してください（初回のみ）")||"").trim();if(t)try{localStorage.setItem(TOKEN_KEY,t);}catch(e){}}return t;}
+function mergeById(localList,remoteList){
+  const byId=new Map();
+  (remoteList||[]).forEach(r=>{if(r&&r.id)byId.set(r.id,r);});
+  (localList||[]).forEach(l=>{
+    if(!l||!l.id)return;
+    const r=byId.get(l.id);
+    if(!r||!r.updatedAt||(l.updatedAt&&l.updatedAt>r.updatedAt))byId.set(l.id,l);
+  });
+  return [...byId.values()];
+}
 async function saveRemote(btn){
   const url=$("gasUrl").value.trim();if(!url)return toast("GAS URLを設定してください");
   if(syncBusy)return;
   const token=getSaveToken();if(!token)return toast("合言葉が未入力のため保存を中止しました");
   syncBusy=true;const done=btn?busyBtn(btn,"保存中…"):null;
   try{
-    // 競合プリフライト：サーバの現在版と自分の基準版を比較
+    // 競合プリフライト：サーバの現在版と自分の基準版を比較。ズレていればレコード単位で自動マージ（新しい方を採用）
     let base=state.updatedAt||"";
     try{
       const cur=await fetchJson(url);
       if(cur.ok&&cur.data&&cur.data.updatedAt&&cur.data.updatedAt!==base){
-        if(!confirm("他の端末が先に保存しています。このまま保存すると相手の変更が消えます。\n推奨：キャンセル →「読み込み ↓」→ 編集し直し → 保存。\nそれでも上書き保存しますか？")){toast("保存を中止しました。読み込み↓してください");return;}
+        state.events=mergeById(state.events,cur.data.events);
+        state.recurringClasses=mergeById(state.recurringClasses,cur.data.recurringClasses);
+        state.teachers=mergeById(state.teachers,cur.data.teachers);
+        state.rooms=mergeById(state.rooms,cur.data.rooms);
+        state.classTypes=mergeById(state.classTypes,cur.data.classTypes);
         base=cur.data.updatedAt;
+        toast("他の端末の変更とマージしました（保存を続けます）");
       }
     }catch(pf){/* プリフライト失敗時はサーバ側チェックに委ねる */}
     const data=await fetchJson(url,{method:"POST",body:JSON.stringify({action:"save",data:state,token,baseUpdatedAt:base})});
     if(!data.ok){
       if(data.error==="bad_token"){try{localStorage.removeItem(TOKEN_KEY);}catch(e){}throw new Error("合言葉が違います。もう一度「保存 ↑」を押して入力し直してください");}
-      if(data.error==="conflict")throw new Error("他の端末が先に保存しました。読み込み↓してから保存し直してください");
+      if(data.error==="conflict")throw new Error("他の端末がほぼ同時に保存しました。もう一度「保存 ↑」を押してください");
       throw new Error(data.error||"save failed");
     }
     if(data.savedAt)state.updatedAt=data.savedAt;
-    clearDirty();saveLocal();
+    clearDirty();saveLocal();render();
     toast("✓ スプレッドシートに保存しました");
   }catch(e){toast("保存に失敗: "+e.message);}
   finally{syncBusy=false;if(done)done();}
