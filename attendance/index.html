@@ -395,6 +395,8 @@
       <button class="btn-danger" id="btnDelClass">このクラスを削除</button>
     </div>
   </div>
+  <div style="padding:0 16px 8px;color:var(--sub);font-size:11px;">設定を保存すると、未保存の出席・受領記録・進行メモも一緒に保存されます。</div>
+  <div id="setSaveStatus" role="status" aria-live="polite" style="padding:0 16px;color:var(--sub);font-size:13px;"></div>
   <div class="dlg-f">
     <button class="btn-ghost" id="btnSetCancel">キャンセル</button>
     <button class="btn-save" id="btnSetSave">設定を保存</button>
@@ -419,6 +421,8 @@ const CENTRAL_URL = 'https://script.google.com/macros/s/AKfycbzm6W0vF-SFvY_fFKk6
  * store.records[classId][year][m][s] … {att, pay, memo}（年単位 _facility / クラス単位 _makeup）
  */
 let store = { centralUrl:'', teacherId:'', classes:[], records:{} };
+// 直近表示位置は講師ごとにこのブラウザーへ保存する（サーバーへは送信しない）
+if(!store.lastViewedByTeacher) store.lastViewedByTeacher = {};
 let teacherList = []; // [{id,name}] 中央GASから取得
 function effectiveUrl(){ return CENTRAL_URL || store.centralUrl || ''; }
 let curClassId = null;
@@ -426,6 +430,7 @@ let curYear = new Date().getFullYear();
 let curMonth = new Date().getMonth() + 1;
 let curSession = 1;
 let dirty = false;
+let reloadPending = 0;
 let noteOpen = new Set(); // 生徒メモを編集中(開いている)生徒ID
 let editClassId = null; // 設定ダイアログ内で編集中のクラス
 let materials = {}; // {コース名:[{no,name,sub,tag}]} 起動時にGASから取得。教材シートが無ければ空のまま
@@ -457,6 +462,24 @@ function fmtDate(iso){
 }
 
 /* ====== 永続化 ====== */
+function saveViewPosition(){
+  if(!store.teacherId) return;
+  store.lastViewedByTeacher = store.lastViewedByTeacher || {};
+  store.lastViewedByTeacher[store.teacherId] = {
+    classId: curClassId, year: curYear, month: curMonth, session: curSession
+  };
+  saveLocal();
+}
+function restoreViewPosition(){
+  const saved = store.lastViewedByTeacher && store.lastViewedByTeacher[store.teacherId];
+  curClassId = saved && store.classes.some(c=>c.id===saved.classId)
+    ? saved.classId : (store.classes[0] && store.classes[0].id) || null;
+  curYear = saved && Number.isInteger(+saved.year) && +saved.year>=2020 && +saved.year<=2099
+    ? +saved.year : new Date().getFullYear();
+  curMonth = saved && Number.isInteger(+saved.month) && +saved.month>=1 && +saved.month<=12
+    ? +saved.month : new Date().getMonth()+1;
+  curSession = saved && (+saved.session===1 || +saved.session===2) ? +saved.session : 1;
+}
 function loadLocal(){
   try{
     const raw = localStorage.getItem(LS_KEY);
@@ -465,7 +488,7 @@ function loadLocal(){
   if(!store.classes.length){
     store.classes = [makeClass('クラス1')];
   }
-  if(!curClassId || !curClass()) curClassId = store.classes[0].id;
+  restoreViewPosition();
 }
 function saveLocal(){ localStorage.setItem(LS_KEY, JSON.stringify(store)); }
 
@@ -511,7 +534,9 @@ async function pushAll(signal){
     signal,
   });
   if(!res.ok) throw new Error('HTTP '+res.status);
-  return await res.json();
+  const result = await res.json();
+  if(!result || result.ok !== true) throw new Error(result?.error || 'サーバーが保存を受け付けませんでした');
+  return result;
 }
 
 /* ====== レコードアクセサ ====== */
@@ -703,7 +728,7 @@ function renderMonthTabs(){
     const b = document.createElement('button');
     b.className = 'mtab'+(m===curMonth?' active':'');
     b.textContent = m+'月';
-    b.onclick = ()=>{ curMonth=m; curSession=1; renderMonthTabs(); renderSessionTabs(); renderContent(); };
+    b.onclick = ()=>{ curMonth=m; curSession=1; saveViewPosition(); renderMonthTabs(); renderSessionTabs(); renderContent(); };
     el.appendChild(b);
   }
 }
@@ -741,7 +766,7 @@ function renderSessionTabs(){
     b.className='stab'+(s===curSession?' active':'');
     const d = sessionDate(curYear, curMonth, s);
     b.textContent = d ? `第${s}回　${d.month}/${d.day}(${d.dow})` : `第${s}回（${order[s-1]}）`;
-    b.onclick=()=>{ curSession=s; renderSessionTabs(); renderContent(); };
+    b.onclick=()=>{ curSession=s; saveViewPosition(); renderSessionTabs(); renderContent(); };
     el.appendChild(b);
   });
 }
@@ -897,6 +922,7 @@ function renderHistory(){
   body.querySelectorAll('.hist-row').forEach(row=>{
     row.onclick=()=>{
       curYear=+row.dataset.y; curMonth=+row.dataset.m; curSession=+row.dataset.s;
+      saveViewPosition();
       document.getElementById('dlgHistory').close();
       renderAll();
     };
@@ -1143,6 +1169,7 @@ async function doReload(){
   if(!effectiveUrl()){ toast('中央URL未設定'); return; }
   if(!store.teacherId){ toast('先に「設定」で講師を選択してください'); return; }
   if(dirty && !confirm('未保存の変更があります。サーバーのデータで上書きしますか？')) return;
+  reloadPending++;
   updateStatus('読み込み中…');
   try{
     const r = await fetchAll();
@@ -1150,10 +1177,11 @@ async function doReload(){
       store.classes = Array.isArray(r.classes) ? r.classes : [];
       store.records = r.records || {};
       if(!store.classes.length) store.classes = [makeClass('クラス1')];
-      if(!curClass()) curClassId = store.classes[0]?.id;
+      restoreViewPosition();
       saveLocal(); renderAll(); dirty=false; updateStatus('読込済 ✓'); toast('最新データを取得しました');
     }else{ updateStatus('読込失敗：'+(r&&r.error||'不明')); toast('読込に失敗しました'); }
   }catch(e){ updateStatus('読込失敗：'+e.message); toast('読込に失敗しました'); }
+  finally{ reloadPending--; }
 }
 
 /* ====== 設定ダイアログ ====== */
@@ -1177,6 +1205,10 @@ function renderTeacherSel(){
   document.getElementById('teacherName').textContent = curName || '';
 }
 async function openSettings(){
+  if(reloadPending){ toast('読み込みが終わってから設定を開いてください'); return; }
+  const saveStatus = document.getElementById('setSaveStatus');
+  saveStatus.textContent = '';
+  saveStatus.style.color = 'var(--sub)';
   // 中央URLはCENTRAL_URL固定ならフォールバック欄を隠す
   document.getElementById('centralUrlField').style.display = CENTRAL_URL ? 'none' : 'block';
   document.getElementById('setCentralUrl').value = store.centralUrl||'';
@@ -1315,18 +1347,18 @@ function init(){
     if(store.teacherId){ doReload(); } else { updateStatus('設定で講師を選択してください'); }
   } else { updateStatus('ローカル保存モード'); }
 
-  document.getElementById('classSel').onchange=e=>{ curClassId=e.target.value; curSession=1; renderAll(); };
+  document.getElementById('classSel').onchange=e=>{ curClassId=e.target.value; curSession=1; saveViewPosition(); renderAll(); };
   document.getElementById('yearSel').onchange=e=>{
     if(e.target.value==='__add__'){
       const input = prompt('追加する年（西暦4桁）を入力', String(curYear+1));
       const y = parseInt(input,10);
       if(y>=2020 && y<=2099){
         ensure(curClassId, y, curMonth, curSession); // その年の枠を作成
-        curYear=y; markDirty();
+        curYear=y; markDirty(); saveViewPosition();
       }
       renderAll(); return;
     }
-    curYear=+e.target.value; renderAll();
+    curYear=+e.target.value; saveViewPosition(); renderAll();
   };
   document.getElementById('btnSave').onclick=doSave;
   document.getElementById('btnReload').onclick=doReload;
@@ -1379,25 +1411,69 @@ function init(){
     c.students.push({id:uid('s'),name:'',active:true}); renderStuEdit();
   };
   document.getElementById('btnSetCancel').onclick=()=>{ loadLocal(); renderAll(); document.getElementById('dlgSettings').close(); };
-  document.getElementById('btnSetSave').onclick=()=>{
+  document.getElementById('dlgSettings').addEventListener('cancel',e=>{
+    if(document.getElementById('btnSetSave').disabled) e.preventDefault();
+  });
+  document.getElementById('btnSetSave').onclick=async()=>{
+    const saveButton = document.getElementById('btnSetSave');
+    const status = document.getElementById('setSaveStatus');
+    if(saveButton.disabled) return;
     commitEditName();
     if(!CENTRAL_URL) store.centralUrl = document.getElementById('setCentralUrl').value.trim();
     const newTeacher = document.getElementById('setTeacher').value;
     const teacherChanged = newTeacher !== store.teacherId;
     store.teacherId = newTeacher;
     if(!curClass()) curClassId = store.classes[0]?.id;
-    saveLocal(); document.getElementById('dlgSettings').close();
+    saveLocal();
     if(teacherChanged && effectiveUrl() && newTeacher){
+      document.getElementById('dlgSettings').close();
       // 【重要】別講師に切り替えたら、前の講師のデータを絶対に引きずらない。
       // 以前はここでdoReload()だけ呼んでいたが、dirty時の確認をキャンセルすると
       // 「講師名だけ新しい・中身は前の講師」の状態で保存でき、別講師のシートを汚染していた。
       store.classes = []; store.records = {}; curClassId = null; dirty = false;
       saveLocal(); renderAll();
       doReload(); // 選んだ講師のデータを取得
-    } else {
-      renderAll(); markDirty();
+      toast('講師を切り替えています');
+      return;
     }
-    toast('設定を保存しました');
+
+    if(!effectiveUrl() || !newTeacher){
+      document.getElementById('dlgSettings').close();
+      renderAll(); markDirty();
+      status.textContent = '';
+      toast('端末内に保存しました。講師を選択するとシートへ保存できます');
+      return;
+    }
+
+    const controls = document.querySelectorAll('#dlgSettings .dlg-b input, #dlgSettings .dlg-b select, #dlgSettings .dlg-b button, #btnSetCancel');
+    controls.forEach(control=>control.disabled=true);
+    saveButton.disabled = true;
+    saveButton.textContent = '保存中…';
+    dirty = true;
+    status.style.color = 'var(--sub)';
+    status.textContent = '設定・生徒情報と現在の記録をスプレッドシートに保存しています…';
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 30000);
+    try{
+      await pushAll(controller.signal);
+      dirty = false;
+      saveLocal();
+      updateStatus('保存済 ✓');
+      document.getElementById('dlgSettings').close();
+      renderAll();
+      toast('設定をスプレッドシートに保存しました');
+    }catch(error){
+      status.style.color = '#b42318';
+      status.textContent = error.name === 'AbortError'
+        ? 'サーバーから応答がありません。保存済みの場合もあります。入力は保持しています。再読込で確認するか、再試行してください。'
+        : '保存できませんでした。入力内容は保持しています。通信を確認して、もう一度お試しください。';
+      updateStatus('保存失敗：設定画面から再試行できます');
+    }finally{
+      clearTimeout(timeout);
+      controls.forEach(control=>control.disabled=false);
+      saveButton.disabled = false;
+      saveButton.textContent = '設定を保存';
+    }
   };
   window.addEventListener('beforeunload',e=>{ if(dirty){ e.preventDefault(); e.returnValue=''; } });
 }
