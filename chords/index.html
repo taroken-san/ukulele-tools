@@ -117,6 +117,12 @@
   .present-vchips{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;}
   .pvchip{padding:7px 14px;border-radius:18px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-size:.9rem;color:var(--sub);}
   .pvchip.active{background:var(--accent2);color:#fff;border-color:var(--accent2);}
+  /* 譜面やコードデータから独立した白黒の解説枠 */
+  .cliche-help{margin:0 auto;padding-bottom:0;color:#111;}
+  .cliche-help details{border:1px solid #777;border-radius:10px;padding:12px 16px;background:#fff;}
+  .cliche-help summary{cursor:pointer;font-weight:700;}
+  .cliche-help p{font-size:14px;line-height:1.7;margin:10px 0;}
+  @media print{.cliche-help{display:none;}}
 </style>
 </head>
 <body>
@@ -129,11 +135,20 @@
     <a class="printlink" href="print.html">🖨 印刷用ページへ</a>
   </div>
   <div class="tabs" style="max-width:1000px;margin:0 auto;display:flex;gap:6px;padding-top:8px">
-    <button class="tabbtn on" id="tabbtnGenerate" onclick="switchTab('generate')">コード生成</button>
-    <button class="tabbtn" id="tabbtnSearch" onclick="switchTab('search')">🔍 全コード検索</button>
+    <button class="tabbtn" id="tabbtnGenerate" onclick="switchTab('generate')">コード生成</button>
+    <button class="tabbtn on" id="tabbtnSearch" onclick="switchTab('search')">🔍 全コード検索</button>
   </div>
 </header>
-<div class="wrap" id="tabGenerate">
+<aside class="wrap cliche-help" aria-label="クリシェの解説">
+  <details>
+    <summary>クリシェの例：Gm → GmM7 → Gm7</summary>
+    <p><b>同じマイナーコードが続くところに、少し動きを付ける例です。</b>たとえば Gm が続く部分で、Gm → GmM7 → Gm7 と響きを変えてみます。GmM7 は「マイナー・メジャーセブンス」です。</p>
+    <p>シ♭・レなどを保ちながら、ひとつの声部を <b>ソ → ファ♯ → ファ</b> と半音ずつ下げます。このような音の流れを「クリシェ」と呼びます。動く音は高い声部や内声でもよく、<b>必ずしもベースが下がるわけではありません。</b></p>
+    <p>この流れが聞こえる押さえ方を選び、メロディや他の声部とぶつからないか、実際に鳴らして確かめましょう。いつでも置き換えられる決まりではありません。似た役割の別のコードに置き換える「代理コード」とは、考え方が異なります。</p>
+    <p>印刷用ページにはこの解説は含まれません。</p>
+  </details>
+</aside>
+<div class="wrap" id="tabGenerate" style="display:none">
   <div class="controls">
     <label>キー
       <select id="key"></select>
@@ -173,7 +188,7 @@
   </div>
 </div>
 
-<div class="wrap" id="tabSearch" style="display:none">
+<div class="wrap" id="tabSearch">
   <div class="controls">
     <label>ルート
       <select id="searchRoot"><option value="">すべて</option></select>
@@ -924,6 +939,7 @@ $('searchText').oninput=renderSearch;
 window.switchTab=switchTab;
 
 render(); renderProgs(); renderMemo();
+switchTab('search');
 
 // ===================================================================
 // 拡大表示(提示)モード + 音再生   ※既存の noteAt/spell/degName/DEGCOL/
