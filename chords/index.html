@@ -453,7 +453,11 @@ const BOOK_ALT={
  'C#7':[{f:[4,1,1,4],g:[2,1,1,2],note:'ナット位置の別型(5th省略)'},{f:[4,5,4,4],g:[1,2,1,1],note:'4-5フレット、コンパクト'},{f:[6,8,7,8],g:[1,3,2,3],note:'6-8フレット'}],
  'C#maj7':[{f:[6,5,4,3],g:[4,3,2,1],note:'3-6フレット、階段状'},{f:[5,5,4,4],g:[2,2,1,1],note:'4-5フレット、コンパクト'},{f:[10,8,8,8],g:[2,1,1,1],note:'8フレットセーハ的+G弦10'}],
 };
-function computeBookAlts(name){ return BOOK_ALT[name]||[]; }
+// 書籍由来の別形とは区別した、構成音を検証済みのローコード別形（4弦→1弦）。
+const LOW_ALT={
+ 'Em':[{label:'ロー別形 4432',f:[4,4,3,2],g:[3,4,2,1],note:'4弦から4・4・3・2。シ・ミ・ソ・シ（Low-GではEm/Bの配置）'}],
+};
+function computeBookAlts(name){ return [...(LOW_ALT[name]||[]), ...(BOOK_ALT[name]||[])]; }
 
 // ===== ソロウクレレ向けハイポジション（3〜12フレット、本の個別ページより読取・理論検証済み）=====
 // 基本形(定番ロー)は SH_ALL のまま。ここは各コード3〜4つの高ポジション。sf=開始フレット。
@@ -689,7 +693,7 @@ function buildAltVoicings(rootPc, q, cn, keyRootPc){
   const omissions=computeOmissions(rootPc,q,cn).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
   const substitutes=computeSubstitutes(rootPc,q,cn,keyRootPc).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
   const soloPos=computeSoloPos(cn,rootPc,q).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
-  const bookAlts=computeBookAlts(cn).map((b,i)=>({label:'本の別位置'+(i+1),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
+  const bookAlts=computeBookAlts(cn).map((b,i)=>({label:b.label||('本の別位置'+(i+1)),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
   return {omissions,substitutes,soloPos,bookAlts};
 }
 // vchipに付けるタイプ別の追加クラス
