@@ -455,6 +455,7 @@ const BOOK_ALT={
 };
 // 書籍由来の別形とは区別した、構成音を検証済みのローコード別形（4弦→1弦）。
 const LOW_ALT={
+ 'B7':[{label:'ロー別形 2322',f:[2,3,2,2],g:[1,2,1,1],note:'4弦から2・3・2・2。ラ・レ♯・ファ♯・シ'}],
  'Em':[{label:'ロー別形 4432',f:[4,4,3,2],g:[3,4,2,1],note:'4弦から4・4・3・2。シ・ミ・ソ・シ（Low-GではEm/Bの配置）'}],
 };
 function computeBookAlts(name){ return [...(LOW_ALT[name]||[]), ...(BOOK_ALT[name]||[])]; }
