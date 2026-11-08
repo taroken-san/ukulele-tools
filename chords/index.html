@@ -123,6 +123,51 @@
   .cliche-help summary{cursor:pointer;font-weight:700;}
   .cliche-help p{font-size:14px;line-height:1.7;margin:10px 0;}
   @media print{.cliche-help{display:none;}}
+
+  /* 生徒向け一覧: 印刷表と同じ、音名の行 × コード種類の列 */
+  .chord-list-intro{margin:0 0 16px;line-height:1.7;font-size:17px;}
+  .chord-list-intro h2{font-size:24px;margin:0 0 4px;}
+  .chord-list-intro p{margin:0;color:var(--sub);}
+  .chord-list-options{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:12px 0 18px;}
+  .chord-list-options label{display:flex;align-items:center;gap:8px;min-height:48px;cursor:pointer;}
+  .chord-list-options input{width:22px;height:22px;accent-color:var(--accent2);}
+  .chord-list-options button{min-height:48px;}
+  .chord-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;}
+  .chord-table .root-col{width:54px;}
+  .chord-table th{font-size:17px;text-align:center;padding:12px 4px;color:var(--ink);}
+  .chord-table thead th{background:#eee7dd;border-bottom:2px solid #c8bba9;}
+  .chord-table thead small{display:block;font-size:14px;font-weight:400;margin-top:3px;}
+  .chord-table tbody th{font-size:24px;border-bottom:1px dashed #c8bba9;}
+  .chord-table td{padding:8px 5px;border-bottom:1px dashed #c8bba9;vertical-align:top;}
+  .chord-table td:nth-child(3){background:#f0eee8;}
+  .chord-cell{display:block;width:100%;padding:10px 4px 6px;background:#fff;border:1px solid #d6cdbf;border-radius:12px;min-height:100px;box-shadow:0 1px 3px #00000009;}
+  .chord-cell:hover{border-color:var(--accent2);background:#f4f9fc;}
+  .chord-cell:focus-visible{outline:3px solid var(--accent2);outline-offset:2px;}
+  .chord-cell-name{display:block;font-size:28px;font-weight:700;line-height:1.2;}
+  .chord-cell svg{width:100%;max-width:190px;margin:7px auto 0;}
+  .present-shape-label{font-size:17px;font-weight:700;margin-top:18px;}
+  .pvchip.omission{border:2px solid #4f8053;color:#24532a;}
+  .pvchip.omission.active{background:#3a7142;color:#fff;}
+  .present-note{font-size:16px;line-height:1.7;padding:10px 12px;background:#f1f5ed;border-radius:8px;margin-top:12px;}
+  .chord-list-foot{font-size:15px;line-height:1.8;color:var(--sub);margin:16px 0;}
+  @media(max-width:540px){
+    header{padding:12px 10px;} .tabs .tabbtn{padding:10px 9px;min-height:44px;font-size:14px;}
+    #tabList{padding:16px 10px;} .chord-list-intro{font-size:16px;} .chord-list-intro h2{font-size:22px;}
+    .chord-table .root-col{width:34px;} .chord-table th{font-size:14px;padding:10px 1px;}
+    .chord-table thead small{font-size:12px;} .chord-table tbody th{font-size:20px;}
+    .chord-table td{padding:6px 3px;} .chord-cell{padding:9px 2px 5px;min-height:105px;border-radius:9px;}
+    .chord-cell-name{font-size:23px;}
+    #presentOverlay{padding:8px;}
+    .present-card{width:100%;padding:22px 16px 24px;}
+    .present-head{padding-right:38px;flex-wrap:wrap;gap:8px;}
+    .present-main{gap:16px;}
+    .present-diagram{width:100%;}
+    .present-diagram svg{width:min(100%,300px);height:auto;}
+    .present-right{min-width:0;width:100%;flex-basis:100%;}
+    .present-close{min-width:44px;min-height:44px;right:7px;top:7px;color:#5a5147;}
+    .pvchip,.instbtn{min-height:44px;}
+    .present-nav{top:auto;bottom:3px;transform:none;font-size:34px;padding:0 12px;z-index:1;}
+  }
 </style>
 </head>
 <body>
@@ -135,11 +180,12 @@
     <a class="printlink" href="print.html">🖨 印刷用ページへ</a>
   </div>
   <div class="tabs" style="max-width:1000px;margin:0 auto;display:flex;gap:6px;padding-top:8px">
+    <button class="tabbtn on" id="tabbtnList" onclick="switchTab('list')">コード一覧</button>
     <button class="tabbtn" id="tabbtnGenerate" onclick="switchTab('generate')">コード生成</button>
-    <button class="tabbtn on" id="tabbtnSearch" onclick="switchTab('search')">🔍 全コード検索</button>
+    <button class="tabbtn" id="tabbtnSearch" onclick="switchTab('search')">🔍 全コード検索</button>
   </div>
 </header>
-<aside class="wrap cliche-help" aria-label="クリシェの解説">
+<aside id="clicheHelp" class="wrap cliche-help" aria-label="クリシェの解説">
   <details>
     <summary>クリシェの例：Gm → GmM7 → Gm7</summary>
     <p><b>同じマイナーコードが続くところに、少し動きを付ける例です。</b>たとえば Gm が続く部分で、Gm → GmM7 → Gm7 と響きを変えてみます。GmM7 は「マイナー・メジャーセブンス」です。</p>
@@ -148,6 +194,22 @@
     <p>印刷用ページにはこの解説は含まれません。</p>
   </details>
 </aside>
+<main class="wrap" id="tabList">
+  <div class="chord-list-intro">
+    <h2>一覧からコードを探す</h2>
+    <p>音名の行を見つけて、横へ。<br>コードを押すと、大きな図と音が出る画面を開きます。</p>
+  </div>
+  <div class="chord-list-options">
+    <label><input type="checkbox" id="listAllRoots">♯・♭の音名もすべて表示</label>
+    <button type="button" onclick="switchTab('search')">ほかの種類を探す</button>
+  </div>
+  <table class="chord-table" aria-label="音名別のウクレレコード一覧">
+    <colgroup><col class="root-col"><col><col><col></colgroup>
+    <thead><tr><th scope="col">音名</th><th scope="col">メジャー<small>C・D など</small></th><th scope="col">マイナー<small>Cm・Dm など</small></th><th scope="col">セブンス<small>C7・D7 など</small></th></tr></thead>
+    <tbody id="chordListBody"></tbody>
+  </table>
+  <p class="chord-list-foot">大きな画面では「省略」と書かれたボタンから、省略形も選べます。<br>○は開放弦（押さえずに弾く弦）です。<br>m7・maj7・6・9 などは「全コード検索」で探せます。</p>
+</main>
 <div class="wrap" id="tabGenerate" style="display:none">
   <div class="controls">
     <label>キー
@@ -242,7 +304,7 @@ function canonName(rootPc,q){ return SHARP[rootPc]+q; }
 
 // 品質ごとの構成音(半音interval)
 const QUALITY_TONES={'':[0,4,7], 'm':[0,3,7], '7':[0,4,7,10], 'm7':[0,3,7,10], 'dim':[0,3,6], 'm7-5':[0,3,6,10]};
-const QUALITY_LABEL={'':'', 'm':'m', '7':'7', 'm7':'m7', 'maj7':'maj7', 'dim':'dim', 'm7-5':'m7(-5)', 'aug':'aug', 'sus4':'sus4', '6':'6', '9':'9'};
+const QUALITY_LABEL={'':'', 'm':'m', '7':'7', 'm7':'m7', 'maj7':'maj7', 'dim':'dim', 'm7-5':'m7(-5)', 'aug':'aug', 'sus4':'sus4', '6':'6', '9':'9', 'add9':'add9'};
 
 // 実測ボイシング(12ルート×4品質、Ukulele Chord Bible p.10-11より検証済み) [G,C,E,A]
 const SH={
@@ -276,9 +338,11 @@ const SH_ALL={
  'A#':{f:[3,2,1,1],g:[3,2,1,1]}, 'A#m':{f:[3,1,1,1],g:[2,1,1,1]}, 'A#7':{f:[1,2,1,1],g:[1,2,1,1]}, 'A#maj7':{f:[3,2,1,0],g:[3,2,1,0]}, 'A#m7':{f:[1,1,1,1],g:[1,1,1,1]}, 'A#dim':{f:[0,1,0,1],g:[0,1,0,1]}, 'A#m7-5':{f:[1,1,0,1],g:[1,1,0,1]}, 'A#aug':{f:[3,2,2,1],g:[3,2,2,1]}, 'A#sus4':{f:[3,3,1,1],g:[2,2,1,1]},
  'B':{f:[4,3,2,2],g:[3,2,1,1]}, 'Bm':{f:[4,2,2,2],g:[2,1,1,1]}, 'B7':{f:[4,3,2,0],g:[3,2,1,0]}, 'Bmaj7':{f:[4,3,2,1],g:[4,3,2,1]}, 'Bm7':{f:[2,2,2,2],g:[1,1,1,1]}, 'Bdim':{f:[1,2,1,2],g:[1,2,1,2]}, 'Bm7-5':{f:[2,2,1,2],g:[2,2,1,2]}, 'Baug':{f:[4,3,3,2],g:[3,2,2,1]}, 'Bsus4':{f:[4,4,2,2],g:[2,2,1,1]},
  'C6':{f:[0,0,0,0],g:[0,0,0,0]}, 'C#6':{f:[1,1,1,1],g:[1,1,1,1]}, 'D6':{f:[4,2,2,0],g:[2,1,1,0]}, 'D#6':{f:[3,0,3,1],g:[2,0,2,1]}, 'E6':{f:[1,1,0,2],g:[1,1,0,2]}, 'F6':{f:[2,2,1,3],g:[2,2,1,3]}, 'F#6':{f:[3,3,2,4],g:[2,2,1,3]}, 'G6':{f:[0,2,0,2],g:[0,1,0,1]}, 'G#6':{f:[1,3,1,3],g:[1,2,1,2]}, 'A6':{f:[2,1,2,0],g:[2,1,2,0]}, 'A#6':{f:[0,2,1,1],g:[0,2,1,1]}, 'B6':{f:[1,3,2,2],g:[1,3,2,2]},
- 'C9':{f:[0,0,0,5],g:[0,0,0,1]}, 'C#9':{f:[1,3,1,4],g:[1,2,1,3]}, 'D9':{f:[7,6,0,0],g:[2,1,0,0]}, 'D#9':{f:[0,3,1,1],g:[0,2,1,1]}, 'E9':{f:[1,4,2,2],g:[1,3,2,2]}, 'F9':{f:[0,0,1,0],g:[0,0,1,0]}, 'F#9':{f:[1,1,2,1],g:[1,1,2,1]}, 'G9':{f:[4,2,3,0],g:[3,1,2,0]}, 'G#9':{f:[3,3,4,3],g:[1,1,2,1]}, 'A9':{f:[2,1,0,2],g:[2,1,0,2]}, 'A#9':{f:[3,2,1,3],g:[3,2,1,3]}, 'B9':{f:[4,3,2,4],g:[3,2,1,3]},
+ 'Cadd9':{f:[0,0,0,5],g:[0,0,0,1]}, 'C#add9':{f:[1,3,1,4],g:[1,2,1,3]}, 'Dadd9':{f:[7,6,0,0],g:[2,1,0,0]}, 'D#add9':{f:[0,3,1,1],g:[0,2,1,1]}, 'Eadd9':{f:[1,4,2,2],g:[1,3,2,2]}, 'Fadd9':{f:[0,0,1,0],g:[0,0,1,0]}, 'F#add9':{f:[1,1,2,1],g:[1,1,2,1]}, 'Gadd9':{f:[4,2,3,0],g:[3,1,2,0]}, 'G#add9':{f:[3,3,4,3],g:[1,1,2,1]}, 'Aadd9':{f:[2,1,0,2],g:[2,1,0,2]}, 'A#add9':{f:[3,2,1,3],g:[3,2,1,3]}, 'Badd9':{f:[4,3,2,4],g:[3,2,1,3]},
+ // Dominant 9: R, 3, b7, 9. Four strings require omitting the fifth.
+ 'C9':{f:[3,2,0,3],g:[2,1,0,2]}, 'C#9':{f:[4,3,1,4],g:[3,2,1,3]}, 'D9':{f:[5,4,2,5],g:[3,2,1,3]}, 'D#9':{f:[0,3,1,4],g:[0,2,1,3]}, 'E9':{f:[7,6,4,7],g:[3,2,1,3]}, 'F9':{f:[0,3,1,0],g:[0,2,1,0]}, 'F#9':{f:[1,4,2,1],g:[1,3,2,1]}, 'G9':{f:[4,5,3,0],g:[2,3,1,0]}, 'G#9':{f:[1,0,2,1],g:[1,0,2,1]}, 'A9':{f:[2,1,3,2],g:[2,1,3,2]}, 'A#9':{f:[3,2,4,3],g:[2,1,3,2]}, 'B9':{f:[4,3,5,4],g:[2,1,3,2]},
 };
-const QUALITY_ALL=[['','メジャー'],['m','マイナー'],['7','セブンス'],['maj7','メジャーセブンス'],['m7','マイナーセブンス'],['6','シックス'],['9','ナインス'],['dim','ディミニッシュ'],['m7-5','マイナーセブンスフラットファイブ'],['aug','オーギュメント'],['sus4','サスフォー']];
+const QUALITY_ALL=[['','メジャー'],['m','マイナー'],['7','セブンス'],['maj7','メジャーセブンス'],['m7','マイナーセブンス'],['6','シックス'],['9','ナインス（7度あり・5度省略）'],['add9','アドナインス（7度なし）'],['dim','ディミニッシュ'],['m7-5','マイナーセブンスフラットファイブ'],['aug','オーギュメント'],['sus4','サスフォー']];
 const ROOT_ALL=[['C',0],['C#',1],['D',2],['D#',3],['E',4],['F',5],['F#',6],['G',7],['G#',8],['A',9],['A#',10],['B',11]];
 
 // ===== 難易度スコア（設計書§3） =====
@@ -315,7 +379,7 @@ function toggleHardOverride(name, frets, fingers){
 }
 
 // ===== 理論生成の省略形（設計書§2C） =====
-const QUALITY_TONES_EXT={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'maj7':[0,4,7,11],'m7':[0,3,7,10],'dim':[0,3,6,9],'m7-5':[0,3,6,10],'aug':[0,4,8],'sus4':[0,5,7],'6':[0,4,7,9],'9':[0,4,7,2]};
+const QUALITY_TONES_EXT={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'maj7':[0,4,7,11],'m7':[0,3,7,10],'dim':[0,3,6,9],'m7-5':[0,3,6,10],'aug':[0,4,8],'sus4':[0,5,7],'6':[0,4,7,9],'9':[0,4,7,10,2],'add9':[0,4,7,2]};
 // 各品質: mustKeep=省くと性格が壊れる音, omitOrder=省略してよい順（1個ずつ／可能なら2個同時も試す）
 const OMIT_RULES={
   '':    {mustKeep:[4],     omitOrder:[7,0]},
@@ -353,7 +417,10 @@ function findSameShape(frets, excludeName){
   return null;
 }
 // 今表示中のボイシングが、別のコード名の標準形と全く同じ押弦かどうか(異名同号の小さな注記用)
+const F7_OPTION_NOTE='1弦は3フレット（括弧の●）でも開放0でもOK。開放では第5音ドを省略します。図・再生は選択中の形です。';
+function optionalStringNote(name,frets){ return name==='F7' && ['2,3,1,3','2,3,1,0'].includes(frets.join(',')) ? F7_OPTION_NOTE : ''; }
 function sameShapeTrivia(name, frets){
+  const option=optionalStringNote(name,frets); if(option) return option;
   const other=findSameShape(frets,name);
   return other?`＝${other}と同形`:'';
 }
@@ -455,7 +522,7 @@ const BOOK_ALT={
 };
 // 書籍由来の別形とは区別した、構成音を検証済みのローコード別形（4弦→1弦）。
 const LOW_ALT={
- 'B7':[{label:'ロー別形 2322',f:[2,3,2,2],g:[1,2,1,1],note:'4弦から2・3・2・2。ラ・レ♯・ファ♯・シ'}],
+ 'B7':[{label:'ロー別形 2322',f:[2,3,2,2],g:[1,2,1,1],note:'4弦から2・3・2・2。ラ・レ♯・ファ♯・シ'},{label:'ルート省略 2320',f:[2,3,2,0],g:[1,3,2,0],note:'4弦から2・3・2・0。ラ・レ♯・ファ♯・ラ。B7の根音シを省略（単独ではD♯dimと同じ構成音）'}],
  'Em':[{label:'ロー別形 4432',f:[4,4,3,2],g:[3,4,2,1],note:'4弦から4・4・3・2。シ・ミ・ソ・シ（Low-GではEm/Bの配置）'}],
 };
 function computeBookAlts(name){ return [...(LOW_ALT[name]||[]), ...(BOOK_ALT[name]||[])]; }
@@ -635,6 +702,7 @@ function buildKeySet(keyRootPc, cat){
 // ===== 描画 =====
 function drawChord(shape,rootPc){
   const W=200,H=150,padL=24,padR=34,padT=16,strs=4;
+  const optionalA=rootPc===5 && shape.frets.join(',')==='2,3,1,3';
   const idx=[3,2,1,0];
   // 押弦フレット範囲からウィンドウ(表示レンジ)とオフセットを決定
   const fretted=shape.frets.filter(f=>f>0);
@@ -661,6 +729,7 @@ function drawChord(shape,rootPc){
       // 運指番号は自動生成では信頼できない(バレー等)ため表示しない。位置(●)と度数(色/右ラベル)で示す
       const x=padL+(f-offset-0.5)*fx;
       marks+=`<circle cx="${x}" cy="${y}" r="9" fill="${col}"/>`;
+      if(optionalA && s===3) marks+=`<text x="${x-17}" y="${y+5}" font-size="18" fill="${col}">(</text><text x="${x+11}" y="${y+5}" font-size="18" fill="${col}">)</text>`;
     }
     labels+=`<text x="${W-padR+6}" y="${y+4}" font-size="11" fill="${col}" font-weight="700">${lbl}</text>`;
   }
@@ -691,7 +760,7 @@ $('tuning').onchange=()=>{save(LS_TUNING,$('tuning').value);render();};
 // ===== コード生成タブ・全コード検索タブ共通のボイシング構築/表示ヘルパー =====
 // 省略形・代用・本の別位置・ソロポジションを組み立てる(render/renderSearch共通)
 function buildAltVoicings(rootPc, q, cn, keyRootPc){
-  const omissions=computeOmissions(rootPc,q,cn).map(o=>({label:o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
+  const omissions=computeOmissions(rootPc,q,cn).map(o=>({label:(cn==='F7'&&o.frets.join(',')==='2,3,1,0')?'1弦開放（5度省略）':o.label,frets:o.frets,fingers:o.fingers,type:'omit',note:o.note}));
   const substitutes=computeSubstitutes(rootPc,q,cn,keyRootPc).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'sub',note:s.note}));
   const soloPos=computeSoloPos(cn,rootPc,q).map(s=>({label:s.label,frets:s.frets,fingers:s.fingers,type:'solopos',note:s.note}));
   const bookAlts=computeBookAlts(cn).map((b,i)=>({label:b.label||('本の別位置'+(i+1)),frets:b.f,fingers:b.g,type:'bookalt',note:b.note}));
@@ -722,7 +791,7 @@ function render(){
     const base=getShape(c.rootPc,c.q);
     const custom=customVoicings[c.name]||[];
     const {omissions,substitutes,soloPos,bookAlts}=buildAltVoicings(c.rootPc,c.q,cn,keyRootPc);
-    const voicings=[{label:base.fromBook?'基本':'基本(自動)', frets:base.f, fingers:base.g, type:'base'},
+    const voicings=[{label:c.q==='9'?'基本（5度省略）':(base.fromBook?'基本':'基本(自動)'), frets:base.f, fingers:base.g, type:'base'},
       ...custom.map(v=>({label:v.label,frets:v.frets,fingers:v.fingers,type:'custom'})),
       ...omissions, ...substitutes, ...soloPos, ...bookAlts];
     let vi=0;
@@ -882,12 +951,37 @@ window.setFret=setFret;window.openAdd=openAdd;window.closeAdd=closeAdd;window.sa
 window.exportJSON=exportJSON;window.clearMemo=clearMemo;window.$=$;
 
 // ===== タブ切替・全コード検索 =====
+var chartListG=[];
+const CHART_ROOTS=[['C',0],['D♭',1],['D',2],['E♭',3],['E',4],['F',5],['F♯',6],['G',7],['A♭',8],['A',9],['B♭',10],['B',11]];
+function renderChordList(){
+  const all=$('listAllRoots').checked;
+  chartListG=[];
+  $('chordListBody').innerHTML=CHART_ROOTS.filter(([,pc])=>all||[0,2,4,5,7,9,10,11].includes(pc)).map(([displayRoot,rootPc])=>{
+    const cells=['','m','7'].map(q=>{
+      const name=canonName(rootPc,q), shape=SH_ALL[name];
+      if(!shape) return '<td>—</td>';
+      const ci=chartListG.length, displayName=displayRoot+q;
+      chartListG.push({name,displayName,rootPc,q});
+      return `<td><button type="button" class="chord-cell" data-ci="${ci}" aria-label="${displayName}の押さえ方を大きく表示"><span class="chord-cell-name">${displayName}</span><span aria-hidden="true">${drawChord({frets:shape.f,fingers:shape.g},rootPc)}</span></button></td>`;
+    }).join('');
+    return `<tr><th scope="row">${displayRoot}</th>${cells}</tr>`;
+  }).join('');
+}
+$('listAllRoots').onchange=renderChordList;
+$('chordListBody').addEventListener('click',function(e){
+  const cell=e.target.closest('.chord-cell');
+  if(cell) openPresent('list',+cell.dataset.ci);
+});
 function switchTab(tab){
-  $('tabGenerate').style.display = tab==='generate' ? '' : 'none';
-  $('tabSearch').style.display = tab==='search' ? '' : 'none';
-  $('tabbtnGenerate').classList.toggle('on', tab==='generate');
-  $('tabbtnSearch').classList.toggle('on', tab==='search');
+  ['list','generate','search'].forEach(function(key){
+    const suffix=key[0].toUpperCase()+key.slice(1), active=tab===key;
+    $('tab'+suffix).style.display=active?'':'none';
+    $('tabbtn'+suffix).classList.toggle('on',active);
+    $('tabbtn'+suffix).setAttribute('aria-pressed',String(active));
+  });
+  $('clicheHelp').style.display=tab==='list'?'none':'';
   if(tab==='search') renderSearch();
+  if(tab==='list') renderChordList();
 }
 ROOT_ALL.forEach(([nm,pc])=>{ const o=document.createElement('option'); o.value=nm; o.textContent=nm; $('searchRoot').appendChild(o); });
 QUALITY_ALL.forEach(([q,label])=>{ const o=document.createElement('option'); o.value=q; o.textContent=`${label} (${q||'無記号'})`; $('searchQuality').appendChild(o); });
@@ -904,7 +998,7 @@ function renderSearch(){
       const shape=SH_ALL[name]; if(!shape) return;
       count++; searchListG.push({name,rootPc,q}); const ci=searchListG.length-1;
       const {omissions,substitutes,soloPos,bookAlts}=buildAltVoicings(rootPc,q,name,7);
-      const voicings=[{label:'基本', frets:shape.f, fingers:shape.g, type:'base'}, ...omissions, ...substitutes, ...soloPos, ...bookAlts];
+      const voicings=[{label:q==='9'?'基本（5度省略）':'基本', note:q==='9'?'9 = R・3・5・♭7・9（この形は5度省略）':q==='add9'?'add9 = R・3・5・9（7度なし）':'', frets:shape.f, fingers:shape.g, type:'base'}, ...omissions, ...substitutes, ...soloPos, ...bookAlts];
       let vi=0;
       const card=document.createElement('div'); card.className='card';
       card.title=qLabel;
@@ -944,7 +1038,7 @@ $('searchText').oninput=renderSearch;
 window.switchTab=switchTab;
 
 render(); renderProgs(); renderMemo();
-switchTab('search');
+switchTab('list');
 
 // ===================================================================
 // 拡大表示(提示)モード + 音再生   ※既存の noteAt/spell/degName/DEGCOL/
@@ -964,7 +1058,7 @@ function doremi(spellCtx,pc){ var nm=spell(spellCtx,pc); var base=DOREMI[nm[0]]|
   var acc=nm.slice(1).replace(/#/g,'♯').replace(/b/g,'♭'); return base+acc; }
 // コード生成タブは 'major'/'minor'、検索タブは ''/'m' と別語彙のため両方のキーを持たせる
 var QNAME={'':'メジャー',major:'メジャー','m':'マイナー',minor:'マイナー','7':'セブンス',maj7:'メジャーセブン',m7:'マイナーセブン',
-  '6':'シックス','9':'ナインス','m7-5':'マイナーセブンフラット5',dim:'ディミニッシュ',aug:'オーギュメント',
+  '6':'シックス','9':'ナインス（7度あり・5度省略）','add9':'アドナインス（7度なし）','m7-5':'マイナーセブンフラット5',dim:'ディミニッシュ',aug:'オーギュメント',
   sus4:'サスフォー',diatonic:''};
 
 // --- 音声エンジン(音色検証デモで確定したもの) ---
@@ -1001,7 +1095,8 @@ function playChordFrets(frets,inst){ var ctx=ac(),t0=ctx.currentTime+.02;
   ms.forEach(function(m,i){ voice(inst,midiFreq(m),1.8,t0+i*stag,gain); }); }
 
 // --- 大きなダイアグラム(度数文字は出さず、右に各弦のドレミ) ---
-function drawChordBig(frets, spellCtx){
+function drawChordBig(frets, spellCtx, chordName){
+  var optionalA=chordName==='F7' && frets.join(',')==='2,3,1,3';
   var W=300,H=250,padL=34,padR=70,padT=22,strs=4; var idx=[3,2,1,0];
   var fretted=frets.filter(function(f){return f>0;});
   var maxF=fretted.length?Math.max.apply(null,fretted):0;
@@ -1016,7 +1111,7 @@ function drawChordBig(frets, spellCtx){
     var deg=pc==null?null:degName(spellCtx,pc); var col=deg?(DEGCOL[deg]||'var(--sub)'):'#bbb';
     if(fr<0) marks+='<text x="'+(padL-6)+'" y="'+(yy+5)+'" text-anchor="end" font-size="17" fill="#bbb">✕</text>';
     else if(fr===0) marks+='<circle cx="'+(padL-15)+'" cy="'+yy+'" r="7.5" fill="none" stroke="'+col+'" stroke-width="2.5"/>';
-    else { var dx=padL+(fr-offset-0.5)*fx; marks+='<circle cx="'+dx+'" cy="'+yy+'" r="14" fill="'+col+'"/>'; }
+    else { var dx=padL+(fr-offset-0.5)*fx; marks+='<circle cx="'+dx+'" cy="'+yy+'" r="14" fill="'+col+'"/>'; if(optionalA && s===3) marks+='<text x="'+(dx-25)+'" y="'+(yy+8)+'" font-size="27" fill="'+col+'">(</text><text x="'+(dx+17)+'" y="'+(yy+8)+'" font-size="27" fill="'+col+'">)</text>'; }
     var drm=pc==null?'✕':doremi(spellCtx,pc);
     labels+='<text x="'+(W-padR+12)+'" y="'+(yy+7)+'" font-size="22" font-weight="700" fill="'+col+'">'+drm+'</text>';
   }
@@ -1050,38 +1145,42 @@ function drawKeyboard(frets, spellCtx){
 function buildVoicingsFor(rootPc,q,name,keyRootPc){
   var cn=canonName(rootPc,q); var base=getShape(rootPc,q); var custom=customVoicings[name]||[];
   var alt=buildAltVoicings(rootPc,q,cn,keyRootPc);
-  return [{label:base.fromBook?'基本':'基本(自動)',frets:base.f,fingers:base.g,type:'base'}]
+  return [{label:q==='9'?'基本（5度省略）':(base.fromBook?'基本':'基本(自動)'),frets:base.f,fingers:base.g,type:'base'}]
     .concat(custom.map(function(v){return {label:v.label,frets:v.frets,fingers:v.fingers,type:'custom'};}))
     .concat(alt.omissions,alt.substitutes,alt.soloPos,alt.bookAlts);
 }
-function getListFor(mode){ return mode==='search'?searchListG:genList; }
+function getListFor(mode){ return mode==='list'?chartListG:(mode==='search'?searchListG:genList); }
 function voicingsFor(mode,chord){
-  if(mode==='search'){ var sh=SH_ALL[chord.name]; var alt=buildAltVoicings(chord.rootPc,chord.q,chord.name,7);
-    return [{label:'基本',frets:sh.f,fingers:sh.g,type:'base'}].concat(alt.omissions,alt.substitutes,alt.soloPos,alt.bookAlts); }
+  if(mode==='search'||mode==='list'){ var sh=SH_ALL[chord.name]; var alt=buildAltVoicings(chord.rootPc,chord.q,chord.name,7);
+    return [{label:chord.q==='9'?'基本（5度省略）':'基本',frets:sh.f,fingers:sh.g,type:'base'}].concat(alt.omissions,alt.substitutes,alt.soloPos,alt.bookAlts); }
   return buildVoicingsFor(chord.rootPc,chord.q,chord.name,genKeyRootPc);
 }
 
 // --- オーバーレイ ---
 var present=null;
+var presentReturnFocus=null;
 function openPresent(mode,ci){ var list=getListFor(mode); if(!list||!list[ci]) return;
+  presentReturnFocus=document.activeElement;
   present={mode:mode,ci:ci,vi:0,inst:present?present.inst:'ukulele'};
-  renderPresent(); document.getElementById('presentOverlay').classList.add('show'); }
-function closePresent(){ var o=document.getElementById('presentOverlay'); if(o) o.classList.remove('show'); }
+  renderPresent(); document.getElementById('presentOverlay').classList.add('show');
+  document.querySelector('#presentOverlay .present-close').focus(); }
+function closePresent(){ var o=document.getElementById('presentOverlay'); if(o) o.classList.remove('show');
+  if(presentReturnFocus&&presentReturnFocus.isConnected) presentReturnFocus.focus({preventScroll:true}); }
 function renderPresent(){
   var mode=present.mode, ci=present.ci, inst=present.inst;
   var list=getListFor(mode); var chord=list[ci];
-  var spellCtx=mode==='search'?chord.rootPc:genKeyRootPc;
+  var spellCtx=mode==='search'||mode==='list'?chord.rootPc:genKeyRootPc;
   var voicings=voicingsFor(mode,chord); if(present.vi>=voicings.length) present.vi=0;
   var vi=present.vi; var v=voicings[vi];
   var ov=document.getElementById('presentOverlay');
   ov.innerHTML=''
     +'<button class="present-nav present-prev" data-nav="-1">‹</button>'
     +'<button class="present-nav present-next" data-nav="1">›</button>'
-    +'<div class="present-card"><button class="present-close">✕</button>'
-    +'<div class="present-head"><div class="present-name">'+chord.name+'</div>'
+    +'<div class="present-card"><button class="present-close" aria-label="閉じて一覧に戻る">✕</button>'
+    +'<div class="present-head"><div class="present-name">'+(chord.displayName||chord.name)+'</div>'
       +'<div class="present-q">'+(QNAME[chord.q]||'')+'</div></div>'
     +'<div class="present-main">'
-      +'<div class="present-diagram">'+drawChordBig(v.frets,spellCtx)+'</div>'
+      +'<div class="present-diagram">'+drawChordBig(v.frets,spellCtx,chord.name)+'</div>'
       +'<div class="present-right">'
         +'<div class="kbd-label">この和音の音（鍵盤タップで単音）</div>'
         +'<div class="present-kbd">'+drawKeyboard(v.frets,spellCtx)+'</div>'
@@ -1091,8 +1190,10 @@ function renderPresent(){
           +'<button class="instbtn '+(inst==='clean'?'active':'')+'" data-inst="clean">🔉 シンプル</button>'
         +'</div>'
         +'<button class="play-chord">🔊　コードを鳴らす</button>'
+        +'<div class="present-shape-label">押さえ方を選ぶ（省略形・別形）</div>'
         +'<div class="present-vchips">'+voicings.map(function(vv,k){
-            return '<button class="pvchip '+(k===vi?'active':'')+'" data-k="'+k+'">'+vv.label+'</button>';}).join('')+'</div>'
+            return '<button class="pvchip '+(vv.type==='omit'||vv.label.includes('省略')?'omission ':'')+(k===vi?'active':'')+'" data-k="'+k+'">'+vv.label+'</button>';}).join('')+'</div>'
+        +(optionalStringNote(chord.name,v.frets)||v.note?'<div class="present-note" aria-live="polite">'+(optionalStringNote(chord.name,v.frets)||v.note)+'</div>':'')
       +'</div>'
     +'</div></div>';
   ov.querySelector('.present-close').onclick=closePresent;
@@ -1114,7 +1215,7 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
 
 // --- 生成: オーバーレイ要素と導線(両タブのダイアグラムをタップ) ---
 (function initPresent(){
-  var ov=document.createElement('div'); ov.id='presentOverlay'; document.body.appendChild(ov);
+  var ov=document.createElement('div'); ov.id='presentOverlay'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-label','コードの詳細'); document.body.appendChild(ov);
   ov.addEventListener('click',function(e){ if(e.target===ov) closePresent(); });
   document.addEventListener('keydown',function(e){
     var o=document.getElementById('presentOverlay'); if(!o||!o.classList.contains('show')) return;
@@ -1128,3 +1229,4 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
 </script>
 </body>
 </html>
+
