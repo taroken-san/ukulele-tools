@@ -1608,7 +1608,15 @@ const attendanceHistoryView = (() => {
     for(const id of ['rhYear','rhPeriod'])$(id).onchange=()=>{render();$('rhTable').scrollLeft=0;};
     $('rhSearch').oninput=()=>{selectedStudent=null;render();};$('rhBack').onclick=()=>{selectedStudent=null;render();};
     $('rhReset').onclick=()=>{selectedStudent=null;$('rhSearch').value='';$('rhPeriod').value='all';render();$('rhTable').scrollLeft=0;};
-    $('rhEarlier').onclick=()=>$('rhTable').scrollBy({left:-220});$('rhLater').onclick=()=>$('rhTable').scrollBy({left:220});
+    function stepMonth(direction) {
+      const table=$('rhTable'), headers=[...table.querySelectorAll('thead th')];
+      if(headers.length<2)return;
+      const current=table.scrollLeft, nameRight=headers[0].getBoundingClientRect().right;
+      const stops=headers.slice(1).map(h=>Math.max(0,current+h.getBoundingClientRect().left-nameRight));
+      const target=direction>0?stops.find(x=>x>current+1):stops.reverse().find(x=>x<current-1);
+      if(target!==undefined)table.scrollLeft=target;
+    }
+    $('rhEarlier').onclick=()=>stepMonth(-1);$('rhLater').onclick=()=>stepMonth(1);
   }
   bind();
   return {open};
