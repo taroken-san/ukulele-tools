@@ -215,6 +215,32 @@
   .toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1c1c1e;color:#fff;
     padding:10px 18px;border-radius:22px;font-size:14px;opacity:0;transition:opacity .25s;z-index:50;pointer-events:none;}
   .toast.show{opacity:.95;}
+/* Styles scoped to the read-only history dialog. */
+#rhDialog{width:min(1200px,96vw);max-width:96vw;padding:0;border:1px solid #ddd;border-radius:14px;max-height:92vh;color:#1c1c1e;background:#fff}
+#rhDialog::backdrop{background:#0006}
+#rhDialog .rh-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #ddd}
+#rhDialog h2{font-size:18px;margin:0}
+#rhDialog .rh-body{padding:12px 16px}
+#rhDialog .rh-note,#rhCount{font-size:12px;color:#62626a;margin:6px 0 12px}
+#rhDialog .rh-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+#rhDialog label{display:flex;flex-direction:column;gap:4px;font-size:12px;min-width:100px;flex:1}
+#rhDialog button,#rhDialog select,#rhDialog input{font:inherit;border:1px solid #d8d8dd;border-radius:7px;background:#fff;color:#333;padding:8px;min-height:40px}
+#rhDialog button{cursor:pointer}
+#rhDialog button:focus-visible,#rhDialog select:focus-visible,#rhDialog input:focus-visible{outline:3px solid #995900;outline-offset:1px}
+#rhDialog .rh-table{overflow:auto;max-height:52vh;border:1px solid #ddd;border-radius:8px;isolation:isolate}
+#rhDialog table{border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px}
+#rhDialog th,#rhDialog td{min-width:210px;padding:10px;border-right:1px solid #e4e4e8;border-bottom:1px solid #e4e4e8;vertical-align:top;text-align:left}
+#rhDialog thead th{position:sticky;top:0;background:#fbe7d6;z-index:3}
+#rhDialog th:first-child{position:sticky;left:0;min-width:140px;max-width:170px;background:white;z-index:2}
+#rhDialog thead th:first-child{background:#fbe7d6;z-index:4}
+#rhDialog th button{border:0;color:#995900;font-weight:bold;padding:2px;text-align:left;overflow-wrap:anywhere}
+#rhDialog th small{display:block;font-size:10px;color:#777;overflow-wrap:anywhere;font-weight:normal}
+#rhDialog .rh-att span{display:block}#rhDialog .rh-pay{margin-top:8px;font-size:12px;color:#555}
+#rhDialog .rh-scroll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12px}
+#rhDialog .rh-empty{padding:24px;text-align:center}
+#btnReceiptHistory{margin:8px 14px 0}
+@media(max-width:600px){#rhDialog .rh-body{padding:10px}#rhDialog .rh-table{max-height:45vh}#rhDialog th:first-child{min-width:112px;max-width:130px}#rhDialog label{flex-basis:40%}}
+
 </style>
 </head>
 <body>
@@ -236,6 +262,7 @@
 <div class="month-tabs" id="monthTabs"></div>
 <div class="session-tabs" id="sessionTabs"></div>
 
+<button type="button" class="btn-ghost" id="btnReceiptHistory">出欠・月謝一覧（閲覧専用）</button>
 <div class="wrap" id="content"></div>
 
 <div class="save-bar">
@@ -245,6 +272,26 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<!-- Read-only attendance and tuition receipt history; no input controls write to records. -->
+<dialog id="rhDialog" aria-labelledby="rhTitle">
+  <div class="rh-heading"><h2 id="rhTitle">出欠・月謝一覧</h2><button type="button" id="rhClose">閉じる</button></div>
+  <div class="rh-body">
+    <p id="rhScope" class="rh-note"></p>
+    <div class="rh-filters">
+      <label>クラス<select id="rhClass"></select></label>
+      <label>年<select id="rhYear"></select></label>
+      <label>期間<select id="rhPeriod"><option value="all">1〜12月</option><option value="first">1〜6月</option><option value="second">7〜12月</option></select></label>
+      <label>生徒名・ID<input id="rhSearch" type="search" placeholder="名前・IDで検索" autocomplete="off"></label>
+      <button type="button" id="rhReset">絞り込み解除</button>
+      <button type="button" id="rhBack" hidden>全員の一覧へ戻る</button>
+    </div>
+    <p id="rhCount" aria-live="polite"></p>
+    <p class="rh-note">空欄は「未記録」です。欠席から未入金とは判定しません。同じ月の受領日は各回の記録をそのまま表示します。受領日と授業日は別の記録です。</p>
+    <div id="rhTable" class="rh-table" role="region" tabindex="0" aria-label="生徒別の出欠・月謝一覧。左右にスクロールできます"></div>
+    <div class="rh-scroll"><button type="button" id="rhEarlier">← 前の月</button><button type="button" id="rhLater">次の月 →</button><span>生徒名を押すと、その生徒だけ表示します。</span></div>
+  </div>
+</dialog>
+
 
 <!-- 使い方ダイアログ -->
 <dialog id="dlgHelp">
@@ -1478,6 +1525,74 @@ function init(){
   window.addEventListener('beforeunload',e=>{ if(dirty){ e.preventDefault(); e.returnValue=''; } });
 }
 init();
+/* Read-only history. Never call the input renderer, ensure(), or persistence here. */
+const attendanceHistoryView = (() => {
+  const $ = id => document.getElementById(id);
+  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let snapshot = {classes:[], records:{}}, selectedStudent = null;
+  const yearKeys = root => Object.keys(root || {}).filter(y => /^\d{4}$/.test(y));
+  const record = (classId, year, month, session) => snapshot.records?.[classId]?.[year]?.[month]?.[session] || {};
+  function students(cls, year) {
+    const byId = new Map();
+    for (const s of cls?.students || []) if (s.id != null) byId.set(String(s.id), {id:String(s.id), name:s.name || '名前未登録', inactive:s.active === false});
+    // Preserve historical rows even when the current roster no longer contains that ID.
+    for (let m=1; m<=12; m++) for (const session of [1,2]) {
+      const r = record(cls.id, year, m, session);
+      for (const id of new Set([...Object.keys(r.att || {}), ...Object.keys(r.pay || {})])) {
+        if (!byId.has(id)) byId.set(id, {id, name:'登録名なし', inactive:false});
+      }
+    }
+    return [...byId.values()];
+  }
+  function cell(classId, year, month, studentId) {
+    const sessions = [1,2].map(session => {
+      const r = record(classId, year, month, session);
+      return {session, attendance:r.att?.[studentId] || '未記録', receipt:r.pay?.[studentId] || ''};
+    });
+    return {sessions, receipts:sessions.filter(s => s.receipt !== '')};
+  }
+  function months() {const p=$('rhPeriod').value; return Array.from({length:p==='all'?12:6},(_,i)=>i+(p==='second'?7:1));}
+  function selectedClass() {return snapshot.classes.find(c=>String(c.id)===$('rhClass').value);}
+  function setYears(preferred) {
+    const cls=selectedClass(); const ys=new Set([String(preferred || new Date().getFullYear()), ...yearKeys(snapshot.records?.[cls?.id])]);
+    $('rhYear').innerHTML=[...ys].sort().reverse().map(y=>`<option value="${esc(y)}">${esc(y)}年</option>`).join('');
+    $('rhYear').value=String(preferred || new Date().getFullYear());
+  }
+  function cellHtml(cls,y,m,s) {
+    const value=cell(cls.id,y,m,s.id);
+    return `<div class="rh-att">${value.sessions.map(r=>`<span>第${r.session}回：${esc(r.attendance)}</span>`).join('')}</div><div class="rh-pay">月謝受領日：${value.receipts.length?value.receipts.map(r=>`<div>第${r.session}回の記録：${esc(r.receipt)}</div>`).join(''):'未記録'}</div>`;
+  }
+  function render() {
+    const cls=selectedClass(), year=$('rhYear').value, ms=months(), q=$('rhSearch').value.trim();
+    $('rhBack').hidden=selectedStudent===null;
+    if(!cls){$('rhTable').innerHTML='<p class="rh-empty">表示できるクラスはありません。</p>';$('rhCount').textContent='';return;}
+    const roster=students(cls,year), rows=roster.filter(s=>(selectedStudent===null || s.id===selectedStudent)&&(!q || s.name.includes(q)||s.id.includes(q)));
+    $('rhCount').textContent=`${cls.name || 'クラス'} ／ ${year}年 ${ms[0]}〜${ms[ms.length-1]}月 ／ ${rows.length}名`;
+    $('rhTable').innerHTML=rows.length?`<table><thead><tr><th scope="col">生徒名</th>${ms.map(m=>`<th scope="col">${m}月</th>`).join('')}</tr></thead><tbody>${rows.map(s=>`<tr><th scope="row"><button type="button" data-rh-student="${esc(s.id)}">${esc(s.name)}</button><small>ID：${esc(s.id)}${s.inactive?' ／ 退会':''}</small></th>${ms.map(m=>`<td>${cellHtml(cls,year,m,s)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'<p class="rh-empty">該当する生徒はいません。</p>';
+    $('rhTable').querySelectorAll('[data-rh-student]').forEach(b=>b.onclick=()=>{selectedStudent=b.dataset.rhStudent;$('rhSearch').value='';render();});
+  }
+  function open() {
+    // Snapshot only data already available in this teacher's current screen, including unsaved edits.
+    snapshot=JSON.parse(JSON.stringify({classes:store.classes || [], records:store.records || {}})); selectedStudent=null;
+    $('rhScope').textContent=`${store.teacherId || '講師未選択'}：この画面に読み込まれている記録（未保存の入力を含む）です。閲覧専用で、一覧の操作では保存しません。`;
+    $('rhClass').innerHTML=snapshot.classes.map(c=>`<option value="${esc(c.id)}">${esc(c.name || 'クラス')}</option>`).join('');
+    $('rhClass').value=snapshot.classes.some(c=>String(c.id)===String(curClassId))?String(curClassId):String(snapshot.classes[0]?.id || '');
+    setYears(curYear);$('rhPeriod').value='all';$('rhSearch').value='';render();$('rhTable').scrollLeft=0;$('rhDialog').showModal();
+  }
+  function close() {$('rhDialog').close();}
+  function release() {snapshot={classes:[],records:{}};selectedStudent=null;$('rhTable').innerHTML='';$('rhScope').textContent='';$('rhCount').textContent='';$('rhClass').innerHTML='';$('rhYear').innerHTML='';$('rhSearch').value='';}
+  function bind() {
+    $('btnReceiptHistory').onclick=open;$('rhClose').onclick=close;$('rhDialog').addEventListener('close',release);
+    $('rhClass').onchange=()=>{selectedStudent=null;setYears($('rhYear').value);render();$('rhTable').scrollLeft=0;};
+    for(const id of ['rhYear','rhPeriod'])$(id).onchange=()=>{render();$('rhTable').scrollLeft=0;};
+    $('rhSearch').oninput=()=>{selectedStudent=null;render();};$('rhBack').onclick=()=>{selectedStudent=null;render();};
+    $('rhReset').onclick=()=>{selectedStudent=null;$('rhSearch').value='';$('rhPeriod').value='all';render();$('rhTable').scrollLeft=0;};
+    $('rhEarlier').onclick=()=>$('rhTable').scrollBy({left:-220});$('rhLater').onclick=()=>$('rhTable').scrollBy({left:220});
+  }
+  bind();
+  return {open};
+})();
+
 </script>
 </body>
 </html>
