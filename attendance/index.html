@@ -228,10 +228,11 @@
 #rhDialog button{cursor:pointer}
 #rhDialog button:focus-visible,#rhDialog select:focus-visible,#rhDialog input:focus-visible{outline:3px solid #995900;outline-offset:1px}
 #rhDialog .rh-table{overflow:auto;max-height:52vh;border:1px solid #ddd;border-radius:8px;isolation:isolate}
+#rhDialog .rh-axis{font-size:12px;color:#62626a;margin:0 0 6px;flex:none}
 #rhDialog table{border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px}
 #rhDialog th,#rhDialog td{min-width:210px;padding:10px;border-right:1px solid #e4e4e8;border-bottom:1px solid #e4e4e8;vertical-align:top;text-align:left}
 #rhDialog thead th{position:sticky;top:0;background:#fbe7d6;z-index:3}
-#rhDialog th:first-child{position:sticky;left:0;min-width:140px;max-width:170px;background:white;z-index:2}
+#rhDialog th:first-child{position:sticky;left:0;min-width:58px;width:58px;max-width:58px;background:white;z-index:2}
 #rhDialog thead th:first-child{background:#fbe7d6;z-index:4}
 #rhDialog th button{border:0;color:#995900;font-weight:bold;padding:2px;text-align:left;overflow-wrap:anywhere}
 #rhDialog th small{display:block;font-size:10px;color:#777;overflow-wrap:anywhere;font-weight:normal}
@@ -239,7 +240,7 @@
 #rhDialog .rh-scroll{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12px}
 #rhDialog .rh-empty{padding:24px;text-align:center}
 #btnReceiptHistory{margin:8px 14px 0}
-@media(max-width:600px){#rhDialog .rh-body{padding:10px}#rhDialog .rh-table{max-height:45vh}#rhDialog th:first-child{min-width:112px;max-width:130px}#rhDialog label{flex-basis:40%}}
+@media(max-width:600px){#rhDialog .rh-body{padding:10px}#rhDialog .rh-table{max-height:45vh}#rhDialog th:first-child{min-width:58px;width:58px;max-width:58px}#rhDialog label{flex-basis:40%}}
 
 #rhFilters{margin:0;border:0;padding:0}
 #rhFilters>summary{display:none;cursor:pointer;font-size:13px;font-weight:600;padding:8px 2px;color:#995900}
@@ -258,6 +259,7 @@
   #rhDialog .rh-filters button,#rhDialog .rh-filters select,#rhDialog .rh-filters input{min-height:36px;padding:6px}
 }
 
+#omDialog{width:min(480px,94vw);max-height:90vh;overflow:auto;border:1px solid #ddd;border-radius:12px;padding:16px}#omDialog h2{font-size:18px}#omDialog p{font-size:13px}#omDialog input,#omDialog button{font:inherit;min-height:44px;padding:8px;max-width:100%}.om-date,.om-actions{display:flex;gap:8px;margin:10px 0}.om-date input{flex:1;min-width:0}#omError{color:#a00}.om-entry{font-size:12px;margin:6px 0}.om-entry button{min-height:40px}
 </style>
 </head>
 <body>
@@ -290,6 +292,15 @@
 
 <div class="toast" id="toast"></div>
 <!-- Read-only attendance and tuition receipt history; no input controls write to records. -->
+<dialog id="omDialog" aria-labelledby="omTitle"><div class="om-body">
+<h2 id="omTitle">振替日の登録</h2><p id="omContext"></p>
+<p>任意の登録です。日付が未定・振替を使わない場合はキャンセルで戻れます。実施済みを記録する操作ではありません。</p>
+<label>欠席日（確認）<input type="date" id="omAbsent"></label>
+<p id="omDatesLabel"><strong>振替日</strong></p><div id="omDates" role="group" aria-labelledby="omDatesLabel"></div><button type="button" id="omAdd">別の振替日を追加</button>
+<p id="omError" role="alert"></p><p>「反映」で端末内に反映します。中央への送信は、元の画面の「保存」です。</p>
+<div class="om-actions"><button type="button" id="omCancel">キャンセル</button><button type="button" id="omApply">反映</button></div>
+</div></dialog>
+
 <dialog id="rhDialog" aria-labelledby="rhTitle">
   <div class="rh-heading"><h2 id="rhTitle">出欠・月謝一覧</h2><button type="button" id="rhClose">閉じる</button></div>
   <div class="rh-body">
@@ -302,12 +313,12 @@
       <label>生徒名・ID<input id="rhSearch" type="search" placeholder="名前・IDで検索" autocomplete="off"></label>
       <button type="button" id="rhReset">絞り込み解除</button>
     </div>
-    <p class="rh-note">空欄は「未記録」です。欠席から未入金とは判定しません。同じ月の受領日は各回の記録をそのまま表示します。受領日と授業日は別の記録です。</p>
+    <p class="rh-note">空欄は「未記録」です。欠席から未入金とは判定しません。同じ月の受領日は各回の記録をそのまま表示します。受領日と授業日は別の記録です。新規登録の振替日は欠席回とのリンクで表示します。旧記録は保存授業日との対応が確定する場合だけ表示します。予定・実施済みの区別はできません。</p>
     </details>
     <button type="button" id="rhBack" hidden>全員の一覧へ戻る</button>
-    <p id="rhCount" aria-live="polite"></p>
-    <div id="rhTable" class="rh-table" role="region" tabindex="0" aria-label="生徒別の出欠・月謝一覧。左右にスクロールできます"></div>
-    <div class="rh-scroll"><button type="button" id="rhEarlier">← 前の月</button><button type="button" id="rhLater">次の月 →</button><span>生徒名を押すと、その生徒だけ表示します。</span></div>
+    <p id="rhCount" aria-live="polite"></p><p class="rh-axis">月は上下・生徒は左右へ。名前を押すと個人表示。</p>
+    <div id="rhTable" class="rh-table" role="region" tabindex="0" aria-label="月別の出欠・月謝一覧。月は上下、生徒は左右にスクロールできます"></div>
+    <div class="rh-scroll"><button type="button" id="rhEarlier">↑ 前の月</button><button type="button" id="rhLater">次の月 ↓</button><span>生徒名を押すと、その生徒だけ表示します。</span></div>
   </div>
 </dialog>
 
@@ -470,6 +481,74 @@
 </dialog>
 
 <script>
+/* Optional makeup registrations: pure lookup/drafts; mutate only on explicit apply. */
+const optionalMakeups=(()=>{
+ const clone=v=>JSON.parse(JSON.stringify(v));
+ const isAbsent=v=>['×','✖','✖️'].includes(v);
+ const validDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+ function locate(data,key){
+  const cs=data.classes.filter(c=>String(c.id)===String(key.classId));
+  if(cs.length!==1)throw Error('クラスを特定できません。');
+  const ss=cs[0].students.filter(s=>String(s.id)===String(key.studentId));
+  const rec=data.records?.[key.classId]?.[key.year]?.[key.month]?.[key.session];
+  if(ss.length!==1||!rec)throw Error('生徒または授業回を特定できません。');
+  return {student:ss[0],rec};
+ }
+ function signature(data,key){const {student,rec}=locate(data,key);return JSON.stringify({student,rec});}
+ function begin(data,key,suggestedDate){
+  const {student,rec}=locate(data,key),link=rec.makeupLinks?.[key.studentId];
+  return {key:clone(key),base:signature(data,key),link:clone(link||null),absent:link?.absent||rec.date||suggestedDate||'',entries:clone((student.makeups||[]).filter(m=>link&&m.absenceId===link.id)),done:false};
+ }
+ function apply(data,draft,absent,dates,newId){
+  if(draft.done)return false;
+  if(signature(data,draft.key)!==draft.base)throw Error('記録が変わりました。閉じて開き直してください。');
+  const {student,rec}=locate(data,draft.key),sid=draft.key.studentId;
+  if(!Array.isArray(dates)||dates.some(d=>!validDate(d)))throw Error('振替日を入力してください。未定ならキャンセルできます。');
+  if(new Set(dates).size!==dates.length)throw Error('同じ振替日が重複しています。');
+  if(dates.length&&!isAbsent(rec.att?.[sid]))throw Error('欠席が取り消されています。登録は変更せず、必要なら振替日をすべて外してください。');
+  if(dates.length&&!validDate(absent))throw Error('欠席日を確認してください。');
+  if(!draft.link&&!dates.length){draft.done=true;return false;}
+  const link=draft.link||{id:newId(),absent};
+  const existing=(student.makeups||[]).filter(m=>m.absenceId!==link.id);
+  const entries=dates.map(date=>{
+   const old=draft.entries.find(m=>m.makeup===date);
+   return {id:old?.id||newId(),absenceId:link.id,absent,makeup:date};
+  });
+  // Keep the stable per-student link even after dates are removed; no legacy conversion.
+  const nextLink={...link,absent:dates.length?absent:link.absent};
+  const nextEntries=[...existing,...entries];
+  const changed=JSON.stringify(rec.makeupLinks?.[sid])!==JSON.stringify(nextLink)||JSON.stringify(student.makeups||[])!==JSON.stringify(nextEntries);
+  if(changed){rec.makeupLinks={...(rec.makeupLinks||{}),[sid]:nextLink};student.makeups=nextEntries;}
+  draft.done=true;return changed;
+ }
+ function dates(data,key){
+  const {student,rec}=locate(data,key),link=rec.makeupLinks?.[key.studentId];
+  if(!isAbsent(rec.att?.[key.studentId])||!link)return [];
+  return (student.makeups||[]).filter(m=>m.absenceId===link.id&&validDate(m.makeup)).map(m=>m.makeup);
+ }
+ function linkedKey(data,classId,studentId,absenceId){
+  const matches=[],records=data.records[classId]||{};
+  for(const year of Object.keys(records).filter(y=>/^\d{4}$/.test(y)))for(const month of Object.keys(records[year]).filter(m=>/^\d+$/.test(m)))for(const session of Object.keys(records[year][month])){
+   if(records[year][month][session].makeupLinks?.[studentId]?.id===absenceId)matches.push({classId,studentId,year:+year,month:+month,session:+session});
+  }
+  return matches.length===1?matches[0]:null;
+ }
+ function moveConflict(data,sid,from,to){
+  const target=data.classes.find(c=>c.id===to);
+  if(!target||target.students.some(s=>s.id===sid))return '移動先に同じ生徒IDがあるため移動できません。';
+  const src=data.records[from]||{},dst=data.records[to]||{};
+  for(const y of Object.keys(src).filter(k=>/^\d{4}$/.test(k))){
+   if(src[y]._facility?.[sid]!==undefined&&dst[y]?._facility?.[sid]!==undefined)return '移動先に施設費記録があります。移動を中止しました。';
+   for(const m of Object.keys(src[y]).filter(k=>/^\d+$/.test(k)))for(const n of Object.keys(src[y][m])){
+    const a=src[y][m][n],b=dst[y]?.[m]?.[n];
+    if(['att','pay','makeupLinks'].some(f=>a[f]?.[sid]!==undefined)&&['att','pay','makeupLinks'].some(f=>b?.[f]?.[sid]!==undefined))return '移動先の同じ授業回に記録があります。上書きせず移動を中止しました。';
+   }
+  }
+  return '';
+ }
+ return {isAbsent,validDate,begin,apply,dates,moveConflict,linkedKey};
+})();
+
 /* ====== 定数 ====== */
 const STATUSES = [
   {v:'○', cls:'sel-ok',     label:'○'},
@@ -623,6 +702,8 @@ function moveStudentToClass(studentId, fromClassId, toClassId){
   if(!fromC || !toC || fromClassId===toClassId) return;
   const idx = fromC.students.findIndex(s=>s.id===studentId);
   if(idx<0) return;
+  const conflict=optionalMakeups.moveConflict(store,studentId,fromClassId,toClassId);
+  if(conflict){alert(conflict);return false;}
   const [s] = fromC.students.splice(idx,1);
   toC.students.push(s);
 
@@ -642,15 +723,18 @@ function moveStudentToClass(studentId, fromClassId, toClassId){
           const rec = yearData[month][session];
           const hasAtt = rec.att && rec.att[studentId]!==undefined;
           const hasPay = rec.pay && rec.pay[studentId]!==undefined;
-          if(!hasAtt && !hasPay) return;
+          const hasLink=rec.makeupLinks && rec.makeupLinks[studentId]!==undefined;
+          if(!hasAtt && !hasPay && !hasLink) return;
           const toRec = ensure(toClassId, year, month, session);
           if(hasAtt){ toRec.att[studentId] = rec.att[studentId]; delete rec.att[studentId]; }
           if(hasPay){ toRec.pay[studentId] = rec.pay[studentId]; delete rec.pay[studentId]; }
+          if(hasLink){toRec.makeupLinks=toRec.makeupLinks||{};toRec.makeupLinks[studentId]=rec.makeupLinks[studentId];delete rec.makeupLinks[studentId];}
         });
       });
     });
   }
   markDirty();
+  return true;
 }
 
 /* ====== 今日の教材（コースが設定されたクラスのみ） ====== */
@@ -886,18 +970,21 @@ function mkCalendar(idx, selectedISO, absentISO){
 function renderMakeup(){
   const s = curMkStu(); if(!s) return;
   document.getElementById('mkTitle').textContent = (s.name||'生徒') + ' さんの振替';
-  const list = makeupsFor(s);
-  const pending = list.filter(m=>!m.makeup).length;
-  const done = list.length - pending;
-  let html = `<div class="mk-summary">未消化 ${pending}件・済み ${done}件</div>`;
-  if(!list.length){
+  const list = Array.isArray(s.makeups)?s.makeups:[];
+  const legacyCount=store.records[curClassId]?._makeup?.[s.id]||0;
+  const pending = list.filter(m=>!m.absenceId&&!m.makeup).length;
+  const linkedList=list.filter(m=>m.absenceId);
+  const done = list.filter(m=>!m.absenceId&&m.makeup).length;
+  let html = `<div class="mk-summary">日付未定 ${pending}件・日付登録 ${done+linkedList.length}件${legacyCount?`・旧件数 ${legacyCount}件（日付未記録）`:""}</div>`;
+  if(!list.length && !linkedList.length && !legacyCount){
     html += `<div class="mk-next" style="margin-bottom:10px;">まだ振替はありません。</div>`;
   }
   list.forEach((m,i)=>{
+    if(m.absenceId)return;
     const isDone = !!m.makeup;
     html += `<div class="mk-row ${isDone?'done':'plan'}">
       <div class="mk-row-top">
-        <span class="mk-tag ${isDone?'done':'plan'}">${isDone?'済み':'予定'}</span>
+        <span class="mk-tag ${isDone?'done':'plan'}">${isDone?'日付登録済み':'日付未定'}</span>
         <span class="mk-row-txt">${m.absent?fmtDate(m.absent)+'休み':'休んだ日 未記入'}${isDone?' → '+fmtDate(m.makeup)+'振替':''}</span>
         <button class="mk-del" data-mkdel="${i}" title="この振替を消す">🗑</button>
       </div>
@@ -905,10 +992,16 @@ function renderMakeup(){
       ${!isDone?mkCalendar(i, m.makeup, m.absent):''}
     </div>`;
   });
+  linkedList.forEach((m,index)=>{
+    const key=optionalMakeups.linkedKey(store,curClassId,s.id,m.absenceId);
+    const status=key?store.records[key.classId][key.year][key.month][key.session].att?.[s.id]:null;
+    html+=`<div class="mk-row"><strong>振替日（登録）：${escapeHtml(m.makeup)}</strong><p>${escapeHtml(m.absent)}休み分${key?` ／ ${key.year}年${key.month}月 第${key.session}回`:''}</p><p>${key?(optionalMakeups.isAbsent(status)?'実施済みの確認ではありません。':'欠席は取り消されています。振替記録は保持しています。'):'元の授業回を特定できないため、この画面では編集できません。'}</p>${key?`<button type="button" data-linked-edit="${index}">この欠席回の振替日を確認・編集</button>`:''}</div>`;
+  });
   // 既定の休んだ日＝今表示しているコマの日付
   html += `<button class="mk-add" id="mkAdd">＋ 振替を追加（休んだ日を記録）</button>`;
   const body = document.getElementById('mkBody');
   body.innerHTML = html;
+  body.querySelectorAll('button[data-linked-edit]').forEach(b=>{b.onclick=()=>{const entry=linkedList[+b.dataset.linkedEdit];const key=optionalMakeups.linkedKey(store,curClassId,s.id,entry.absenceId);if(key)optionalMakeupUI.open(s.id,key);};});
   body.querySelectorAll('button[data-mkprev]').forEach(b=>{
     b.onclick=()=>{
       const idx = b.dataset.mkprev;
@@ -941,6 +1034,7 @@ function renderMakeup(){
   });
   document.getElementById('mkAdd').onclick=()=>{
     const sd = sessionDate(curYear, curMonth, curSession);
+    if(!Array.isArray(s.makeups))s.makeups=list;
     list.push({absent: sd?sd.iso:'', makeup:''});
     markDirty(); renderMakeup(); renderContent();
   };
@@ -1044,18 +1138,22 @@ function renderContent(){
     const leaveBtn = `<button class="btn-leave${suspended?' active':''}" data-leave="${s.id}" title="休会の切替">休</button>`;
     const noteOpenNow = noteOpen.has(s.id);
     const pencilBtn = `<button class="note-pencil${s.note?' has':''}${noteOpenNow?' open':''}" data-noteedit="${s.id}" aria-label="生徒メモ">✎</button>`;
-    const pending = makeupPending(s);
-    const mkList = makeupsFor(s);
+    const mkList = Array.isArray(s.makeups)?s.makeups.filter(m=>!m.absenceId):[];
+    const pending = mkList.filter(m=>!m.makeup).length+(store.records[curClassId]?._makeup?.[s.id]||0);
     const upcomingDone = !suspended ? mkList.filter(m=>m.makeup).sort((a,b)=>a.makeup.localeCompare(b.makeup))[0] : null;
-    const doneCount = mkList.filter(m=>m.makeup).length;
+    const doneCount = mkList.filter(m=>m.makeup).length+(s.makeups||[]).filter(m=>m.absenceId).length;
     let btnLabel;
-    if(pending && doneCount) btnLabel = `↔ 振替 未${pending}・済${doneCount}`;
+    if(pending && doneCount) btnLabel = `↔ 振替 未${pending}・日付登録${doneCount}`;
     else if(pending) btnLabel = `↔ 振替 ${pending}件`;
+    else if(doneCount && !upcomingDone) btnLabel = `↔ 振替 日付登録${doneCount}件`;
     else if(upcomingDone) btnLabel = `↔ 振替 ${fmtDate(upcomingDone.makeup)}・${doneCount}件`;
     else btnLabel = `↔ 振替 なし`;
+    const linked=rec.makeupLinks?.[s.id];
+    const linkedDates=linked?(s.makeups||[]).filter(m=>m.absenceId===linked.id):[];
+    const optionalEntry=!suspended&&(optionalMakeups.isAbsent(att)||linkedDates.length)?`<div class="om-entry"><button type="button" data-om-open="${escapeHtml(s.id)}">${linkedDates.length?'登録した振替日を確認・編集':'振替日を登録（任意）'}</button>${linkedDates.length?`<span> ${linkedDates.map(m=>escapeHtml(m.makeup)).join(' ／ ')}（登録日・実施確認なし）</span>`:''}${!optionalMakeups.isAbsent(att)&&linkedDates.length?'<p>欠席は取り消されています。振替記録は保持しています。不要な日付は編集画面で外せます。</p>':''}</div>`:'';
     const tail = suspended
       ? `<span class="leave-badge">休会中</span>`
-      : `<button class="mk-btn ${pending||upcomingDone?'has':'none'}" data-mkopen="${s.id}">${btnLabel}</button>`;
+      : `<button class="mk-btn ${pending||doneCount?'has':'none'}" data-mkopen="${s.id}">${btnLabel}</button>`;
     const idArea = `<span class="stu-no">${idx+1}.</span><span class="stu-name">${escapeHtml(s.name)}</span>${pencilBtn}${tail}`;
     // 直近の振替（未消化があれば優先、なければ済みの最早を表示）
     const nextPlan = !suspended ? mkList.find(m=>!m.makeup) : null;
@@ -1083,7 +1181,7 @@ function renderContent(){
       <div class="stu-top">
         <div class="stu-id">${idArea}</div>
         <div class="seg">${segBtns}${leaveBtn}</div>
-      </div>${mkNextBlock}${noteBlock}${payRow}
+      </div>${optionalEntry}${mkNextBlock}${noteBlock}${payRow}
     </div>`;
   });
   html += `</div>`;
@@ -1108,6 +1206,7 @@ function renderContent(){
       markDirty(); renderContent();
     };
   });
+  root.querySelectorAll('button[data-om-open]').forEach(b=>{b.onclick=()=>optionalMakeupUI.open(b.dataset.omOpen);});
   root.querySelectorAll('button[data-mkopen]').forEach(b=>{
     b.onclick=()=>openMakeup(b.dataset.mkopen);
   });
@@ -1382,7 +1481,7 @@ function renderStuEdit(){
       const toClass=store.classes.find(x=>x.id===toClassId);
       const s=c.students.find(x=>x.id===sid);
       if(!confirm(`${s.name||'この生徒'}さんを「${toClass.name||'クラス'}」へ移動しますか？\n出席・受領日などの記録もすべて移動します。`)) return;
-      moveStudentToClass(sid, c.id, toClassId);
+      if(!moveStudentToClass(sid, c.id, toClassId))return;
       moveOpen.delete(sid);
       renderStuEdit();
       renderAll();
@@ -1543,6 +1642,41 @@ function init(){
   };
   window.addEventListener('beforeunload',e=>{ if(dirty){ e.preventDefault(); e.returnValue=''; } });
 }
+const optionalMakeupUI=(()=>{
+ const $=id=>document.getElementById(id);let draft=null;
+ function row(value=''){
+  const wrapper=document.createElement('div');wrapper.className='om-date';
+  const input=document.createElement('input');input.type='date';input.value=value;input.setAttribute('aria-label','登録する振替日');
+  const remove=document.createElement('button');remove.type='button';remove.textContent='外す';remove.onclick=()=>wrapper.remove();
+  wrapper.append(input,remove);$('omDates').append(wrapper);
+ }
+ function open(studentId,linkedKey){
+  try{
+   const key=linkedKey||{classId:curClassId,year:curYear,month:curMonth,session:curSession,studentId};
+   const suggested=linkedKey?'':sessionDate(curYear,curMonth,curSession)?.iso||'';
+   draft=optionalMakeups.begin(store,key,suggested);
+   const student=store.classes.find(c=>c.id===key.classId).students.find(s=>String(s.id)===String(studentId));
+   $('omContext').textContent=`${student.name} ／ ${key.year}年${key.month}月 第${key.session}回`;
+   $('omAbsent').value=draft.absent;$('omDates').replaceChildren();$('omError').textContent='';
+   if(draft.entries.length)draft.entries.forEach(m=>row(m.makeup));else row();
+   $('omDialog').showModal();
+  }catch(e){alert(e.message);}
+ }
+ $('omAdd').onclick=()=>row();$('omCancel').onclick=()=>$('omDialog').close();
+ $('omDialog').addEventListener('close',()=>{draft=null;$('omDates').replaceChildren();$('omContext').textContent='';$('omAbsent').value='';$('omError').textContent='';});
+ $('omApply').onclick=()=>{
+  if(!draft||draft.done)return;
+  $('omApply').disabled=true;
+  try{
+   const values=[...$('omDates').querySelectorAll('input')].map(i=>i.value);
+   const changed=optionalMakeups.apply(store,draft,$('omAbsent').value,values,()=>crypto.randomUUID());
+   if(changed)markDirty();$('omDialog').close();if(changed){renderContent();if(document.getElementById('dlgMakeup')?.open)renderMakeup();}
+  }catch(e){$('omError').textContent=e.message;}
+  finally{$('omApply').disabled=false;}
+ };
+ return {open};
+})();
+
 init();
 /* Read-only history. Never call the input renderer, ensure(), or persistence here. */
 const attendanceHistoryView = (() => {
@@ -1577,9 +1711,28 @@ const attendanceHistoryView = (() => {
     $('rhYear').innerHTML=[...ys].sort().reverse().map(y=>`<option value="${esc(y)}">${esc(y)}年</option>`).join('');
     $('rhYear').value=String(preferred || new Date().getFullYear());
   }
+  function registeredMakeups(cls,y,m,session,studentId) {
+    let linked=[];
+    try{linked=optionalMakeups.dates(snapshot,{classId:cls.id,year:y,month:m,session,studentId});}catch(e){}
+    return [...linked,...legacyRegisteredMakeups(cls,y,m,session,studentId)];
+  }
+  function legacyRegisteredMakeups(cls,y,m,session,studentId) {
+    const rec=record(cls.id,y,m,session), absent=rec.date;
+    const validDate=value=>typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T00:00:00Z')) && new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+    if(!['×','✖','✖️'].includes(rec.att?.[studentId]) || !validDate(absent))return [];
+    // Dates are the only stored link. Never infer a historical date from today's class schedule.
+    let matches=0;
+    for(const year of yearKeys(snapshot.records?.[cls.id]))for(let month=1;month<=12;month++)for(const n of [1,2]){
+      if(record(cls.id,year,month,n).date===absent)matches++;
+    }
+    if(matches!==1)return [];
+    const owners=(cls.students || []).filter(st=>String(st.id)===studentId);
+    if(owners.length!==1 || !Array.isArray(owners[0].makeups))return [];
+    return owners[0].makeups.filter(entry=>entry && !entry.absenceId && entry.absent===absent && validDate(entry.makeup)).map(entry=>entry.makeup);
+  }
   function cellHtml(cls,y,m,s) {
     const value=cell(cls.id,y,m,s.id);
-    return `<div class="rh-att">${value.sessions.map(r=>`<span>第${r.session}回：${esc(r.attendance)}</span>`).join('')}</div><div class="rh-pay">月謝受領日：${value.receipts.length?value.receipts.map(r=>esc(r.receipt)).join(' ／ '):'未記録'}</div>`;
+    return `<div class="rh-att">${value.sessions.map(r=>`<span>第${r.session}回：${esc(r.attendance)}${registeredMakeups(cls,y,m,r.session,s.id).map(date=>` ／ 振替日（登録）：${esc(date)}`).join('')}</span>`).join('')}</div><div class="rh-pay">月謝受領日：${value.receipts.length?value.receipts.map(r=>esc(r.receipt)).join(' ／ '):'未記録'}</div>`;
   }
   function render() {
     const cls=selectedClass(), year=$('rhYear').value, ms=months(), q=$('rhSearch').value.trim();
@@ -1587,8 +1740,8 @@ const attendanceHistoryView = (() => {
     if(!cls){$('rhTable').innerHTML='<p class="rh-empty">表示できるクラスはありません。</p>';$('rhCount').textContent='';return;}
     const roster=students(cls,year), rows=roster.filter(s=>(selectedStudent===null || s.id===selectedStudent)&&(!q || s.name.includes(q)||s.id.includes(q)));
     $('rhCount').textContent=`${cls.name || 'クラス'} ／ ${year}年 ${ms[0]}〜${ms[ms.length-1]}月 ／ ${rows.length}名`;
-    $('rhTable').innerHTML=rows.length?`<table><thead><tr><th scope="col">生徒名</th>${ms.map(m=>`<th scope="col">${m}月</th>`).join('')}</tr></thead><tbody>${rows.map(s=>`<tr><th scope="row"><button type="button" data-rh-student="${esc(s.id)}">${esc(s.name)}</button><small>ID：${esc(s.id)}${s.inactive?' ／ 退会':''}</small></th>${ms.map(m=>`<td>${cellHtml(cls,year,m,s)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'<p class="rh-empty">該当する生徒はいません。</p>';
-    $('rhTable').querySelectorAll('[data-rh-student]').forEach(b=>b.onclick=()=>{selectedStudent=b.dataset.rhStudent;$('rhSearch').value='';render();});
+    $('rhTable').innerHTML=rows.length?`<table><thead><tr><th scope="col">月</th>${rows.map(s=>`<th scope="col"><button type="button" data-rh-student="${esc(s.id)}">${esc(s.name)}</button><small>ID：${esc(s.id)}${s.inactive?' ／ 退会':''}</small></th>`).join('')}</tr></thead><tbody>${ms.map(m=>`<tr><th scope="row">${m}月</th>${rows.map(s=>`<td>${cellHtml(cls,year,m,s)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'<p class="rh-empty">該当する生徒はいません。</p>';
+    $('rhTable').querySelectorAll('[data-rh-student]').forEach(b=>b.onclick=()=>{selectedStudent=b.dataset.rhStudent;$('rhSearch').value='';render();$('rhTable').scrollLeft=0;});
   }
   function open() {
     // Snapshot only data already available in this teacher's current screen, including unsaved edits.
@@ -1597,24 +1750,24 @@ const attendanceHistoryView = (() => {
     $('rhClass').innerHTML=snapshot.classes.map(c=>`<option value="${esc(c.id)}">${esc(c.name || 'クラス')}</option>`).join('');
     $('rhClass').value=snapshot.classes.some(c=>String(c.id)===String(curClassId))?String(curClassId):String(snapshot.classes[0]?.id || '');
     $('rhFilters').open=!(window.matchMedia && window.matchMedia('(max-width:600px)').matches);
-    setYears(curYear);$('rhPeriod').value='all';$('rhSearch').value='';render();$('rhTable').scrollLeft=0;$('rhDialog').showModal();
+    setYears(curYear);$('rhPeriod').value='all';$('rhSearch').value='';render();$('rhTable').scrollLeft=0;$('rhTable').scrollTop=0;$('rhDialog').showModal();
   }
   function close() {$('rhDialog').close();}
   function release() {snapshot={classes:[],records:{}};selectedStudent=null;$('rhTable').innerHTML='';$('rhScope').textContent='';$('rhCount').textContent='';$('rhClass').innerHTML='';$('rhYear').innerHTML='';$('rhSearch').value='';}
   function bind() {
     if(window.matchMedia){const media=window.matchMedia('(max-width:600px)');media.addEventListener('change',e=>{$('rhFilters').open=!e.matches;});}
     $('btnReceiptHistory').onclick=open;$('rhClose').onclick=close;$('rhDialog').addEventListener('close',release);
-    $('rhClass').onchange=()=>{selectedStudent=null;setYears($('rhYear').value);render();$('rhTable').scrollLeft=0;};
-    for(const id of ['rhYear','rhPeriod'])$(id).onchange=()=>{render();$('rhTable').scrollLeft=0;};
+    $('rhClass').onchange=()=>{selectedStudent=null;setYears($('rhYear').value);render();$('rhTable').scrollLeft=0;$('rhTable').scrollTop=0;};
+    for(const id of ['rhYear','rhPeriod'])$(id).onchange=()=>{render();$('rhTable').scrollLeft=0;$('rhTable').scrollTop=0;};
     $('rhSearch').oninput=()=>{selectedStudent=null;render();};$('rhBack').onclick=()=>{selectedStudent=null;render();};
-    $('rhReset').onclick=()=>{selectedStudent=null;$('rhSearch').value='';$('rhPeriod').value='all';render();$('rhTable').scrollLeft=0;};
+    $('rhReset').onclick=()=>{selectedStudent=null;$('rhSearch').value='';$('rhPeriod').value='all';render();$('rhTable').scrollLeft=0;$('rhTable').scrollTop=0;};
     function stepMonth(direction) {
-      const table=$('rhTable'), headers=[...table.querySelectorAll('thead th')];
-      if(headers.length<2)return;
-      const current=table.scrollLeft, nameRight=headers[0].getBoundingClientRect().right;
-      const stops=headers.slice(1).map(h=>Math.max(0,current+h.getBoundingClientRect().left-nameRight));
+      const table=$('rhTable'), headers=[...table.querySelectorAll('thead th')], months=[...table.querySelectorAll('tbody th[scope="row"]')];
+      if(!headers.length || !months.length)return;
+      const current=table.scrollTop, headerBottom=Math.max(...headers.map(h=>h.getBoundingClientRect().bottom));
+      const stops=months.map(h=>Math.max(0,current+h.getBoundingClientRect().top-headerBottom));
       const target=direction>0?stops.find(x=>x>current+1):stops.reverse().find(x=>x<current-1);
-      if(target!==undefined)table.scrollLeft=target;
+      if(target!==undefined)table.scrollTop=target;
     }
     $('rhEarlier').onclick=()=>stepMonth(-1);$('rhLater').onclick=()=>stepMonth(1);
   }
