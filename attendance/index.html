@@ -241,6 +241,23 @@
 #btnReceiptHistory{margin:8px 14px 0}
 @media(max-width:600px){#rhDialog .rh-body{padding:10px}#rhDialog .rh-table{max-height:45vh}#rhDialog th:first-child{min-width:112px;max-width:130px}#rhDialog label{flex-basis:40%}}
 
+#rhFilters{margin:0;border:0;padding:0}
+#rhFilters>summary{display:none;cursor:pointer;font-size:13px;font-weight:600;padding:8px 2px;color:#995900}
+#rhDialog .rh-pay{overflow-wrap:anywhere;line-height:1.6}
+@media(max-width:600px){
+  #rhDialog{height:92vh;height:92dvh;max-height:92vh;max-height:92dvh;overflow:hidden}
+  #rhDialog .rh-heading{min-height:60px;padding:8px 12px}
+  #rhDialog .rh-body{height:calc(100% - 60px);display:flex;flex-direction:column;min-height:0;gap:6px}
+  #rhFilters{flex:none;max-height:42vh;overflow:auto}
+  #rhFilters>summary{display:list-item;margin-left:16px}
+  #rhDialog #rhCount{margin:0;font-size:12px;flex:none}
+  #rhDialog .rh-table{flex:1;min-height:100px;max-height:none}
+  #rhDialog .rh-scroll{flex:none;margin-top:0;gap:6px}
+  #rhDialog .rh-scroll span{display:none}
+  #rhDialog .rh-filters{gap:6px}
+  #rhDialog .rh-filters button,#rhDialog .rh-filters select,#rhDialog .rh-filters input{min-height:36px;padding:6px}
+}
+
 </style>
 </head>
 <body>
@@ -276,6 +293,7 @@
 <dialog id="rhDialog" aria-labelledby="rhTitle">
   <div class="rh-heading"><h2 id="rhTitle">出欠・月謝一覧</h2><button type="button" id="rhClose">閉じる</button></div>
   <div class="rh-body">
+    <details id="rhFilters" open><summary>絞り込み・表示について</summary>
     <p id="rhScope" class="rh-note"></p>
     <div class="rh-filters">
       <label>クラス<select id="rhClass"></select></label>
@@ -283,10 +301,11 @@
       <label>期間<select id="rhPeriod"><option value="all">1〜12月</option><option value="first">1〜6月</option><option value="second">7〜12月</option></select></label>
       <label>生徒名・ID<input id="rhSearch" type="search" placeholder="名前・IDで検索" autocomplete="off"></label>
       <button type="button" id="rhReset">絞り込み解除</button>
-      <button type="button" id="rhBack" hidden>全員の一覧へ戻る</button>
     </div>
-    <p id="rhCount" aria-live="polite"></p>
     <p class="rh-note">空欄は「未記録」です。欠席から未入金とは判定しません。同じ月の受領日は各回の記録をそのまま表示します。受領日と授業日は別の記録です。</p>
+    </details>
+    <button type="button" id="rhBack" hidden>全員の一覧へ戻る</button>
+    <p id="rhCount" aria-live="polite"></p>
     <div id="rhTable" class="rh-table" role="region" tabindex="0" aria-label="生徒別の出欠・月謝一覧。左右にスクロールできます"></div>
     <div class="rh-scroll"><button type="button" id="rhEarlier">← 前の月</button><button type="button" id="rhLater">次の月 →</button><span>生徒名を押すと、その生徒だけ表示します。</span></div>
   </div>
@@ -1560,7 +1579,7 @@ const attendanceHistoryView = (() => {
   }
   function cellHtml(cls,y,m,s) {
     const value=cell(cls.id,y,m,s.id);
-    return `<div class="rh-att">${value.sessions.map(r=>`<span>第${r.session}回：${esc(r.attendance)}</span>`).join('')}</div><div class="rh-pay">月謝受領日：${value.receipts.length?value.receipts.map(r=>`<div>第${r.session}回の記録：${esc(r.receipt)}</div>`).join(''):'未記録'}</div>`;
+    return `<div class="rh-att">${value.sessions.map(r=>`<span>第${r.session}回：${esc(r.attendance)}</span>`).join('')}</div><div class="rh-pay">月謝受領日：${value.receipts.length?value.receipts.map(r=>esc(r.receipt)).join(' ／ '):'未記録'}</div>`;
   }
   function render() {
     const cls=selectedClass(), year=$('rhYear').value, ms=months(), q=$('rhSearch').value.trim();
@@ -1577,11 +1596,13 @@ const attendanceHistoryView = (() => {
     $('rhScope').textContent=`${store.teacherId || '講師未選択'}：この画面に読み込まれている記録（未保存の入力を含む）です。閲覧専用で、一覧の操作では保存しません。`;
     $('rhClass').innerHTML=snapshot.classes.map(c=>`<option value="${esc(c.id)}">${esc(c.name || 'クラス')}</option>`).join('');
     $('rhClass').value=snapshot.classes.some(c=>String(c.id)===String(curClassId))?String(curClassId):String(snapshot.classes[0]?.id || '');
+    $('rhFilters').open=!(window.matchMedia && window.matchMedia('(max-width:600px)').matches);
     setYears(curYear);$('rhPeriod').value='all';$('rhSearch').value='';render();$('rhTable').scrollLeft=0;$('rhDialog').showModal();
   }
   function close() {$('rhDialog').close();}
   function release() {snapshot={classes:[],records:{}};selectedStudent=null;$('rhTable').innerHTML='';$('rhScope').textContent='';$('rhCount').textContent='';$('rhClass').innerHTML='';$('rhYear').innerHTML='';$('rhSearch').value='';}
   function bind() {
+    if(window.matchMedia){const media=window.matchMedia('(max-width:600px)');media.addEventListener('change',e=>{$('rhFilters').open=!e.matches;});}
     $('btnReceiptHistory').onclick=open;$('rhClose').onclick=close;$('rhDialog').addEventListener('close',release);
     $('rhClass').onchange=()=>{selectedStudent=null;setYears($('rhYear').value);render();$('rhTable').scrollLeft=0;};
     for(const id of ['rhYear','rhPeriod'])$(id).onchange=()=>{render();$('rhTable').scrollLeft=0;};
